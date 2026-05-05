@@ -14,7 +14,19 @@ const slideUpKeyframe = `
 
 export default function ChatWidget({ config }) {
   const primaryColor = config?.theme?.primaryColor || '#1a73e8';
-  const schoolName = config?.theme?.name || 'School Support';
+
+  // Multi-school support: config.schools = [{ id, name }, ...]
+  const isMultiSchool = Array.isArray(config?.schools) && config.schools.length > 1;
+  const [selectedSchool, setSelectedSchool] = useState(null);
+
+  // Effective config resolved after school selection (or single-school)
+  const effectiveSchoolId = selectedSchool?.id || config?.schoolId;
+  const effectiveSchoolName = selectedSchool?.name || config?.theme?.name || 'School Support';
+  const effectiveConfig = {
+    ...config,
+    schoolId: effectiveSchoolId,
+    theme: { ...config?.theme, name: effectiveSchoolName },
+  };
 
   const { sessionId } = useSession();
   const {
@@ -29,11 +41,12 @@ export default function ChatWidget({ config }) {
 
   const [isOpen, setIsOpen] = useState(false);
 
+  // Fetch greeting once school is known and chat is open
   useEffect(() => {
-    if (isOpen && !hasGreeted) {
-      fetchGreeting(config, sessionId);
+    if (isOpen && !hasGreeted && effectiveSchoolId) {
+      fetchGreeting(effectiveConfig, sessionId);
     }
-  }, [isOpen]);
+  }, [isOpen, selectedSchool]);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
 
@@ -55,28 +68,89 @@ export default function ChatWidget({ config }) {
         borderRadius: '16px',
       };
 
+  const panelStyle = {
+    ...windowStyle,
+    background: 'white',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+    display: 'flex',
+    flexDirection: 'column',
+    zIndex: 9998,
+    animation: 'schoolbot-slideup 0.2s ease-out',
+    overflow: 'hidden',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  };
+
   return (
     <>
       <style>{slideUpKeyframe}</style>
 
-      {/* Chat window */}
-      {isOpen && (
-        <div
-          style={{
-            ...windowStyle,
-            background: 'white',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+      {/* School selection screen */}
+      {isOpen && isMultiSchool && !selectedSchool && (
+        <div style={panelStyle}>
+          <div style={{
+            background: primaryColor,
+            padding: '18px 20px',
+            color: 'white',
             display: 'flex',
-            flexDirection: 'column',
-            zIndex: 9998,
-            animation: 'schoolbot-slideup 0.2s ease-out',
-            overflow: 'hidden',
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          }}
-        >
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 700 }}>Welcome!</div>
+              <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>School Admissions Assistant</div>
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', padding: '4px' }}
+              aria-label="Close"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          <div style={{ padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+            <p style={{ fontSize: '14px', color: '#444', marginBottom: '4px', lineHeight: '1.5' }}>
+              Hi there! Which school are you enquiring about?
+            </p>
+            {config.schools.map(school => (
+              <button
+                key={school.id}
+                onClick={() => setSelectedSchool(school)}
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: '12px',
+                  border: `2px solid ${primaryColor}`,
+                  background: 'white',
+                  color: primaryColor,
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = primaryColor;
+                  e.currentTarget.style.color = 'white';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.color = primaryColor;
+                }}
+              >
+                {school.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Chat window */}
+      {isOpen && (!isMultiSchool || selectedSchool) && (
+        <div style={panelStyle}>
           <ChatHeader
-            schoolName={schoolName}
+            schoolName={effectiveSchoolName}
             primaryColor={primaryColor}
             onClose={() => setIsOpen(false)}
           />
@@ -86,11 +160,11 @@ export default function ChatWidget({ config }) {
             isLoading={isLoading}
             primaryColor={primaryColor}
             onSuggestionSelect={(q, msgId) =>
-              handleSuggestionClick(q, msgId, config, sessionId)
+              handleSuggestionClick(q, msgId, effectiveConfig, sessionId)
             }
           />
           <ChatInput
-            onSend={(text) => sendMessage(text, config, sessionId)}
+            onSend={(text) => sendMessage(text, effectiveConfig, sessionId)}
             isLoading={isLoading}
             primaryColor={primaryColor}
           />
