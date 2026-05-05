@@ -12,7 +12,7 @@ export default function handler(req, res) {
   try {
     const content = fs.readFileSync(widgetPath, 'utf-8');
     res.setHeader('Content-Type', 'application/javascript');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.status(200).send(content);
   } catch {
     res.status(404).json({ error: 'Widget not found — run npm run build:widget first' });
