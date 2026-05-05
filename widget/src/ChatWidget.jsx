@@ -51,7 +51,7 @@ export default function ChatWidget({ config }) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
   const windowStyle = isMobile
     ? { position: 'fixed', bottom: 0, right: 0, width: '100vw', height: '100vh', borderRadius: 0 }
-    : { position: 'fixed', bottom: '92px', right: '24px', width: '380px', height: '560px', borderRadius: '16px' };
+    : { position: 'fixed', bottom: '92px', right: '24px', width: '380px', height: '560px', maxHeight: 'calc(100vh - 120px)', borderRadius: '16px' };
 
   const panelStyle = {
     ...windowStyle,
