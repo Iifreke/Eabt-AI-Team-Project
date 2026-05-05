@@ -4,7 +4,7 @@ import ChatWidget from './ChatWidget.jsx';
 
 const config = window.SchoolBotConfig;
 
-if (!config || !config.schoolId || !config.apiUrl) {
+if (!config || (!config.schoolId && !Array.isArray(config.schools)) || !config.apiUrl) {
   console.warn('[SchoolBot] Missing SchoolBotConfig. Widget not loaded.');
 } else {
   const container = document.createElement('div');
