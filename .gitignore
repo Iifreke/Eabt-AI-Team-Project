@@ -1,0 +1,15 @@
+# Environment — never commit real secrets
+.env
+.env.local
+
+# Dependencies
+node_modules/
+widget/node_modules/
+admin/node_modules/
+
+# Build outputs (Vercel builds these at deploy time)
+widget/dist/
+admin/dist/
+
+# Vercel
+.vercel

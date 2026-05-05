@@ -1,0 +1,19 @@
+{
+  "name": "school-rag-agent",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:widget && npm run build:admin",
+    "build:widget": "cd widget && npm install && node node_modules/vite/bin/vite.js build",
+    "build:admin": "cd admin && npm install && node node_modules/vite/bin/vite.js build",
+    "dev:widget": "cd widget && node node_modules/vite/bin/vite.js",
+    "dev:admin": "cd admin && node node_modules/vite/bin/vite.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.3",
+    "mammoth": "^1.12.0",
+    "openai": "^6.36.0",
+    "pdf-parse": "1.1.1",
+    "resend": "^6.12.2",
+    "uuid": "^14.0.0"
+  }
+}
