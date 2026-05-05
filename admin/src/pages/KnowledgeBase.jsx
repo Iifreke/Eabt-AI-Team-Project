@@ -5,8 +5,8 @@ import Sidebar from '../components/Sidebar.jsx';
 import FileUploader from '../components/FileUploader.jsx';
 
 const SCHOOLS = [
-  { slug: 'backock', name: 'Backock School' },
-  { slug: 'abu', name: 'ABU' },
+  { slug: 'backock', name: 'Babcock University' },
+  { slug: 'abu', name: 'ABU (Ahmadu Bello University)' },
 ];
 
 function formatSize(bytes) {

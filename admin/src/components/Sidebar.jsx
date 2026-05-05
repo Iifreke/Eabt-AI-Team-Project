@@ -64,8 +64,8 @@ export default function Sidebar() {
             className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-blue-500"
           >
             <option value="all">All Schools</option>
-            <option value="backock">Backock School</option>
-            <option value="abu">ABU</option>
+            <option value="backock">Babcock University</option>
+            <option value="abu">ABU (Ahmadu Bello University)</option>
           </select>
         </div>
 
