@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Backock School — Chat Widget Test</title>
+  <title>School AI Chatbot — Live Demo</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -58,6 +58,21 @@
       align-items: center;
       gap: 8px;
     }
+    .schools-badge {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      background: #1a73e8;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -68,17 +83,21 @@
       <path d="M6 12v5c3 3 9 3 12 0v-5"/>
     </svg>
     <div>
-      <h1>Backock University</h1>
-      <p>Excellence in Education</p>
+      <h1>School AI Chatbot — Live Demo</h1>
+      <p>Powered by Antigravity</p>
     </div>
   </header>
 
   <div class="hero">
-    <h2>Welcome to Backock University</h2>
+    <h2>Welcome to the AI Admissions Assistant</h2>
     <p>
-      Get instant answers to your questions about admissions, programmes,
-      fees, and campus life — 24/7, powered by AI.
+      Get instant answers about admissions, programmes, fees, and campus life — 24/7, powered by AI.
     </p>
+
+    <div class="schools-badge">
+      <span class="badge">Babcock University</span>
+      <span class="badge">ABU (Ahmadu Bello University)</span>
+    </div>
 
     <div class="cards">
       <div class="card">
@@ -89,7 +108,7 @@
       <div class="card">
         <div class="icon">📚</div>
         <h3>Programmes</h3>
-        <p>Explore our undergraduate and postgraduate degree offerings.</p>
+        <p>Explore undergraduate and postgraduate degree offerings.</p>
       </div>
       <div class="card">
         <div class="icon">🏛️</div>
@@ -114,11 +133,11 @@
         { id: 'backock', name: 'Babcock University' },
         { id: 'abu',     name: 'ABU (Ahmadu Bello University)' }
       ],
-      apiUrl: 'http://localhost:3000',
+      apiUrl: 'https://school-rag-agent.vercel.app',
       theme: { primaryColor: '#1a73e8' }
     };
   </script>
-  <script src="widget/dist/widget.js"></script>
+  <script src="https://school-rag-agent.vercel.app/widget.js"></script>
 
 </body>
 </html>

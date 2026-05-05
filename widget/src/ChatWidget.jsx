@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSession } from './hooks/useSession.js';
 import { useChat } from './hooks/useChat.js';
 import ChatHeader from './components/ChatHeader.jsx';
@@ -12,61 +12,46 @@ const slideUpKeyframe = `
 }
 `;
 
+const inputStyle = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: '8px',
+  border: '1.5px solid #ddd',
+  fontSize: '14px',
+  outline: 'none',
+  fontFamily: 'inherit',
+  transition: 'border-color 0.15s',
+};
+
 export default function ChatWidget({ config }) {
   const primaryColor = config?.theme?.primaryColor || '#1a73e8';
-
-  // Multi-school support: config.schools = [{ id, name }, ...]
   const isMultiSchool = Array.isArray(config?.schools) && config.schools.length > 1;
-  const [selectedSchool, setSelectedSchool] = useState(null);
 
-  // Effective config resolved after school selection (or single-school)
-  const effectiveSchoolId = selectedSchool?.id || config?.schoolId;
-  const effectiveSchoolName = selectedSchool?.name || config?.theme?.name || 'School Support';
-  const effectiveConfig = {
-    ...config,
-    schoolId: effectiveSchoolId,
-    theme: { ...config?.theme, name: effectiveSchoolName },
-  };
-
-  const { sessionId } = useSession();
-  const {
-    messages,
-    stage,
-    isLoading,
-    hasGreeted,
-    fetchGreeting,
-    sendMessage,
-    handleSuggestionClick,
-  } = useChat();
-
+  // Step tracking: 'school' | 'form' | 'chat'
+  const [step, setStep] = useState(isMultiSchool ? 'school' : 'form');
+  const [selectedSchool, setSelectedSchool] = useState(
+    isMultiSchool ? null : { id: config?.schoolId, name: config?.theme?.name || 'School Support' }
+  );
   const [isOpen, setIsOpen] = useState(false);
 
-  // Fetch greeting once school is known and chat is open
-  useEffect(() => {
-    if (isOpen && !hasGreeted && effectiveSchoolId) {
-      fetchGreeting(effectiveConfig, sessionId);
-    }
-  }, [isOpen, selectedSchool]);
+  // Form state
+  const [form, setForm] = useState({ name: '', email: '', phone: '' });
+  const [formError, setFormError] = useState('');
+  const [formLoading, setFormLoading] = useState(false);
+
+  const { sessionId } = useSession();
+  const { messages, stage, isLoading, submitLead, sendMessage, handleSuggestionClick } = useChat();
+
+  const effectiveConfig = {
+    ...config,
+    schoolId: selectedSchool?.id,
+    theme: { ...config?.theme, name: selectedSchool?.name },
+  };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
-
   const windowStyle = isMobile
-    ? {
-        position: 'fixed',
-        bottom: 0,
-        right: 0,
-        width: '100vw',
-        height: '100vh',
-        borderRadius: 0,
-      }
-    : {
-        position: 'fixed',
-        bottom: '92px',
-        right: '24px',
-        width: '380px',
-        height: '560px',
-        borderRadius: '16px',
-      };
+    ? { position: 'fixed', bottom: 0, right: 0, width: '100vw', height: '100vh', borderRadius: 0 }
+    : { position: 'fixed', bottom: '92px', right: '24px', width: '380px', height: '560px', borderRadius: '16px' };
 
   const panelStyle = {
     ...windowStyle,
@@ -80,64 +65,67 @@ export default function ChatWidget({ config }) {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   };
 
+  function PanelHeader({ title, subtitle, onClose }) {
+    return (
+      <div style={{ background: primaryColor, padding: '18px 20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div>
+          <div style={{ fontSize: '15px', fontWeight: 700 }}>{title}</div>
+          {subtitle && <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>{subtitle}</div>}
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', padding: '4px', display: 'flex', alignItems: 'center' }} aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
+  function handleClose() {
+    setIsOpen(false);
+  }
+
+  function handleSchoolSelect(school) {
+    setSelectedSchool(school);
+    setStep('form');
+  }
+
+  async function handleFormSubmit(e) {
+    e.preventDefault();
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const phone = form.phone.trim();
+
+    if (!name) { setFormError('Please enter your full name.'); return; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFormError('Please enter a valid email address.'); return; }
+    if (!phone || phone.length < 8) { setFormError('Please enter a valid phone number.'); return; }
+
+    setFormError('');
+    setFormLoading(true);
+    await submitLead({ name, email, phone }, effectiveConfig, sessionId);
+    setFormLoading(false);
+    setStep('chat');
+  }
+
   return (
     <>
       <style>{slideUpKeyframe}</style>
 
-      {/* School selection screen */}
-      {isOpen && isMultiSchool && !selectedSchool && (
+      {/* ── SCHOOL PICKER ── */}
+      {isOpen && step === 'school' && (
         <div style={panelStyle}>
-          <div style={{
-            background: primaryColor,
-            padding: '18px 20px',
-            color: 'white',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: 700 }}>Welcome!</div>
-              <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>School Admissions Assistant</div>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', padding: '4px' }}
-              aria-label="Close"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-
-          <div style={{ padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-            <p style={{ fontSize: '14px', color: '#444', marginBottom: '4px', lineHeight: '1.5' }}>
-              Hi there! Which school are you enquiring about?
+          <PanelHeader title="Welcome!" subtitle="School Admissions Assistant" onClose={handleClose} />
+          <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+            <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.6' }}>
+              Which school are you enquiring about?
             </p>
             {config.schools.map(school => (
               <button
                 key={school.id}
-                onClick={() => setSelectedSchool(school)}
-                style={{
-                  padding: '16px 18px',
-                  borderRadius: '12px',
-                  border: `2px solid ${primaryColor}`,
-                  background: 'white',
-                  color: primaryColor,
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = primaryColor;
-                  e.currentTarget.style.color = 'white';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'white';
-                  e.currentTarget.style.color = primaryColor;
-                }}
+                onClick={() => handleSchoolSelect(school)}
+                style={{ padding: '16px 18px', borderRadius: '12px', border: `2px solid ${primaryColor}`, background: 'white', color: primaryColor, fontSize: '14px', fontWeight: 600, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease' }}
+                onMouseEnter={e => { e.currentTarget.style.background = primaryColor; e.currentTarget.style.color = 'white'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = primaryColor; }}
               >
                 {school.name}
               </button>
@@ -146,22 +134,91 @@ export default function ChatWidget({ config }) {
         </div>
       )}
 
-      {/* Chat window */}
-      {isOpen && (!isMultiSchool || selectedSchool) && (
+      {/* ── LEAD FORM ── */}
+      {isOpen && step === 'form' && (
+        <div style={panelStyle}>
+          <PanelHeader
+            title={selectedSchool?.name || 'School Support'}
+            subtitle="Just a few quick details to get started"
+            onClose={handleClose}
+          />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+            <p style={{ fontSize: '13px', color: '#666', marginBottom: '18px', lineHeight: '1.5' }}>
+              Hi! To help you better, please fill in your details below. It only takes a moment.
+            </p>
+            <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Full Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Amaka Johnson"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor}
+                  onBlur={e => e.target.style.borderColor = '#ddd'}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Email Address</label>
+                <input
+                  type="email"
+                  placeholder="e.g. amaka@gmail.com"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor}
+                  onBlur={e => e.target.style.borderColor = '#ddd'}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Phone Number</label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 08012345678"
+                  value={form.phone}
+                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor}
+                  onBlur={e => e.target.style.borderColor = '#ddd'}
+                  required
+                />
+              </div>
+
+              {formError && (
+                <div style={{ fontSize: '12px', color: '#d93025', background: '#fce8e6', padding: '8px 12px', borderRadius: '6px' }}>
+                  {formError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={formLoading}
+                style={{ background: formLoading ? '#999' : primaryColor, color: 'white', border: 'none', borderRadius: '10px', padding: '13px', fontSize: '14px', fontWeight: 700, cursor: formLoading ? 'not-allowed' : 'pointer', marginTop: '4px', transition: 'background 0.15s' }}
+              >
+                {formLoading ? 'Starting chat...' : 'Start Chat →'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── CHAT ── */}
+      {isOpen && step === 'chat' && (
         <div style={panelStyle}>
           <ChatHeader
-            schoolName={effectiveSchoolName}
+            schoolName={selectedSchool?.name || config?.theme?.name || 'School Support'}
             primaryColor={primaryColor}
-            onClose={() => setIsOpen(false)}
+            onClose={handleClose}
           />
           <MessageList
             messages={messages}
             stage={stage}
             isLoading={isLoading}
             primaryColor={primaryColor}
-            onSuggestionSelect={(q, msgId) =>
-              handleSuggestionClick(q, msgId, effectiveConfig, sessionId)
-            }
+            onSuggestionSelect={(q, msgId) => handleSuggestionClick(q, msgId, effectiveConfig, sessionId)}
           />
           <ChatInput
             onSend={(text) => sendMessage(text, effectiveConfig, sessionId)}
@@ -171,46 +228,18 @@ export default function ChatWidget({ config }) {
         </div>
       )}
 
-      {/* Floating bubble */}
+      {/* ── FLOATING BUBBLE ── */}
       <button
         onClick={() => setIsOpen(o => !o)}
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
-          background: primaryColor,
-          border: 'none',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.transform = 'scale(1.08)';
-          e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.3)';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.25)';
-        }}
-        aria-label="Open chat"
+        style={{ position: 'fixed', bottom: '24px', right: '24px', width: '56px', height: '56px', borderRadius: '50%', background: primaryColor, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.25)', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.3)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.25)'; }}
+        aria-label={isOpen ? 'Close chat' : 'Open chat'}
       >
-        {isOpen ? (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        ) : (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        )}
+        {isOpen
+          ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          : <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+        }
       </button>
     </>
   );

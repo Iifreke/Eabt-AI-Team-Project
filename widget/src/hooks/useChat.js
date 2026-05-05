@@ -7,7 +7,7 @@ function nextId() {
 
 export function useChat() {
   const [messages, setMessages] = useState([]);
-  const [stage, setStage] = useState('onboarding');
+  const [stage, setStage] = useState('active');
   const [lead, setLead] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [hasGreeted, setHasGreeted] = useState(false);
@@ -136,6 +136,48 @@ export function useChat() {
     [sendMessage]
   );
 
+  const submitLead = useCallback(async (formData, config, sessionId) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${config.apiUrl}/api/chat/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schoolId: config.schoolId,
+          sessionId,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+        }),
+      });
+      const data = await res.json();
+      setMessages([{
+        id: nextId(),
+        role: 'assistant',
+        content: data.message || 'Welcome! How can I help you today?',
+        suggestions: [],
+        suggestionsUsed: false,
+        ts: Date.now(),
+      }]);
+      setStage('active');
+      setLead(data.lead || {});
+      setHasGreeted(true);
+    } catch {
+      setMessages([{
+        id: nextId(),
+        role: 'assistant',
+        content: 'Welcome! How can I help you today?',
+        suggestions: [],
+        suggestionsUsed: false,
+        ts: Date.now(),
+      }]);
+      setStage('active');
+      setHasGreeted(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     messages,
     stage,
@@ -145,5 +187,6 @@ export function useChat() {
     fetchGreeting,
     sendMessage,
     handleSuggestionClick,
+    submitLead,
   };
 }
