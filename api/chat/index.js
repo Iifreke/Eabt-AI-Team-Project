@@ -187,6 +187,16 @@ export default async function handler(req, res) {
 
     messages.push({ role: 'assistant', content: cleanResponse, ts: Date.now() });
 
+    // Add escalation notification into the conversation so the visitor sees it
+    // and it survives polling rebuilds (it's stored in DB, not just local state)
+    if (newStage === 'escalated') {
+      messages.push({
+        role: 'assistant',
+        content: "I've connected you with our support team. They'll reply here shortly — you can keep sending messages and they'll see them.",
+        ts: Date.now() + 1,
+      });
+    }
+
     await supabase
       .from('conversations')
       .update({
@@ -199,7 +209,8 @@ export default async function handler(req, res) {
 
     const suggestions = await generateSuggestions(school.name, cleanResponse);
 
-    sendChunk({ done: true, stage: newStage, lead, suggestions });
+    // Include full messages when escalating so widget rebuilds immediately without waiting for poll
+    sendChunk({ done: true, stage: newStage, lead, suggestions, ...(newStage === 'escalated' ? { messages } : {}) });
     return res.end();
   } catch (error) {
     console.error('chat error:', error);

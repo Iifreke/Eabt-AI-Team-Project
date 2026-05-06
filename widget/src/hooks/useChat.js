@@ -101,11 +101,14 @@ export function useChat() {
 
     setIsLoading(true);
 
-    // Create empty bot placeholder (not shown for escalated)
-    setMessages(prev => [
-      ...prev,
-      { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
-    ]);
+    // Only add a placeholder when the bot will actually stream a response.
+    // During escalated stage the server returns existing messages directly — no streaming.
+    if (stage !== 'escalated') {
+      setMessages(prev => [
+        ...prev,
+        { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
+      ]);
+    }
 
     try {
       const response = await fetch(`${cfg.apiUrl}/api/chat`, {
