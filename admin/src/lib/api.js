@@ -53,12 +53,12 @@ export const api = {
     authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
 
   documents: (schoolId) =>
-    authFetch(`/api/documents/list?schoolId=${schoolId}`),
+    authFetch(`/api/documents?schoolId=${schoolId}`),
 
   processDocument: (data) =>
-    authFetch('/api/documents/process', { method: 'POST', body: JSON.stringify(data) }),
+    authFetch('/api/documents', { method: 'POST', body: JSON.stringify(data) }),
 
   deleteDocument: (documentId) =>
-    authFetch('/api/documents/delete', { method: 'DELETE', body: JSON.stringify({ documentId }) }),
+    authFetch('/api/documents', { method: 'DELETE', body: JSON.stringify({ documentId }) }),
 };
 
