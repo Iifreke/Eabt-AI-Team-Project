@@ -27,7 +27,7 @@ export default function MessageBubble({ message, primaryColor }) {
       {/* Admin label */}
       {isAdmin && (
         <div style={{ fontSize: '11px', color: '#7c3aed', fontWeight: 700, marginBottom: '2px', paddingLeft: '2px' }}>
-          🧑‍💼 Support Agent
+          🧑‍💼 {message.adminName || 'Support Agent'}
         </div>
       )}
       <div

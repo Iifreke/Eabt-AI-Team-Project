@@ -7,6 +7,7 @@ import Leads from './pages/Leads.jsx';
 import Conversations from './pages/Conversations.jsx';
 import Escalations from './pages/Escalations.jsx';
 import KnowledgeBase from './pages/KnowledgeBase.jsx';
+import Users from './pages/Users.jsx';
 
 export default function App() {
   return (
@@ -29,6 +30,9 @@ export default function App() {
         } />
         <Route path="/knowledge-base" element={
           <ProtectedRoute><KnowledgeBase /></ProtectedRoute>
+        } />
+        <Route path="/users" element={
+          <ProtectedRoute><Users /></ProtectedRoute>
         } />
       </Routes>
     </BrowserRouter>

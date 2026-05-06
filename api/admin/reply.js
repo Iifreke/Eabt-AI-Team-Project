@@ -1,5 +1,5 @@
 import { applyCors } from '../../src/utils/cors.js';
-import { requireAuth } from '../../src/utils/auth.js';
+import { requireAuth, getProfile } from '../../src/utils/auth.js';
 import supabase from '../../src/db/supabase.js';
 
 export default async function handler(req, res) {
@@ -32,13 +32,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Can only reply to escalated conversations' });
     }
 
-    // Append admin message
+    // Look up the admin's display name from their profile
+    const profile = await getProfile(user.id);
+    const adminName = profile?.full_name || user.email || 'Support Agent';
+
+    // Append admin message with their real name
     const messages = Array.isArray(conv.messages) ? conv.messages : [];
     messages.push({
       role: 'admin',
       content: message.trim(),
       ts: Date.now(),
-      adminEmail: user.email || 'Admin',
+      adminName,
     });
 
     const { error: updateErr } = await supabase

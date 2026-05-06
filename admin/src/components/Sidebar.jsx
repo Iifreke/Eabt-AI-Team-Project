@@ -1,26 +1,31 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSchool } from '../context/SchoolContext.jsx';
+import { useUser } from '../context/UserContext.jsx';
 
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { to: '/leads', label: 'Leads', icon: '👥' },
-  { to: '/conversations', label: 'Conversations', icon: '💬' },
-  { to: '/escalations', label: 'Escalations', icon: '🚨' },
-  { to: '/knowledge-base', label: 'Knowledge Base', icon: '📚' },
+const baseNav = [
+  { to: '/dashboard',     label: 'Dashboard',      icon: '📊' },
+  { to: '/leads',         label: 'Leads',           icon: '👥' },
+  { to: '/conversations', label: 'Conversations',   icon: '💬' },
+  { to: '/escalations',   label: 'Escalations',     icon: '🚨' },
+  { to: '/knowledge-base',label: 'Knowledge Base',  icon: '📚' },
 ];
+
+const superAdminNav = [
+  { to: '/users', label: 'Team Members', icon: '🔐' },
+];
+
+const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin' };
+const ROLE_COLOR = { super_admin: 'bg-purple-600', admin: 'bg-blue-600' };
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const { selectedSchool, setSelectedSchool } = useSchool();
-  const [userEmail, setUserEmail] = useState('');
+  const { profile } = useUser();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserEmail(session?.user?.email || '');
-    });
-  }, []);
+  const isSuperAdmin = profile?.role === 'super_admin';
+  const navItems = isSuperAdmin ? [...baseNav, ...superAdminNav] : baseNav;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -29,12 +34,12 @@ export default function Sidebar() {
 
   return (
     <div className="fixed left-0 top-0 h-full w-60 bg-gray-900 text-white flex flex-col z-50">
-      <div className="p-6 border-b border-gray-700">
-        <div className="text-lg font-bold">School Bot Admin</div>
-        <div className="text-xs text-gray-400 mt-1">Management Dashboard</div>
+      <div className="p-5 border-b border-gray-700">
+        <div className="text-base font-bold">School Bot Admin</div>
+        <div className="text-xs text-gray-400 mt-0.5">Management Dashboard</div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map(({ to, label, icon }) => (
           <NavLink
             key={to}
@@ -53,11 +58,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-gray-700">
-        <div className="mb-3">
-          <label className="text-xs text-gray-400 uppercase tracking-wider block mb-1">
-            School
-          </label>
+      <div className="p-4 border-t border-gray-700 space-y-3">
+        {/* School filter */}
+        <div>
+          <label className="text-xs text-gray-400 uppercase tracking-wider block mb-1">School</label>
           <select
             value={selectedSchool}
             onChange={e => setSelectedSchool(e.target.value)}
@@ -69,7 +73,19 @@ export default function Sidebar() {
           </select>
         </div>
 
-        <div className="text-xs text-gray-500 truncate mb-2">{userEmail}</div>
+        {/* Current user info */}
+        {profile && (
+          <div className="bg-gray-800 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-xs font-semibold text-white truncate">{profile.full_name || profile.email}</span>
+              <span className={`text-xs text-white px-1.5 py-0.5 rounded-full font-medium ${ROLE_COLOR[profile.role] || 'bg-gray-600'}`}>
+                {ROLE_LABEL[profile.role] || profile.role}
+              </span>
+            </div>
+            <div className="text-xs text-gray-400 truncate">{profile.email}</div>
+          </div>
+        )}
+
         <button
           onClick={handleLogout}
           className="w-full text-sm text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg px-3 py-2 transition-colors text-left"

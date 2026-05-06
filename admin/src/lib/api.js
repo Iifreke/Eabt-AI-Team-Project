@@ -52,6 +52,17 @@ export const api = {
   replyToConversation: (conversationId, message) =>
     authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
 
+  listUsers: () => authFetch('/api/admin/users'),
+
+  inviteUser: ({ email, fullName, role }) =>
+    authFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ email, fullName, role }) }),
+
+  updateUser: (userId, updates) =>
+    authFetch('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ userId, ...updates }) }),
+
+  removeUser: (userId) =>
+    authFetch('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ userId }) }),
+
   documents: (schoolId) =>
     authFetch(`/api/documents?schoolId=${schoolId}`),
 
