@@ -6,7 +6,12 @@ import { useSchool } from '../context/SchoolContext.jsx';
 
 const STAGES = ['all', 'onboarding', 'active', 'escalated'];
 
+// Map DB slugs to display labels (DB slug unchanged)
+const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
+const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
+
 const stageBadge = (stage) => {
+
   const map = {
     onboarding: 'bg-yellow-100 text-yellow-700',
     active: 'bg-green-100 text-green-700',
@@ -99,7 +104,7 @@ export default function Conversations() {
                     <td className="px-5 py-3 font-medium">{conv.leads?.name || '—'}</td>
                     <td className="px-5 py-3">
                       <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
-                        {conv.schools?.slug?.toUpperCase() || '—'}
+                        {schoolBadge(conv.schools?.slug)}
                       </span>
                     </td>
                     <td className="px-5 py-3">

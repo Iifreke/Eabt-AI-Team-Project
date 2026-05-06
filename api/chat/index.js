@@ -60,6 +60,15 @@ export default async function handler(req, res) {
       lead = newLead;
     }
 
+    // Ensure conversation has lead_id linked (so admin dashboard shows lead names)
+    if (!conv.lead_id && lead?.id) {
+      await supabase
+        .from('conversations')
+        .update({ lead_id: lead.id })
+        .eq('id', conv.id);
+      conv.lead_id = lead.id;
+    }
+
     // Append user message
     const messages = conv.messages || [];
     messages.push({ role: 'user', content: message, ts: Date.now() });
@@ -120,19 +129,18 @@ export default async function handler(req, res) {
 
     // ── ESCALATED STAGE ───────────────────────────────────────
     if (conv.stage === 'escalated') {
-      const msg =
-        'Our support team has been notified and will be in touch with you shortly at ' +
-        (lead.email || 'the email you provided') +
-        '. Is there anything else I can help you with in the meantime?';
+      // Append the user's message and save it so admins can see it
+      messages.push({ role: 'user', content: message, ts: Date.now() });
+      await supabase
+        .from('conversations')
+        .update({ messages, updated_at: new Date().toISOString() })
+        .eq('id', conv.id);
 
-      for (const char of msg) {
-        sendChunk({ chunk: char });
-        await new Promise(r => setTimeout(r, 8));
-      }
-
-      sendChunk({ done: true, stage: 'escalated', lead, suggestions: [] });
+      // Return the full updated messages so widget can display admin replies
+      sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages });
       return res.end();
     }
+
 
     // ── ACTIVE STAGE ──────────────────────────────────────────
     const chunks = await searchKnowledgeBase(message, school.id);

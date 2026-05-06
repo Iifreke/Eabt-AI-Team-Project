@@ -2,17 +2,30 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
 import StatsCard from '../components/StatsCard.jsx';
+import { useSchool } from '../context/SchoolContext.jsx';
+
+// Map DB slugs to display names (slug stays as-is in DB)
+const SLUG_DISPLAY = { backock: 'Babcock', abu: 'ABU' };
+const schoolDisplayName = (slug) => SLUG_DISPLAY[slug] || slug?.toUpperCase() || '—';
 
 export default function Dashboard() {
+  const { selectedSchool } = useSchool();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.stats()
+    setLoading(true);
+    const params = {};
+    if (selectedSchool !== 'all') params.schoolId = selectedSchool;
+    api.stats(params)
       .then(setStats)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedSchool]);
+
+  const schoolLabel = selectedSchool === 'all'
+    ? 'All Schools'
+    : selectedSchool === 'backock' ? 'Babcock University' : 'ABU';
 
   return (
     <div className="ml-60 min-h-screen p-8">
@@ -20,7 +33,9 @@ export default function Dashboard() {
 
       <div className="max-w-5xl">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-gray-500 text-sm mb-8">Overview of chatbot activity</p>
+        <p className="text-gray-500 text-sm mb-8">
+          Overview of chatbot activity — <span className="font-medium text-gray-700">{schoolLabel}</span>
+        </p>
 
         {loading ? (
           <div className="flex items-center gap-2 text-gray-400">
@@ -36,16 +51,18 @@ export default function Dashboard() {
               <StatsCard label="Total Conversations" value={stats?.totalConversations} icon="📊" color="amber" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Babcock University Leads</div>
-                <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.backock ?? '—'}</div>
+            {(selectedSchool === 'all') && (
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Babcock University Leads</div>
+                  <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.backock ?? '—'}</div>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">ABU Leads</div>
+                  <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.abu ?? '—'}</div>
+                </div>
               </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">ABU Leads</div>
-                <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.abu ?? '—'}</div>
-              </div>
-            </div>
+            )}
 
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="text-sm font-semibold text-gray-700 mb-4">Recent Leads</div>
@@ -68,7 +85,7 @@ export default function Dashboard() {
                         <td className="py-2 pr-4 text-gray-500">{lead.email || '—'}</td>
                         <td className="py-2 pr-4">
                           <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
-                            {lead.schools?.slug?.toUpperCase() || '—'}
+                            {schoolDisplayName(lead.schools?.slug)}
                           </span>
                         </td>
                         <td className="py-2 text-gray-400">

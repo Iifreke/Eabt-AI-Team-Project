@@ -24,7 +24,10 @@ async function authFetch(path, options = {}) {
 }
 
 export const api = {
-  stats: () => authFetch('/api/admin/stats'),
+  stats: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return authFetch(`/api/admin/stats${qs ? '?' + qs : ''}`);
+  },
 
   leads: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
@@ -46,6 +49,9 @@ export const api = {
   updateEscalation: (data) =>
     authFetch('/api/admin/escalation', { method: 'PATCH', body: JSON.stringify(data) }),
 
+  replyToConversation: (conversationId, message) =>
+    authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
+
   documents: (schoolId) =>
     authFetch(`/api/documents/list?schoolId=${schoolId}`),
 
@@ -55,3 +61,4 @@ export const api = {
   deleteDocument: (documentId) =>
     authFetch('/api/documents/delete', { method: 'DELETE', body: JSON.stringify({ documentId }) }),
 };
+

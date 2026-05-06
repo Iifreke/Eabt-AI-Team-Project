@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 let msgIdCounter = 0;
 function nextId() {
@@ -11,11 +11,49 @@ export function useChat() {
   const [lead, setLead] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [hasGreeted, setHasGreeted] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [config, setConfig] = useState(null);
+  const pollRef = useRef(null);
 
-  const fetchGreeting = useCallback(async (config, sessionId) => {
+  // Poll for new admin messages when stage is escalated
+  const pollEscalated = useCallback(async (cfg, sid) => {
+    if (!cfg?.apiUrl || !sid) return;
+    try {
+      const res = await fetch(`${cfg.apiUrl}/api/chat/messages?sessionId=${sid}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.messages) {
+        // Rebuild messages list from DB source of truth
+        setMessages(
+          data.messages.map((m, i) => ({
+            id: i + 1,
+            role: m.role,
+            content: m.content,
+            suggestions: [],
+            suggestionsUsed: true,
+            ts: m.ts || Date.now(),
+          }))
+        );
+      }
+    } catch {
+      // silently ignore poll errors
+    }
+  }, []);
+
+  // Start/stop polling based on stage
+  useEffect(() => {
+    if (stage === 'escalated' && sessionId && config) {
+      pollRef.current = setInterval(() => pollEscalated(config, sessionId), 3000);
+    } else {
+      clearInterval(pollRef.current);
+    }
+    return () => clearInterval(pollRef.current);
+  }, [stage, sessionId, config, pollEscalated]);
+
+  const fetchGreeting = useCallback(async (cfg, sid) => {
     try {
       const res = await fetch(
-        `${config.apiUrl}/api/chat/greet?schoolId=${config.schoolId}&sessionId=${sessionId}`
+        `${cfg.apiUrl}/api/chat/greet?schoolId=${cfg.schoolId}&sessionId=${sid}`
       );
       const data = await res.json();
       setMessages([
@@ -45,8 +83,12 @@ export function useChat() {
     }
   }, []);
 
-  const sendMessage = useCallback(async (text, config, sessionId) => {
+  const sendMessage = useCallback(async (text, cfg, sid) => {
     if (!text.trim() || isLoading) return;
+
+    // Store config & sessionId for polling
+    setConfig(cfg);
+    setSessionId(sid);
 
     const userMsgId = nextId();
     const botMsgId = nextId();
@@ -59,17 +101,17 @@ export function useChat() {
 
     setIsLoading(true);
 
-    // Create empty bot placeholder
+    // Create empty bot placeholder (not shown for escalated)
     setMessages(prev => [
       ...prev,
       { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
     ]);
 
     try {
-      const response = await fetch(`${config.apiUrl}/api/chat`, {
+      const response = await fetch(`${cfg.apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, schoolId: config.schoolId, sessionId }),
+        body: JSON.stringify({ message: text, schoolId: cfg.schoolId, sessionId: sid }),
       });
 
       const reader = response.body.getReader();
@@ -82,7 +124,7 @@ export function useChat() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // keep incomplete line
+        buffer = lines.pop();
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
@@ -98,19 +140,50 @@ export function useChat() {
             }
 
             if (event.done) {
+              const newStage = event.stage || stage;
               if (event.stage) setStage(event.stage);
               if (event.lead) setLead(event.lead);
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === botMsgId
-                    ? { ...m, suggestions: event.suggestions || [] }
-                    : m
-                )
-              );
+
+              // When escalated, rebuild messages from the full DB array (includes admin messages)
+              if (newStage === 'escalated' && event.messages) {
+                setMessages(
+                  event.messages.map((m, i) => ({
+                    id: i + 1,
+                    role: m.role,
+                    content: m.content,
+                    suggestions: [],
+                    suggestionsUsed: true,
+                    ts: m.ts || Date.now(),
+                  }))
+                );
+                // Show escalated notice as last message if not already there
+                const lastMsg = event.messages[event.messages.length - 1];
+                if (!lastMsg || lastMsg.role !== 'assistant') {
+                  setMessages(prev => [
+                    ...prev,
+                    {
+                      id: nextId(),
+                      role: 'assistant',
+                      content: 'Our support team has been notified and will reply here shortly. You can keep chatting — we\'ll see your messages.',
+                      suggestions: [],
+                      suggestionsUsed: true,
+                      ts: Date.now(),
+                    },
+                  ]);
+                }
+              } else {
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === botMsgId
+                      ? { ...m, suggestions: event.suggestions || [] }
+                      : m
+                  )
+                );
+              }
               setIsLoading(false);
             }
           } catch {
-            // ignore parse errors for malformed SSE lines
+            // ignore parse errors
           }
         }
       }
@@ -124,27 +197,29 @@ export function useChat() {
       );
       setIsLoading(false);
     }
-  }, [isLoading]);
+  }, [isLoading, stage]);
 
   const handleSuggestionClick = useCallback(
-    (question, messageId, config, sessionId) => {
+    (question, messageId, cfg, sid) => {
       setMessages(prev =>
         prev.map(m => (m.id === messageId ? { ...m, suggestionsUsed: true } : m))
       );
-      sendMessage(question, config, sessionId);
+      sendMessage(question, cfg, sid);
     },
     [sendMessage]
   );
 
-  const submitLead = useCallback(async (formData, config, sessionId) => {
+  const submitLead = useCallback(async (formData, cfg, sid) => {
+    setConfig(cfg);
+    setSessionId(sid);
     setIsLoading(true);
     try {
-      const res = await fetch(`${config.apiUrl}/api/chat/start`, {
+      const res = await fetch(`${cfg.apiUrl}/api/chat/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          schoolId: config.schoolId,
-          sessionId,
+          schoolId: cfg.schoolId,
+          sessionId: sid,
           name: formData.name,
           email: formData.email,
           phone: formData.phone,

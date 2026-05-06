@@ -1,5 +1,8 @@
 import React from 'react';
 
+const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
+const schoolLabel = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
+
 export default function LeadsTable({ leads }) {
   if (!leads?.length) {
     return <p className="text-gray-400 text-sm py-4">No leads found.</p>;
@@ -26,7 +29,7 @@ export default function LeadsTable({ leads }) {
               <td className="py-2 pr-4 text-gray-600">{lead.phone || '—'}</td>
               <td className="py-2 pr-4">
                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {lead.schools?.slug?.toUpperCase() || '—'}
+                  {schoolLabel(lead.schools?.slug)}
                 </span>
               </td>
               <td className="py-2 pr-4">

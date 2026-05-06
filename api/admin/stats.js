@@ -10,6 +10,27 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
+    const { schoolId } = req.query;
+
+    // Resolve school UUID from slug if provided
+    let schoolUUID = null;
+    if (schoolId) {
+      const { data: school } = await supabase
+        .from('schools')
+        .select('id')
+        .eq('slug', schoolId)
+        .single();
+      schoolUUID = school?.id || null;
+    }
+
+    // Helper: build a filtered count query
+    const countQuery = (table, extraFilters = {}) => {
+      let q = supabase.from(table).select('*', { count: 'exact', head: true });
+      if (schoolUUID) q = q.eq('school_id', schoolUUID);
+      for (const [k, v] of Object.entries(extraFilters)) q = q.eq(k, v);
+      return q;
+    };
+
     const [
       { count: totalLeads },
       { count: totalConversations },
@@ -18,16 +39,16 @@ export default async function handler(req, res) {
       { data: schools },
       { data: recentLeads },
     ] = await Promise.all([
-      supabase.from('leads').select('*', { count: 'exact', head: true }),
-      supabase.from('conversations').select('*', { count: 'exact', head: true }),
-      supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('stage', 'active'),
-      supabase.from('escalations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('schools').select('id, slug'),
+      countQuery('leads'),
+      countQuery('conversations'),
+      countQuery('conversations', { stage: 'active' }),
+      countQuery('escalations', { status: 'pending' }),
+      supabase.from('schools').select('id, slug, name'),
       supabase
         .from('leads')
-        .select('name, email, school_id, created_at, schools(slug)')
+        .select('name, email, school_id, created_at, schools(slug, name)')
         .order('created_at', { ascending: false })
-        .limit(5),
+        .limit(10),
     ]);
 
     // Leads by school
@@ -42,13 +63,18 @@ export default async function handler(req, res) {
       }
     }
 
+    // Filter recentLeads by school when scoped
+    const filteredLeads = schoolUUID
+      ? (recentLeads || []).filter(l => l.school_id === schoolUUID).slice(0, 5)
+      : (recentLeads || []).slice(0, 5);
+
     return res.status(200).json({
       totalLeads: totalLeads || 0,
       totalConversations: totalConversations || 0,
       activeConversations: activeConversations || 0,
       pendingEscalations: pendingEscalations || 0,
       leadsBySchool,
-      recentLeads: recentLeads || [],
+      recentLeads: filteredLeads,
     });
   } catch (error) {
     console.error('stats error:', error);
