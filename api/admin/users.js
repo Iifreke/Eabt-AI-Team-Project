@@ -40,6 +40,7 @@ export default async function handler(req, res) {
     try {
       // Invite user via Supabase (sends magic-link / invite email)
       const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${req.headers.origin}/set-password`,
         data: { full_name: fullName },
       });
 

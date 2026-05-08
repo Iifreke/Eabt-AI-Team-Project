@@ -8,12 +8,14 @@ import Conversations from './pages/Conversations.jsx';
 import Escalations from './pages/Escalations.jsx';
 import KnowledgeBase from './pages/KnowledgeBase.jsx';
 import Users from './pages/Users.jsx';
+import SetPassword from './pages/SetPassword.jsx';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/set-password" element={<SetPassword />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         <Route path="/dashboard" element={
