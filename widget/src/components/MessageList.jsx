@@ -1,9 +1,9 @@
 import React, { useRef, useEffect } from 'react';
-import MessageBubble from './MessageBubble.jsx';
+import MessageBubble, { TypingDots } from './MessageBubble.jsx';
 import SuggestedQuestions from './SuggestedQuestions.jsx';
 import TypingIndicator from './TypingIndicator.jsx';
 
-export default function MessageList({ messages, stage, isLoading, primaryColor, onSuggestionSelect }) {
+export default function MessageList({ messages, stage, isLoading, agentTyping, primaryColor, onSuggestionSelect }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -39,6 +39,7 @@ export default function MessageList({ messages, stage, isLoading, primaryColor, 
         </div>
       ))}
       {isLoading && <TypingIndicator />}
+      {agentTyping && <TypingDots agentName={agentTyping.agentName} />}
       <div ref={bottomRef} />
     </div>
   );

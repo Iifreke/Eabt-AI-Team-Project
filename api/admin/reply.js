@@ -4,6 +4,24 @@ import supabase from '../../src/db/supabase.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
+
+  // PATCH — set or clear typing indicator
+  if (req.method === 'PATCH') {
+    const user = await requireAuth(req, res);
+    if (!user) return;
+    const { conversationId, typing } = req.body;
+    if (!conversationId) return res.status(400).json({ error: 'conversationId required' });
+    const { data: conv } = await supabase.from('conversations').select('id, messages').eq('id', conversationId).single();
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    const messages = (Array.isArray(conv.messages) ? conv.messages : []).filter(m => m.role !== '__typing__');
+    if (typing) {
+      const profile = await getProfile(user.id);
+      messages.push({ role: '__typing__', agentName: profile?.full_name || 'Support Agent', ts: Date.now() });
+    }
+    await supabase.from('conversations').update({ messages, updated_at: new Date().toISOString() }).eq('id', conversationId);
+    return res.status(200).json({ ok: true });
+  }
+
   if (req.method !== 'POST') return res.status(405).end();
 
   const user = await requireAuth(req, res);
@@ -36,8 +54,8 @@ export default async function handler(req, res) {
     const profile = await getProfile(user.id);
     const adminName = profile?.full_name || user.email || 'Support Agent';
 
-    // Append admin message with their real name
-    const messages = Array.isArray(conv.messages) ? conv.messages : [];
+    // Append admin message (also clears any typing indicator)
+    const messages = (Array.isArray(conv.messages) ? conv.messages : []).filter(m => m.role !== '__typing__');
     messages.push({
       role: 'admin',
       content: message.trim(),

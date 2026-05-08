@@ -52,6 +52,9 @@ export const api = {
   replyToConversation: (conversationId, message) =>
     authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
 
+  setTyping: (conversationId, typing) =>
+    authFetch('/api/admin/reply', { method: 'PATCH', body: JSON.stringify({ conversationId, typing }) }).catch(() => {}),
+
   listUsers: () => authFetch('/api/admin/users'),
 
   inviteUser: ({ email, fullName, role }) =>

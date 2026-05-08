@@ -40,7 +40,7 @@ export default function ChatWidget({ config }) {
   const [formLoading, setFormLoading] = useState(false);
 
   const { sessionId } = useSession();
-  const { messages, stage, isLoading, submitLead, sendMessage, handleSuggestionClick } = useChat();
+  const { messages, stage, isLoading, agentTyping, submitLead, sendMessage, handleSuggestionClick } = useChat();
 
   const effectiveConfig = {
     ...config,
@@ -217,6 +217,7 @@ export default function ChatWidget({ config }) {
             messages={messages}
             stage={stage}
             isLoading={isLoading}
+            agentTyping={agentTyping}
             primaryColor={primaryColor}
             onSuggestionSelect={(q, msgId) => handleSuggestionClick(q, msgId, effectiveConfig, sessionId)}
           />

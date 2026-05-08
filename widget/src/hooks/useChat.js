@@ -13,6 +13,7 @@ export function useChat() {
   const [hasGreeted, setHasGreeted] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [config, setConfig] = useState(null);
+  const [agentTyping, setAgentTyping] = useState(null);
   const pollRef = useRef(null);
 
   // Poll for new admin messages when stage is escalated
@@ -23,17 +24,17 @@ export function useChat() {
       if (!res.ok) return;
       const data = await res.json();
       if (data.messages) {
-        // Rebuild messages list from DB source of truth
-        setMessages(
-          data.messages.map((m, i) => ({
-            id: i + 1,
-            role: m.role,
-            content: m.content,
-            suggestions: [],
-            suggestionsUsed: true,
-            ts: m.ts || Date.now(),
-          }))
-        );
+        const rebuilt = data.messages.map((m, i) => ({
+          id: i + 1,
+          role: m.role,
+          content: m.content,
+          adminName: m.adminName,
+          suggestions: [],
+          suggestionsUsed: true,
+          ts: m.ts || Date.now(),
+        }));
+        setMessages(rebuilt);
+        setAgentTyping(data.agentTyping || null);
       }
     } catch {
       // silently ignore poll errors
@@ -93,11 +94,14 @@ export function useChat() {
     const userMsgId = nextId();
     const botMsgId = nextId();
 
-    // Append user message
-    setMessages(prev => [
-      ...prev,
-      { id: userMsgId, role: 'user', content: text, suggestions: [], suggestionsUsed: false, ts: Date.now() },
-    ]);
+    // In escalated stage the server returns the full DB messages array,
+    // so we don't add locally — the next poll will include this message.
+    if (stage !== 'escalated') {
+      setMessages(prev => [
+        ...prev,
+        { id: userMsgId, role: 'user', content: text, suggestions: [], suggestionsUsed: false, ts: Date.now() },
+      ]);
+    }
 
     setIsLoading(true);
 
@@ -154,6 +158,7 @@ export function useChat() {
                     id: i + 1,
                     role: m.role,
                     content: m.content,
+                    adminName: m.adminName,
                     suggestions: [],
                     suggestionsUsed: true,
                     ts: m.ts || Date.now(),
@@ -262,6 +267,7 @@ export function useChat() {
     lead,
     isLoading,
     hasGreeted,
+    agentTyping,
     fetchGreeting,
     sendMessage,
     handleSuggestionClick,

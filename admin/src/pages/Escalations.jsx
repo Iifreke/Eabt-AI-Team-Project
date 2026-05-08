@@ -32,12 +32,13 @@ function LiveChatPanel({ esc }) {
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
   const pollRef = useRef(null);
+  const typingTimerRef = useRef(null);
 
   // Fetch latest messages from the conversation
   const fetchMessages = useCallback(async () => {
     try {
       const data = await api.conversation(esc.conversation_id);
-      if (data?.messages) setMessages(data.messages);
+      if (data?.messages) setMessages(data.messages.filter(m => m.role !== '__typing__'));
     } catch (e) {
       console.error('poll error', e);
     }
@@ -47,16 +48,28 @@ function LiveChatPanel({ esc }) {
   useEffect(() => {
     fetchMessages();
     pollRef.current = setInterval(fetchMessages, 4000);
-    return () => clearInterval(pollRef.current);
-  }, [fetchMessages]);
+    return () => {
+      clearInterval(pollRef.current);
+      clearTimeout(typingTimerRef.current);
+      api.setTyping(esc.conversation_id, false);
+    };
+  }, [fetchMessages, esc.conversation_id]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleReplyChange = (e) => {
+    setReply(e.target.value);
+    api.setTyping(esc.conversation_id, true);
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => api.setTyping(esc.conversation_id, false), 5000);
+  };
+
   const sendReply = async () => {
     if (!reply.trim() || sending) return;
+    clearTimeout(typingTimerRef.current);
     setSending(true);
     setError('');
     try {
@@ -83,10 +96,10 @@ function LiveChatPanel({ esc }) {
     return 'bg-white border border-gray-200 text-gray-700';
   };
 
-  const roleLabel = (role) => {
-    if (role === 'user') return 'Visitor';
-    if (role === 'admin') return '🧑‍💼 Admin';
-    return '🤖 Bot';
+  const roleLabel = (msg) => {
+    if (msg.role === 'user') return 'Visitor';
+    if (msg.role === 'admin') return `🧑‍💼 ${msg.adminName || 'Support Agent'}`;
+    return '🤖 Maverick';
   };
 
   return (
@@ -105,7 +118,7 @@ function LiveChatPanel({ esc }) {
         ) : (
           messages.map((msg, i) => (
             <div key={i} className={`text-xs px-3 py-2 rounded-lg ${roleBg(msg.role)}`}>
-              <div className="font-semibold mb-0.5">{roleLabel(msg.role)}</div>
+              <div className="font-semibold mb-0.5">{roleLabel(msg)}</div>
               <div className="whitespace-pre-wrap">{msg.content}</div>
               {msg.ts && (
                 <div className="text-gray-400 mt-0.5 text-right">
@@ -125,7 +138,7 @@ function LiveChatPanel({ esc }) {
           <div className="flex gap-2">
             <textarea
               value={reply}
-              onChange={e => setReply(e.target.value)}
+              onChange={handleReplyChange}
               onKeyDown={handleKeyDown}
               rows={2}
               placeholder="Type your reply... (Enter to send, Shift+Enter for newline)"

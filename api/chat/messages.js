@@ -21,8 +21,15 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
+    const all = conv.messages || [];
+    const typingEntry = all.find(m => m.role === '__typing__');
+    const agentTyping = typingEntry && (Date.now() - typingEntry.ts) < 8000
+      ? { agentName: typingEntry.agentName }
+      : null;
+
     return res.status(200).json({
-      messages: conv.messages || [],
+      messages: all.filter(m => m.role !== '__typing__'),
+      agentTyping,
       stage: conv.stage,
       updatedAt: conv.updated_at,
     });
