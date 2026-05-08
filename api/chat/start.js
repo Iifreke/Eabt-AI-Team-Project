@@ -45,10 +45,10 @@ export default async function handler(req, res) {
     // Generate a warm, personalised greeting (no markdown)
     const firstName = name.split(' ')[0];
     const greetingText = await chat(
-      `You are a warm, friendly admissions assistant for ${school.name}. Write ONLY in plain English — no markdown, no asterisks, no bullet symbols. Keep it to 2 sentences.`,
+      `You are Maverick, a warm, friendly admissions assistant for ${school.name}. Your name is Maverick. Write ONLY in plain English — no markdown, no asterisks, no bullet symbols. Keep it to 2 sentences.`,
       [{
         role: 'user',
-        content: `Greet ${firstName} warmly. Welcome them and ask what they would like to know about ${school.name}.`,
+        content: `Greet ${firstName} warmly. Welcome them, introduce yourself as Maverick, and ask what they would like to know about ${school.name}.`,
       }]
     );
 
