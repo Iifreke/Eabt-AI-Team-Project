@@ -2,10 +2,10 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
+import { useUser } from '../context/UserContext.jsx';
 
 const STATUSES = ['all', 'pending', 'in_progress', 'resolved'];
 
-// Map DB slugs to display labels
 const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
 const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
 
@@ -24,8 +24,24 @@ const reasonLabel = {
   sensitive_topic: 'Sensitive topic',
 };
 
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch {}
+}
+
 // ── Live Chat Panel ─────────────────────────────────────────────
-function LiveChatPanel({ esc }) {
+function LiveChatPanel({ esc, onUpdate }) {
+  const { profile } = useUser();
   const [messages, setMessages] = useState([]);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
@@ -33,16 +49,45 @@ function LiveChatPanel({ esc }) {
   const bottomRef = useRef(null);
   const pollRef = useRef(null);
   const typingTimerRef = useRef(null);
+  const autoResolveRef = useRef(null);
 
-  // Fetch latest messages from the conversation
+  const resetAutoResolve = useCallback(() => {
+    clearTimeout(autoResolveRef.current);
+    if (esc.status === 'resolved' || !profile?.full_name) return;
+    autoResolveRef.current = setTimeout(async () => {
+      try {
+        await api.updateEscalation({ id: esc.id, status: 'resolved', resolved_by: profile.full_name });
+        onUpdate?.();
+      } catch {}
+    }, 5 * 60 * 1000);
+  }, [esc.id, esc.status, profile, onUpdate]);
+
   const fetchMessages = useCallback(async () => {
     try {
       const data = await api.conversation(esc.conversation_id);
-      if (data?.messages) setMessages(data.messages.filter(m => m.role !== '__typing__'));
+      if (data?.messages) {
+        setMessages(data.messages.filter(m => m.role !== '__typing__'));
+        resetAutoResolve();
+      }
     } catch (e) {
       console.error('poll error', e);
     }
-  }, [esc.conversation_id]);
+  }, [esc.conversation_id, resetAutoResolve]);
+
+  // On mount: auto-set in_progress if still pending
+  useEffect(() => {
+    if (esc.status === 'pending' && profile?.full_name) {
+      api.updateEscalation({ id: esc.id, status: 'in_progress', attended_by: profile.full_name })
+        .then(() => onUpdate?.())
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Arm auto-resolve timer on mount
+  useEffect(() => {
+    resetAutoResolve();
+  }, [resetAutoResolve]);
 
   // Initial load + polling every 4s
   useEffect(() => {
@@ -51,6 +96,7 @@ function LiveChatPanel({ esc }) {
     return () => {
       clearInterval(pollRef.current);
       clearTimeout(typingTimerRef.current);
+      clearTimeout(autoResolveRef.current);
       api.setTyping(esc.conversation_id, false);
     };
   }, [fetchMessages, esc.conversation_id]);
@@ -76,6 +122,7 @@ function LiveChatPanel({ esc }) {
       await api.replyToConversation(esc.conversation_id, reply.trim());
       setReply('');
       await fetchMessages();
+      resetAutoResolve();
     } catch (e) {
       setError('Failed to send. Please try again.');
     } finally {
@@ -187,6 +234,12 @@ function EscalationRow({ esc, onUpdate }) {
     }
   };
 
+  const agentCell = () => {
+    if (esc.status === 'in_progress' && esc.attended_by) return `🟡 ${esc.attended_by}`;
+    if (esc.status === 'resolved' && esc.resolved_by) return `✅ ${esc.resolved_by}`;
+    return '—';
+  };
+
   return (
     <>
       <tr
@@ -203,6 +256,7 @@ function EscalationRow({ esc, onUpdate }) {
         <td className="px-5 py-3">
           <span className={statusBadge(esc.status)}>{esc.status?.replace('_', ' ')}</span>
         </td>
+        <td className="px-5 py-3 text-gray-500 text-xs">{agentCell()}</td>
         <td className="px-5 py-3 text-gray-400">
           {esc.created_at ? new Date(esc.created_at).toLocaleDateString() : '—'}
         </td>
@@ -210,7 +264,7 @@ function EscalationRow({ esc, onUpdate }) {
 
       {expanded && (
         <tr className="bg-gray-50">
-          <td colSpan={5} className="px-5 py-4">
+          <td colSpan={6} className="px-5 py-4">
             <div className="grid grid-cols-2 gap-6">
               {/* Lead details + messages */}
               <div>
@@ -268,7 +322,7 @@ function EscalationRow({ esc, onUpdate }) {
 
             {/* Live admin chat panel — shown when not resolved */}
             {esc.status !== 'resolved' && esc.conversation_id && (
-              <LiveChatPanel esc={esc} />
+              <LiveChatPanel esc={esc} onUpdate={onUpdate} />
             )}
           </td>
         </tr>
@@ -282,6 +336,8 @@ export default function Escalations() {
   const [escalations, setEscalations] = useState([]);
   const [status, setStatus] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const prevPendingRef = useRef(null);
 
   const fetchEscalations = useCallback(async () => {
     setLoading(true);
@@ -301,9 +357,38 @@ export default function Escalations() {
 
   useEffect(() => { fetchEscalations(); }, [fetchEscalations]);
 
+  // Background poll for new escalation notifications
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const d = await api.escalations({ status: 'pending' });
+        const count = (d.escalations || []).length;
+        if (prevPendingRef.current !== null && count > prevPendingRef.current) {
+          const diff = count - prevPendingRef.current;
+          playNotificationSound();
+          setToast(`${diff} new escalation${diff > 1 ? 's' : ''} arrived`);
+          setTimeout(() => setToast(null), 5000);
+          fetchEscalations();
+        }
+        prevPendingRef.current = count;
+      } catch {}
+    };
+    check();
+    const t = setInterval(check, 30000);
+    return () => clearInterval(t);
+  }, [fetchEscalations]);
+
   return (
     <div className="ml-60 min-h-screen p-8">
       <Sidebar />
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 bg-red-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-3">
+          🚨 {toast}
+          <button onClick={() => setToast(null)} className="ml-2 text-white/70 hover:text-white text-base leading-none">✕</button>
+        </div>
+      )}
 
       <div className="max-w-5xl">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Escalations</h1>
@@ -336,6 +421,7 @@ export default function Escalations() {
                   <th className="px-5 py-3 font-medium">School</th>
                   <th className="px-5 py-3 font-medium">Reason</th>
                   <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 font-medium">Agent</th>
                   <th className="px-5 py-3 font-medium">Date</th>
                 </tr>
               </thead>

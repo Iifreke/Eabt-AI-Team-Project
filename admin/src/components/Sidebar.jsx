@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
+import { api } from '../lib/api.js';
 
 const baseNav = [
   { to: '/dashboard',     label: 'Dashboard',      icon: '📊' },
@@ -23,9 +24,22 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { selectedSchool, setSelectedSchool } = useSchool();
   const { profile } = useUser();
+  const [pendingCount, setPendingCount] = useState(0);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const navItems = isSuperAdmin ? [...baseNav, ...superAdminNav] : baseNav;
+
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const d = await api.escalations({ status: 'pending' });
+        setPendingCount((d.escalations || []).length);
+      } catch {}
+    };
+    fetchPending();
+    const t = setInterval(fetchPending, 30000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -53,7 +67,12 @@ export default function Sidebar() {
             }
           >
             <span>{icon}</span>
-            <span>{label}</span>
+            <span className="flex-1">{label}</span>
+            {to === '/escalations' && pendingCount > 0 && (
+              <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none">
+                {pendingCount > 9 ? '9+' : pendingCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
