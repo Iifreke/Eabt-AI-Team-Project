@@ -77,17 +77,21 @@ function LiveChatPanel({ esc, onUpdate }) {
     }, 5 * 60 * 1000);
   }, [esc.id, esc.status, profile, onUpdate]);
 
+  const sessionId = esc.conversations?.session_id;
+
   const fetchMessages = useCallback(async () => {
+    if (!sessionId) return;
     try {
-      const data = await api.conversation(esc.conversation_id);
-      if (data?.messages) {
-        setMessages(data.messages.filter(m => m.role !== '__typing__'));
+      const res = await fetch(`/api/chat/messages?sessionId=${sessionId}`);
+      const data = await res.json();
+      if (Array.isArray(data?.messages)) {
+        setMessages(data.messages);
         resetAutoResolve();
       }
     } catch (e) {
       console.error('poll error', e);
     }
-  }, [esc.conversation_id, resetAutoResolve]);
+  }, [sessionId, resetAutoResolve]);
 
   useEffect(() => { resetAutoResolve(); }, [resetAutoResolve]);
 
