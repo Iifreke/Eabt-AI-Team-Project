@@ -3,6 +3,7 @@ import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
+import { useEscalation } from '../context/EscalationContext.jsx';
 
 const STATUSES = ['all', 'pending', 'in_progress', 'resolved'];
 
@@ -333,6 +334,7 @@ function EscalationRow({ esc, onUpdate }) {
 
 export default function Escalations() {
   const { selectedSchool } = useSchool();
+  const { pendingCount } = useEscalation();
   const [escalations, setEscalations] = useState([]);
   const [status, setStatus] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -357,26 +359,17 @@ export default function Escalations() {
 
   useEffect(() => { fetchEscalations(); }, [fetchEscalations]);
 
-  // Background poll for new escalation notifications
+  // Notify when shared pending count increases
   useEffect(() => {
-    const check = async () => {
-      try {
-        const d = await api.escalations({ status: 'pending' });
-        const count = (d.escalations || []).length;
-        if (prevPendingRef.current !== null && count > prevPendingRef.current) {
-          const diff = count - prevPendingRef.current;
-          playNotificationSound();
-          setToast(`${diff} new escalation${diff > 1 ? 's' : ''} arrived`);
-          setTimeout(() => setToast(null), 5000);
-          fetchEscalations();
-        }
-        prevPendingRef.current = count;
-      } catch {}
-    };
-    check();
-    const t = setInterval(check, 30000);
-    return () => clearInterval(t);
-  }, [fetchEscalations]);
+    if (prevPendingRef.current !== null && pendingCount > prevPendingRef.current) {
+      const diff = pendingCount - prevPendingRef.current;
+      playNotificationSound();
+      setToast(`${diff} new escalation${diff > 1 ? 's' : ''} arrived`);
+      setTimeout(() => setToast(null), 5000);
+      fetchEscalations();
+    }
+    prevPendingRef.current = pendingCount;
+  }, [pendingCount, fetchEscalations]);
 
   return (
     <div className="ml-60 min-h-screen p-8">

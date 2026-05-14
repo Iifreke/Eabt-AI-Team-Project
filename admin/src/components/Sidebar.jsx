@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
-import { api } from '../lib/api.js';
+import { useEscalation } from '../context/EscalationContext.jsx';
 
 const baseNav = [
   { to: '/dashboard',     label: 'Dashboard',      icon: '📊' },
@@ -24,22 +24,10 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { selectedSchool, setSelectedSchool } = useSchool();
   const { profile } = useUser();
-  const [pendingCount, setPendingCount] = useState(0);
+  const { pendingCount } = useEscalation();
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const navItems = isSuperAdmin ? [...baseNav, ...superAdminNav] : baseNav;
-
-  useEffect(() => {
-    const fetchPending = async () => {
-      try {
-        const d = await api.escalations({ status: 'pending' });
-        setPendingCount((d.escalations || []).length);
-      } catch {}
-    };
-    fetchPending();
-    const t = setInterval(fetchPending, 30000);
-    return () => clearInterval(t);
-  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -78,7 +66,6 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-gray-700 space-y-3">
-        {/* School filter */}
         <div>
           <label className="text-xs text-gray-400 uppercase tracking-wider block mb-1">School</label>
           <select
@@ -92,7 +79,6 @@ export default function Sidebar() {
           </select>
         </div>
 
-        {/* Current user info */}
         {profile && (
           <div className="bg-gray-800 rounded-lg px-3 py-2">
             <div className="flex items-center justify-between mb-0.5">
