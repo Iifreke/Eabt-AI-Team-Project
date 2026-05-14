@@ -89,15 +89,6 @@ function LiveChatPanel({ esc, onUpdate }) {
     }
   }, [esc.conversation_id, resetAutoResolve]);
 
-  useEffect(() => {
-    if (esc.status === 'pending' && profile?.full_name) {
-      api.updateEscalation({ id: esc.id, status: 'in_progress', attended_by: profile.full_name })
-        .then(() => onUpdate?.())
-        .catch(() => {});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => { resetAutoResolve(); }, [resetAutoResolve]);
 
   useEffect(() => {
