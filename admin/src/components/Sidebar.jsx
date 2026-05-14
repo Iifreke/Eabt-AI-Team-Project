@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSchool } from '../context/SchoolContext.jsx';
@@ -6,32 +6,52 @@ import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
 
 const baseNav = [
-  { to: '/dashboard',     label: 'Dashboard',      icon: '📊' },
-  { to: '/leads',         label: 'Leads',           icon: '👥' },
-  { to: '/conversations', label: 'Conversations',   icon: '💬' },
-  { to: '/escalations',   label: 'Escalations',     icon: '🚨' },
-  { to: '/knowledge-base',label: 'Knowledge Base',  icon: '📚' },
+  { to: '/dashboard',     label: 'Overview',      icon: '📊' },
+  { to: '/chats',         label: 'Chats',         icon: '💬' },
+  { to: '/tickets',       label: 'Tickets',       icon: '🎫' },
+  { to: '/contacts',      label: 'Contacts',      icon: '👥' },
+  { to: '/history',       label: 'History',       icon: '🗂️' },
+  { to: '/shortcuts',     label: 'Shortcuts',     icon: '⚡' },
+  { to: '/monitoring',    label: 'Monitoring',    icon: '👁️' },
+  { to: '/knowledge-base',label: 'Knowledge Base',icon: '📚' },
 ];
 
 const superAdminNav = [
-  { to: '/users', label: 'Team Members', icon: '🔐' },
+  { to: '/agents', label: 'Agents', icon: '🔐' },
 ];
 
-const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin' };
+const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Agent' };
 const ROLE_COLOR = { super_admin: 'bg-purple-600', admin: 'bg-blue-600' };
+
+const STATUS_OPTIONS = [
+  { value: 'online',    label: 'Online',    dot: 'bg-green-400' },
+  { value: 'away',      label: 'Away',      dot: 'bg-yellow-400' },
+  { value: 'invisible', label: 'Invisible', dot: 'bg-gray-400' },
+];
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const { selectedSchool, setSelectedSchool } = useSchool();
   const { profile } = useUser();
   const { pendingCount } = useEscalation();
+  const [statusOpen, setStatusOpen] = useState(false);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const navItems = isSuperAdmin ? [...baseNav, ...superAdminNav] : baseNav;
 
+  const agentStatus = profile?.status || 'online';
+  const currentStatusDot = STATUS_OPTIONS.find(s => s.value === agentStatus)?.dot || 'bg-green-400';
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
+  };
+
+  const handleStatusChange = async (value) => {
+    setStatusOpen(false);
+    if (!profile?.id) return;
+    await supabase.from('admin_profiles').update({ status: value }).eq('id', profile.id);
+    // profile will refresh on next auth change; optimistic update skipped intentionally
   };
 
   return (
@@ -56,7 +76,7 @@ export default function Sidebar() {
           >
             <span>{icon}</span>
             <span className="flex-1">{label}</span>
-            {to === '/escalations' && pendingCount > 0 && (
+            {to === '/chats' && pendingCount > 0 && (
               <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none">
                 {pendingCount > 9 ? '9+' : pendingCount}
               </span>
@@ -80,14 +100,40 @@ export default function Sidebar() {
         </div>
 
         {profile && (
-          <div className="bg-gray-800 rounded-lg px-3 py-2">
+          <div className="bg-gray-800 rounded-lg px-3 py-2 relative">
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-xs font-semibold text-white truncate">{profile.full_name || profile.email}</span>
               <span className={`text-xs text-white px-1.5 py-0.5 rounded-full font-medium ${ROLE_COLOR[profile.role] || 'bg-gray-600'}`}>
                 {ROLE_LABEL[profile.role] || profile.role}
               </span>
             </div>
-            <div className="text-xs text-gray-400 truncate">{profile.email}</div>
+            <div className="text-xs text-gray-400 truncate mb-1.5">{profile.email}</div>
+
+            {/* Agent status toggle */}
+            <button
+              onClick={() => setStatusOpen(o => !o)}
+              className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white"
+            >
+              <span className={`w-2 h-2 rounded-full ${currentStatusDot}`} />
+              <span className="capitalize">{agentStatus}</span>
+              <span className="ml-auto opacity-50">▾</span>
+            </button>
+
+            {statusOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-700 rounded-lg overflow-hidden shadow-lg z-10">
+                {STATUS_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleStatusChange(opt.value)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-200 hover:bg-gray-600 text-left"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${opt.dot}`} />
+                    {opt.label}
+                    {agentStatus === opt.value && <span className="ml-auto">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

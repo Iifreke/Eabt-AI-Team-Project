@@ -14,7 +14,7 @@ export function UserProvider({ children }) {
       if (!userId) { setLoadingProfile(false); return; }
       const { data } = await supabase
         .from('admin_profiles')
-        .select('id, email, full_name, role')
+        .select('id, email, full_name, role, status')
         .eq('id', userId)
         .single();
       if (mounted) { setProfile(data || null); setLoadingProfile(false); }

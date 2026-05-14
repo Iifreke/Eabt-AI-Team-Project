@@ -23,21 +23,35 @@ const inputStyle = {
   transition: 'border-color 0.15s',
 };
 
+const CSAT_OPTIONS = [
+  { rating: 1, emoji: '😞', label: 'Very Bad' },
+  { rating: 2, emoji: '😕', label: 'Bad' },
+  { rating: 3, emoji: '😐', label: 'Okay' },
+  { rating: 4, emoji: '🙂', label: 'Good' },
+  { rating: 5, emoji: '😊', label: 'Excellent' },
+];
+
 export default function ChatWidget({ config }) {
   const primaryColor = config?.theme?.primaryColor || '#1a73e8';
   const isMultiSchool = Array.isArray(config?.schools) && config.schools.length > 1;
 
-  // Step tracking: 'school' | 'form' | 'chat'
   const [step, setStep] = useState(isMultiSchool ? 'school' : 'form');
   const [selectedSchool, setSelectedSchool] = useState(
     isMultiSchool ? null : { id: config?.schoolId, name: config?.theme?.name || 'School Support' }
   );
   const [isOpen, setIsOpen] = useState(false);
 
-  // Form state
   const [form, setForm] = useState({ name: '', email: '', phone: '' });
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+
+  // Ticket form state
+  const [ticketForm, setTicketForm] = useState({ subject: '', message: '' });
+  const [ticketError, setTicketError] = useState('');
+  const [ticketLoading, setTicketLoading] = useState(false);
+
+  // CSAT state
+  const [csatSending, setCsatSending] = useState(false);
 
   const { sessionId } = useSession();
   const { messages, stage, isLoading, agentTyping, submitLead, sendMessage, handleSuggestionClick } = useChat();
@@ -47,6 +61,8 @@ export default function ChatWidget({ config }) {
     schoolId: selectedSchool?.id,
     theme: { ...config?.theme, name: selectedSchool?.name },
   };
+
+  const apiUrl = config?.apiUrl || '';
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
   const windowStyle = isMobile
@@ -81,30 +97,67 @@ export default function ChatWidget({ config }) {
     );
   }
 
-  function handleClose() {
-    setIsOpen(false);
-  }
-
-  function handleSchoolSelect(school) {
-    setSelectedSchool(school);
-    setStep('form');
-  }
+  function handleClose() { setIsOpen(false); }
+  function handleSchoolSelect(school) { setSelectedSchool(school); setStep('form'); }
 
   async function handleFormSubmit(e) {
     e.preventDefault();
     const name = form.name.trim();
     const email = form.email.trim();
     const phone = form.phone.trim();
-
     if (!name) { setFormError('Please enter your full name.'); return; }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFormError('Please enter a valid email address.'); return; }
     if (!phone || phone.length < 8) { setFormError('Please enter a valid phone number.'); return; }
-
     setFormError('');
     setFormLoading(true);
     await submitLead({ name, email, phone }, effectiveConfig, sessionId);
     setFormLoading(false);
     setStep('chat');
+  }
+
+  async function handleTicketSubmit(e) {
+    e.preventDefault();
+    const subject = ticketForm.subject.trim();
+    const message = ticketForm.message.trim();
+    if (!subject) { setTicketError('Please enter a subject.'); return; }
+    if (!message) { setTicketError('Please describe your issue.'); return; }
+    setTicketError('');
+    setTicketLoading(true);
+    try {
+      await fetch(`${apiUrl}/api/admin/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schoolId: selectedSchool?.id,
+          name: form.name || 'Visitor',
+          email: form.email || '',
+          phone: form.phone || '',
+          subject,
+          message,
+        }),
+      });
+      setStep('ticket_sent');
+    } catch {
+      setTicketError('Failed to send. Please try again.');
+    } finally {
+      setTicketLoading(false);
+    }
+  }
+
+  async function handleCsatSelect(rating) {
+    setCsatSending(true);
+    try {
+      await fetch(`${apiUrl}/api/chat/messages`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, rating }),
+      });
+      setStep('rating_done');
+    } catch {
+      setStep('rating_done');
+    } finally {
+      setCsatSending(false);
+    }
   }
 
   return (
@@ -116,9 +169,7 @@ export default function ChatWidget({ config }) {
         <div style={panelStyle}>
           <PanelHeader title="Welcome!" subtitle="School Admissions Assistant" onClose={handleClose} />
           <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-            <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.6' }}>
-              Which school are you enquiring about?
-            </p>
+            <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.6' }}>Which school are you enquiring about?</p>
             {config.schools.map(school => (
               <button
                 key={school.id}
@@ -137,67 +188,35 @@ export default function ChatWidget({ config }) {
       {/* ── LEAD FORM ── */}
       {isOpen && step === 'form' && (
         <div style={panelStyle}>
-          <PanelHeader
-            title={selectedSchool?.name || 'School Support'}
-            subtitle="Just a few quick details to get started"
-            onClose={handleClose}
-          />
+          <PanelHeader title={selectedSchool?.name || 'School Support'} subtitle="Just a few quick details to get started" onClose={handleClose} />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
             <p style={{ fontSize: '13px', color: '#666', marginBottom: '18px', lineHeight: '1.5' }}>
-              Hi! To help you better, please fill in your details below. It only takes a moment.
+              Hi! To help you better, please fill in your details below.
             </p>
             <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Full Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Amaka Johnson"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = primaryColor}
-                  onBlur={e => e.target.style.borderColor = '#ddd'}
-                  required
-                />
+                <input type="text" placeholder="e.g. Amaka Johnson" value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
               </div>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Email Address</label>
-                <input
-                  type="email"
-                  placeholder="e.g. amaka@gmail.com"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = primaryColor}
-                  onBlur={e => e.target.style.borderColor = '#ddd'}
-                  required
-                />
+                <input type="email" placeholder="e.g. amaka@gmail.com" value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
               </div>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Phone Number</label>
-                <input
-                  type="tel"
-                  placeholder="e.g. 08012345678"
-                  value={form.phone}
-                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = primaryColor}
-                  onBlur={e => e.target.style.borderColor = '#ddd'}
-                  required
-                />
+                <input type="tel" placeholder="e.g. 08012345678" value={form.phone}
+                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
               </div>
-
               {formError && (
-                <div style={{ fontSize: '12px', color: '#d93025', background: '#fce8e6', padding: '8px 12px', borderRadius: '6px' }}>
-                  {formError}
-                </div>
+                <div style={{ fontSize: '12px', color: '#d93025', background: '#fce8e6', padding: '8px 12px', borderRadius: '6px' }}>{formError}</div>
               )}
-
-              <button
-                type="submit"
-                disabled={formLoading}
-                style={{ background: formLoading ? '#999' : primaryColor, color: 'white', border: 'none', borderRadius: '10px', padding: '13px', fontSize: '14px', fontWeight: 700, cursor: formLoading ? 'not-allowed' : 'pointer', marginTop: '4px', transition: 'background 0.15s' }}
-              >
+              <button type="submit" disabled={formLoading}
+                style={{ background: formLoading ? '#999' : primaryColor, color: 'white', border: 'none', borderRadius: '10px', padding: '13px', fontSize: '14px', fontWeight: 700, cursor: formLoading ? 'not-allowed' : 'pointer', marginTop: '4px' }}>
                 {formLoading ? 'Starting chat...' : 'Start Chat →'}
               </button>
             </form>
@@ -226,6 +245,117 @@ export default function ChatWidget({ config }) {
             isLoading={isLoading}
             primaryColor={primaryColor}
           />
+          {/* Footer actions */}
+          <div style={{ background: '#f9f9f9', borderTop: '1px solid #eee', padding: '8px 16px', display: 'flex', gap: '12px', justifyContent: 'center', flexShrink: 0 }}>
+            {stage === 'escalated' && (
+              <button onClick={() => setStep('rating')}
+                style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                Rate this chat ★
+              </button>
+            )}
+            <button onClick={() => setStep('ticket')}
+              style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+              ✉ Leave a message
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── TICKET FORM ── */}
+      {isOpen && step === 'ticket' && (
+        <div style={panelStyle}>
+          <PanelHeader title="Leave a Message" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+            <form onSubmit={handleTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Subject</label>
+                <input type="text" placeholder="e.g. Admission requirements" value={ticketForm.subject}
+                  onChange={e => setTicketForm(f => ({ ...f, subject: e.target.value }))} style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Message</label>
+                <textarea placeholder="Describe your question or issue..." value={ticketForm.message}
+                  onChange={e => setTicketForm(f => ({ ...f, message: e.target.value }))}
+                  style={{ ...inputStyle, minHeight: '120px', resize: 'vertical' }} required />
+              </div>
+              {ticketError && (
+                <div style={{ fontSize: '12px', color: '#d93025', background: '#fce8e6', padding: '8px 12px', borderRadius: '6px' }}>{ticketError}</div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="submit" disabled={ticketLoading}
+                  style={{ flex: 1, background: ticketLoading ? '#999' : primaryColor, color: 'white', border: 'none', borderRadius: '10px', padding: '12px', fontSize: '14px', fontWeight: 700, cursor: ticketLoading ? 'not-allowed' : 'pointer' }}>
+                  {ticketLoading ? 'Sending...' : 'Send Message'}
+                </button>
+                <button type="button" onClick={() => setStep('chat')}
+                  style={{ padding: '12px 16px', borderRadius: '10px', border: '1.5px solid #ddd', background: 'white', cursor: 'pointer', fontSize: '13px', color: '#666' }}>
+                  Back
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── TICKET SENT ── */}
+      {isOpen && step === 'ticket_sent' && (
+        <div style={panelStyle}>
+          <PanelHeader title="Message Sent!" onClose={handleClose} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: '#222', marginBottom: '8px' }}>We've received your message!</div>
+            <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6' }}>
+              Our team will reply to <strong>{form.email || 'your email'}</strong> within 24 hours.
+            </div>
+            <button onClick={() => setStep('chat')}
+              style={{ marginTop: '24px', padding: '10px 20px', borderRadius: '10px', border: '1.5px solid #ddd', background: 'white', cursor: 'pointer', fontSize: '13px', color: '#444' }}>
+              Back to chat
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── CSAT RATING ── */}
+      {isOpen && step === 'rating' && (
+        <div style={panelStyle}>
+          <PanelHeader title="Rate Your Experience" subtitle="How was your chat today?" onClose={handleClose} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: '24px' }}>
+            <div style={{ fontSize: '14px', color: '#444', textAlign: 'center' }}>
+              Your feedback helps us improve our support.
+            </div>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              {CSAT_OPTIONS.map(({ rating, emoji, label }) => (
+                <button key={rating} onClick={() => handleCsatSelect(rating)} disabled={csatSending}
+                  title={label}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: csatSending ? 'not-allowed' : 'pointer', opacity: csatSending ? 0.5 : 1, transition: 'transform 0.1s' }}
+                  onMouseEnter={e => { if (!csatSending) e.currentTarget.style.transform = 'scale(1.2)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
+                  <span style={{ fontSize: '36px' }}>{emoji}</span>
+                  <span style={{ fontSize: '10px', color: '#888' }}>{label}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setStep('chat')}
+              style={{ fontSize: '12px', color: '#999', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── RATING DONE ── */}
+      {isOpen && step === 'rating_done' && (
+        <div style={panelStyle}>
+          <PanelHeader title="Thank You!" onClose={handleClose} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⭐</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: '#222', marginBottom: '8px' }}>Thanks for your feedback!</div>
+            <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6' }}>Your rating helps us keep improving.</div>
+            <button onClick={() => setStep('chat')}
+              style={{ marginTop: '24px', padding: '10px 20px', borderRadius: '10px', border: '1.5px solid #ddd', background: 'white', cursor: 'pointer', fontSize: '13px', color: '#444' }}>
+              Back to chat
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,19 +1,36 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api.js';
 
 const EscalationContext = createContext(null);
 
 export function EscalationProvider({ children }) {
   const [pendingCount, setPendingCount] = useState(0);
+  const prevCountRef = useRef(null);
 
   const refresh = useCallback(async () => {
     try {
       const d = await api.escalations({ status: 'pending' });
-      setPendingCount((d.escalations || []).length);
+      const count = (d.escalations || []).length;
+      setPendingCount(prev => {
+        if (prevCountRef.current !== null && count > prevCountRef.current) {
+          const diff = count - prevCountRef.current;
+          if (Notification.permission === 'granted') {
+            new Notification('New Chat Request', {
+              body: `${diff} new visitor${diff > 1 ? 's' : ''} need${diff === 1 ? 's' : ''} help`,
+              icon: '/favicon.ico',
+            });
+          }
+        }
+        prevCountRef.current = count;
+        return count;
+      });
     } catch {}
   }, []);
 
   useEffect(() => {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
     refresh();
     const t = setInterval(refresh, 30000);
     return () => clearInterval(t);

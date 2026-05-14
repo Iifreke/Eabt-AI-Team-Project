@@ -1,10 +1,28 @@
 import { applyCors } from '../../src/utils/cors.js';
 import supabase from '../../src/db/supabase.js';
 
-// Public endpoint — no auth required (widget polls this)
-// Returns the latest messages for a conversation by sessionId
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
+
+  // PATCH — CSAT rating submission (no auth, public)
+  if (req.method === 'PATCH') {
+    const { sessionId, rating } = req.body || {};
+    if (!sessionId || !rating) return res.status(400).json({ error: 'sessionId and rating required' });
+    try {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('session_id', sessionId)
+        .single();
+      if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+      await supabase.from('conversations').update({ rating: Number(rating) }).eq('id', conv.id);
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error('rating error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   if (req.method !== 'GET') return res.status(405).end();
 
   const { sessionId } = req.query;
@@ -17,9 +35,7 @@ export default async function handler(req, res) {
       .eq('session_id', sessionId)
       .single();
 
-    if (error || !conv) {
-      return res.status(404).json({ error: 'Conversation not found' });
-    }
+    if (error || !conv) return res.status(404).json({ error: 'Conversation not found' });
 
     const all = conv.messages || [];
     const typingEntry = all.find(m => m.role === '__typing__');

@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
-    const { id, status, staff_notes, attended_by, resolved_by } = req.body;
+    const { id, status, staff_notes, attended_by, resolved_by, tags } = req.body;
     if (!id) return res.status(400).json({ error: 'Missing id' });
 
     const updates = { updated_at: new Date().toISOString() };
@@ -18,6 +18,7 @@ export default async function handler(req, res) {
     if (staff_notes !== undefined) updates.staff_notes = staff_notes;
     if (attended_by !== undefined) updates.attended_by = attended_by;
     if (resolved_by !== undefined) updates.resolved_by = resolved_by;
+    if (tags !== undefined) updates.tags = tags;
 
     const { data: escalation, error } = await supabase
       .from('escalations')

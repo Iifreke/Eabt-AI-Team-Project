@@ -10,6 +10,25 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
+    // Single conversation when ?id= is provided (replaces conversation.js)
+    if (req.query.id) {
+      const { data: conv, error } = await supabase
+        .from('conversations')
+        .select('*, leads(*), schools(name, slug)')
+        .eq('id', req.query.id)
+        .single();
+      if (error || !conv) return res.status(404).json({ error: 'Not found' });
+      const { data: escalation } = await supabase
+        .from('escalations')
+        .select('*')
+        .eq('conversation_id', req.query.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      return res.status(200).json({ ...conv, escalation: escalation || null });
+    }
+
+    // List conversations
     const { schoolId, stage, page = '1', limit = '20' } = req.query;
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -39,7 +58,6 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    // Add message count without sending full messages
     const mapped = (conversations || []).map(conv => ({
       ...conv,
       message_count: Array.isArray(conv.messages) ? conv.messages.length : 0,

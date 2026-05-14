@@ -5,7 +5,10 @@ import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Leads from './pages/Leads.jsx';
 import Conversations from './pages/Conversations.jsx';
-import Escalations from './pages/Escalations.jsx';
+import Chats from './pages/Chats.jsx';
+import Tickets from './pages/Tickets.jsx';
+import Shortcuts from './pages/Shortcuts.jsx';
+import Monitoring from './pages/Monitoring.jsx';
 import KnowledgeBase from './pages/KnowledgeBase.jsx';
 import Users from './pages/Users.jsx';
 import SetPassword from './pages/SetPassword.jsx';
@@ -18,24 +21,21 @@ export default function App() {
         <Route path="/set-password" element={<SetPassword />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        <Route path="/dashboard" element={
-          <ProtectedRoute><Dashboard /></ProtectedRoute>
-        } />
-        <Route path="/leads" element={
-          <ProtectedRoute><Leads /></ProtectedRoute>
-        } />
-        <Route path="/conversations" element={
-          <ProtectedRoute><Conversations /></ProtectedRoute>
-        } />
-        <Route path="/escalations" element={
-          <ProtectedRoute><Escalations /></ProtectedRoute>
-        } />
-        <Route path="/knowledge-base" element={
-          <ProtectedRoute><KnowledgeBase /></ProtectedRoute>
-        } />
-        <Route path="/users" element={
-          <ProtectedRoute><Users /></ProtectedRoute>
-        } />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/chats" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
+        <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
+        <Route path="/contacts" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
+        <Route path="/shortcuts" element={<ProtectedRoute><Shortcuts /></ProtectedRoute>} />
+        <Route path="/monitoring" element={<ProtectedRoute><Monitoring /></ProtectedRoute>} />
+        <Route path="/knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
+        <Route path="/agents" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+
+        {/* Legacy redirects */}
+        <Route path="/leads" element={<Navigate to="/contacts" replace />} />
+        <Route path="/conversations" element={<Navigate to="/history" replace />} />
+        <Route path="/escalations" element={<Navigate to="/chats" replace />} />
+        <Route path="/users" element={<Navigate to="/agents" replace />} />
       </Routes>
     </BrowserRouter>
   );

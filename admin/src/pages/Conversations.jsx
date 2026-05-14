@@ -56,7 +56,7 @@ export default function Conversations() {
       <Sidebar />
 
       <div className="max-w-5xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Conversations</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">History</h1>
         <p className="text-gray-500 text-sm mb-6">{total} total conversations</p>
 
         <div className="flex gap-2 mb-5">

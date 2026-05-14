@@ -39,7 +39,15 @@ export const api = {
     return authFetch(`/api/admin/conversations${qs ? '?' + qs : ''}`);
   },
 
-  conversation: (id) => authFetch(`/api/admin/conversation?id=${id}`),
+  conversation: (id) => authFetch(`/api/admin/conversations?id=${id}`),
+
+  tickets: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return authFetch(`/api/admin/tickets${qs ? '?' + qs : ''}`);
+  },
+
+  updateTicket: (data) =>
+    authFetch('/api/admin/tickets', { method: 'PATCH', body: JSON.stringify(data) }),
 
   escalations: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
