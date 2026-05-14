@@ -100,19 +100,25 @@ export default function ConversationViewer({ conversationId, onClose }) {
             <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200">
               <div className="flex-1 overflow-y-auto p-5">
                 <div className="space-y-3">
-                  {(conv.messages || []).map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs lg:max-w-sm`}>
-                        {getRoleLabel(msg.role)}
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm ${getBubbleStyle(msg.role)}`}>
-                          <div className="whitespace-pre-wrap">{msg.content}</div>
-                          <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-200' : msg.role === 'admin' ? 'text-purple-300' : 'text-gray-400'}`}>
-                            {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                  {(() => {
+                    const msgs = (conv.messages || []).filter(m => m.role !== '__typing__');
+                    if (!msgs.length) return (
+                      <p className="text-sm text-gray-400 text-center py-8">No messages in this conversation yet.</p>
+                    );
+                    return msgs.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className="max-w-xs lg:max-w-sm">
+                          {getRoleLabel(msg.role)}
+                          <div className={`px-4 py-2.5 rounded-2xl text-sm ${getBubbleStyle(msg.role)}`}>
+                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                            <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-200' : msg.role === 'admin' ? 'text-purple-300' : 'text-gray-400'}`}>
+                              {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                   <div ref={bottomRef} />
                 </div>
               </div>

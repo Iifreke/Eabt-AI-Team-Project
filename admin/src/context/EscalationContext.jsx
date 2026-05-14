@@ -11,24 +11,26 @@ export function EscalationProvider({ children }) {
     try {
       const d = await api.escalations({ status: 'pending' });
       const count = (d.escalations || []).length;
-      setPendingCount(prev => {
-        if (prevCountRef.current !== null && count > prevCountRef.current) {
-          const diff = count - prevCountRef.current;
-          if (Notification.permission === 'granted') {
+
+      if (prevCountRef.current !== null && count > prevCountRef.current) {
+        const diff = count - prevCountRef.current;
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try {
             new Notification('New Chat Request', {
               body: `${diff} new visitor${diff > 1 ? 's' : ''} need${diff === 1 ? 's' : ''} help`,
               icon: '/favicon.ico',
             });
-          }
+          } catch {}
         }
-        prevCountRef.current = count;
-        return count;
-      });
+      }
+
+      prevCountRef.current = count;
+      setPendingCount(count);
     } catch {}
   }, []);
 
   useEffect(() => {
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
     refresh();

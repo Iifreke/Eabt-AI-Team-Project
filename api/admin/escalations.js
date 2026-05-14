@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
     let query = supabase
       .from('escalations')
-      .select('*, leads(name, email, phone), conversations(messages, session_id), schools(name, slug)');
+      .select('*, leads(name, email, phone), schools(name, slug)');
 
     if (status) query = query.eq('status', status);
 
@@ -31,20 +31,7 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    // Include only last 4 messages as snippet
-    const mapped = (escalations || []).map(esc => ({
-      ...esc,
-      conversations: esc.conversations
-        ? {
-            ...esc.conversations,
-            messages: Array.isArray(esc.conversations.messages)
-              ? esc.conversations.messages.slice(-4)
-              : [],
-          }
-        : null,
-    }));
-
-    return res.status(200).json({ escalations: mapped });
+    return res.status(200).json({ escalations: escalations || [] });
   } catch (error) {
     console.error('escalations error:', error);
     return res.status(500).json({ error: 'Internal server error' });

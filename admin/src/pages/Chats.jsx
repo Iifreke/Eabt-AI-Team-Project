@@ -344,17 +344,9 @@ function ChatRow({ esc, onUpdate }) {
                   <div>Phone: {esc.leads?.phone || '—'}</div>
                 </div>
 
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-2">Last Messages</div>
-                <div className="space-y-2">
-                  {(esc.conversations?.messages || []).map((msg, i) => (
-                    <div key={i} className={`text-xs px-3 py-2 rounded-lg ${msg.role === 'user' ? 'bg-blue-100 text-blue-800' : msg.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-white border border-gray-200'}`}>
-                      <span className="font-semibold">
-                        {msg.role === 'user' ? 'Visitor: ' : msg.role === 'admin' ? '🧑‍💼 Agent: ' : 'Bot: '}
-                      </span>
-                      {msg.content}
-                    </div>
-                  ))}
-                </div>
+                {esc.status === 'resolved' && (
+                  <p className="text-xs text-gray-400 mt-4">Chat ended. Open to view full transcript.</p>
+                )}
               </div>
 
               <div>
