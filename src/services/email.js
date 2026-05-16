@@ -72,8 +72,9 @@ ${transcript || '(No messages recorded)'}
 </body>
 </html>`;
 
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
     await resend.emails.send({
-      from: 'chatbot@notifications.yourdomain.com',
+      from: fromAddress,
       to: school.staff_email,
       subject: `🚨 Escalation — ${lead.name || 'Unknown Visitor'} — ${school.name}`,
       html,
@@ -127,13 +128,77 @@ export async function sendTicketEmail({ school, ticket }) {
 </body>
 </html>`;
 
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
     await resend.emails.send({
-      from: 'chatbot@notifications.yourdomain.com',
+      from: fromAddress,
       to: school.staff_email,
       subject: `🎫 New Ticket — ${ticket.subject} — ${school.name}`,
       html,
     });
   } catch (error) {
     console.error('Ticket email failed:', error.message);
+  }
+}
+
+/**
+ * Send a reply email to the visitor/lead when admin responds to their ticket.
+ * @param {{ school: object, ticket: object, staffReply: string }} opts
+ */
+export async function sendTicketReplyEmail({ school, ticket, staffReply }) {
+  try {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+    <div style="background: #1565c0; padding: 24px; color: white;">
+      <h1 style="margin: 0; font-size: 20px;">📩 Reply to Your Support Ticket</h1>
+      <p style="margin: 8px 0 0; opacity: 0.9;">${school.name} — Support Team</p>
+    </div>
+
+    <div style="padding: 24px;">
+      <p style="font-size: 15px; color: #333; margin: 0 0 16px;">Hi <strong>${ticket.name}</strong>,</p>
+      <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 20px;">
+        Our support team has responded to your ticket: <strong>${ticket.subject}</strong>
+      </p>
+
+      <div style="background: #e3f2fd; border-left: 4px solid #1565c0; border-radius: 4px; padding: 16px; margin-bottom: 24px;">
+        <h2 style="margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Support Team's Reply</h2>
+        <div style="font-size: 14px; color: #1a237e; line-height: 1.7; white-space: pre-wrap;">${staffReply}</div>
+      </div>
+
+      <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+        <h2 style="margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Your Original Message</h2>
+        <p style="margin: 0; font-size: 13px; color: #666; font-style: italic; line-height: 1.6;">${ticket.message}</p>
+      </div>
+
+      <p style="font-size: 13px; color: #666; margin: 0;">
+        If you have further questions, please reply to this email or visit our website.
+        <br>Thank you for reaching out to <strong>${school.name}</strong>.
+      </p>
+
+      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 12px;">
+        This is a reply to ticket #${ticket.id?.slice(0, 8) || 'N/A'} submitted on ${new Date(ticket.created_at || Date.now()).toLocaleDateString()}.
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'support@notifications.schoolbot.ng';
+
+    await resend.emails.send({
+      from: fromAddress,
+      to: ticket.email,
+      subject: `Re: ${ticket.subject} — ${school.name} Support`,
+      html,
+    });
+
+    console.log(`Ticket reply email sent to ${ticket.email}`);
+  } catch (error) {
+    console.error('Ticket reply email failed:', error.message);
+    // Do not rethrow — email failure should not block the API response
   }
 }

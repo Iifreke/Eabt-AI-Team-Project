@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSession } from './hooks/useSession.js';
 import { useChat } from './hooks/useChat.js';
 import ChatHeader from './components/ChatHeader.jsx';
@@ -53,6 +53,10 @@ export default function ChatWidget({ config }) {
   // CSAT state
   const [csatSending, setCsatSending] = useState(false);
 
+  // No-response hint — shown after 2 min in escalated stage with no admin reply
+  const [showNoResponseHint, setShowNoResponseHint] = useState(false);
+  const noResponseTimerRef = useRef(null);
+
   const { sessionId } = useSession();
   const { messages, stage, isLoading, agentTyping, submitLead, sendMessage, handleSuggestionClick } = useChat();
 
@@ -63,6 +67,21 @@ export default function ChatWidget({ config }) {
   };
 
   const apiUrl = config?.apiUrl || '';
+
+  // Start 2-minute no-response countdown when stage becomes escalated
+  useEffect(() => {
+    if (stage === 'escalated') {
+      noResponseTimerRef.current = setTimeout(() => {
+        const hasAdminReply = messages.some(m => m.role === 'admin');
+        if (!hasAdminReply) setShowNoResponseHint(true);
+      }, 2 * 60 * 1000);
+    } else {
+      clearTimeout(noResponseTimerRef.current);
+      setShowNoResponseHint(false);
+    }
+    return () => clearTimeout(noResponseTimerRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
   const windowStyle = isMobile
@@ -124,7 +143,7 @@ export default function ChatWidget({ config }) {
     setTicketError('');
     setTicketLoading(true);
     try {
-      await fetch(`${apiUrl}/api/admin/tickets`, {
+      const res = await fetch(`${apiUrl}/api/admin/tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -136,9 +155,15 @@ export default function ChatWidget({ config }) {
           message,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Server error');
+      }
+      setTicketForm({ subject: '', message: '' });
+      setShowNoResponseHint(false);
       setStep('ticket_sent');
-    } catch {
-      setTicketError('Failed to send. Please try again.');
+    } catch (err) {
+      setTicketError(err.message || 'Failed to send. Please try again.');
     } finally {
       setTicketLoading(false);
     }
@@ -245,6 +270,18 @@ export default function ChatWidget({ config }) {
             isLoading={isLoading}
             primaryColor={primaryColor}
           />
+          {/* No-response hint — shown after 2 min in escalated with no admin reply */}
+          {showNoResponseHint && (
+            <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
+              <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Leave a message and we'll reply to your email.</div>
+              <button
+                onClick={() => { setTicketError(''); setStep('ticket'); }}
+                style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                Leave a Message →
+              </button>
+            </div>
+          )}
           {/* Footer actions */}
           <div style={{ background: '#f9f9f9', borderTop: '1px solid #eee', padding: '8px 16px', display: 'flex', gap: '12px', justifyContent: 'center', flexShrink: 0 }}>
             {stage === 'escalated' && (
@@ -253,7 +290,7 @@ export default function ChatWidget({ config }) {
                 Rate this chat ★
               </button>
             )}
-            <button onClick={() => setStep('ticket')}
+            <button onClick={() => { setTicketError(''); setStep('ticket'); }}
               style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
               ✉ Leave a message
             </button>

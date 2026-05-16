@@ -129,8 +129,7 @@ export default async function handler(req, res) {
 
     // ── ESCALATED STAGE ───────────────────────────────────────
     if (conv.stage === 'escalated') {
-      // Append the user's message and save it so admins can see it
-      messages.push({ role: 'user', content: message, ts: Date.now() });
+      // User message was already pushed at top — just persist and return
       await supabase
         .from('conversations')
         .update({ messages, updated_at: new Date().toISOString() })

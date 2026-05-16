@@ -72,6 +72,27 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+
+        {/* ── Invite-only sign-up ── */}
+        <div className="mt-6 pt-5 border-t border-gray-100">
+          <p className="text-xs text-gray-400 text-center mb-3">
+            Have an invite link from a Super Admin?
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/set-password')}
+            className="w-full border border-blue-200 text-blue-600 rounded-lg py-2.5 text-sm font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            Sign up with invite
+          </button>
+          <p className="text-xs text-gray-400 text-center mt-2">
+            Only invited team members can create an account.
+          </p>
+        </div>
       </div>
     </div>
   );
