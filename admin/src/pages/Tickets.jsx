@@ -65,11 +65,17 @@ function TicketRow({ ticket, onUpdate }) {
   const [reply, setReply] = useState(ticket.staff_reply || '');
   const [assignedTo, setAssignedTo] = useState(ticket.assigned_to || '');
   const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
 
   const patch = async (updates) => {
     setSaving(true);
+    setSuccessMsg('');
     try {
       await api.updateTicket({ id: ticket.id, ...updates });
+      if (updates.staff_reply !== undefined) {
+        setSuccessMsg('Reply sent and ticket updated!');
+        setTimeout(() => setSuccessMsg(''), 3000);
+      }
       onUpdate();
     } catch (err) {
       console.error(err);
@@ -136,7 +142,10 @@ function TicketRow({ ticket, onUpdate }) {
                   className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                 />
 
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Reply</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex justify-between items-center">
+                  <span>Reply</span>
+                  {successMsg && <span className="text-green-600 normal-case">{successMsg}</span>}
+                </div>
                 <textarea
                   value={reply}
                   onChange={e => setReply(e.target.value)}

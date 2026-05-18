@@ -14,21 +14,35 @@ export default async function handler(req, res) {
     if (req.query.id) {
       const { data: conv, error } = await supabase
         .from('conversations')
-        .select('id, session_id, stage, messages, created_at, updated_at, failed_attempts, lead_id, school_id, leads(id, name, email, phone, zoho_contact_id), schools(name, slug)')
+        .select('id, session_id, stage, messages, created_at, updated_at, failed_attempts, lead_id, school_id')
         .eq('id', req.query.id)
         .single();
       if (error || !conv) {
         console.error('single conv error:', error?.message, 'id:', req.query.id);
         return res.status(404).json({ error: 'Not found' });
       }
-      const { data: escalation } = await supabase
-        .from('escalations')
-        .select('*')
-        .eq('conversation_id', req.query.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      return res.status(200).json({ ...conv, escalation: escalation || null });
+
+      // Fetch lead, school, and escalation in parallel — avoids FK join ambiguity
+      const [leadResult, schoolResult, escalationResult] = await Promise.all([
+        conv.lead_id
+          ? supabase.from('leads').select('id, name, email, phone').eq('id', conv.lead_id).single()
+          : Promise.resolve({ data: null }),
+        conv.school_id
+          ? supabase.from('schools').select('name, slug').eq('id', conv.school_id).single()
+          : Promise.resolve({ data: null }),
+        supabase.from('escalations').select('*')
+          .eq('conversation_id', req.query.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single(),
+      ]);
+
+      return res.status(200).json({
+        ...conv,
+        leads: leadResult.data || null,
+        schools: schoolResult.data || null,
+        escalation: escalationResult.data || null,
+      });
     }
 
     // List conversations

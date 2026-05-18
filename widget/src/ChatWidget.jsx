@@ -60,6 +60,10 @@ export default function ChatWidget({ config }) {
   const { sessionId } = useSession();
   const { messages, stage, isLoading, agentTyping, submitLead, sendMessage, handleSuggestionClick } = useChat();
 
+  // Keep a live ref so timer callbacks always read the latest messages
+  const messagesRef = useRef(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
   const effectiveConfig = {
     ...config,
     schoolId: selectedSchool?.id,
@@ -72,7 +76,7 @@ export default function ChatWidget({ config }) {
   useEffect(() => {
     if (stage === 'escalated') {
       noResponseTimerRef.current = setTimeout(() => {
-        const hasAdminReply = messages.some(m => m.role === 'admin');
+        const hasAdminReply = messagesRef.current.some(m => m.role === 'admin');
         if (!hasAdminReply) setShowNoResponseHint(true);
       }, 2 * 60 * 1000);
     } else {
@@ -80,8 +84,14 @@ export default function ChatWidget({ config }) {
       setShowNoResponseHint(false);
     }
     return () => clearTimeout(noResponseTimerRef.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
+
+  // Hide the hint as soon as an admin reply arrives (even after the timer already fired)
+  useEffect(() => {
+    if (showNoResponseHint && messages.some(m => m.role === 'admin')) {
+      setShowNoResponseHint(false);
+    }
+  }, [messages, showNoResponseHint]);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
   const windowStyle = isMobile
@@ -148,9 +158,9 @@ export default function ChatWidget({ config }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           schoolId: selectedSchool?.id,
-          name: form.name || 'Visitor',
-          email: form.email || '',
-          phone: form.phone || '',
+          name: form.name || lead.name || 'Visitor',
+          email: form.email || lead.email || '',
+          phone: form.phone || lead.phone || '',
           subject,
           message,
         }),
@@ -274,11 +284,11 @@ export default function ChatWidget({ config }) {
           {showNoResponseHint && (
             <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Leave a message and we'll reply to your email.</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Open a ticket and we'll reply to your email.</div>
               <button
                 onClick={() => { setTicketError(''); setStep('ticket'); }}
                 style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                Leave a Message →
+                Open a Ticket →
               </button>
             </div>
           )}
@@ -292,7 +302,7 @@ export default function ChatWidget({ config }) {
             )}
             <button onClick={() => { setTicketError(''); setStep('ticket'); }}
               style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-              ✉ Leave a message
+              📋 Open a Ticket
             </button>
           </div>
         </div>
@@ -301,7 +311,7 @@ export default function ChatWidget({ config }) {
       {/* ── TICKET FORM ── */}
       {isOpen && step === 'ticket' && (
         <div style={panelStyle}>
-          <PanelHeader title="Leave a Message" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
+          <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
             <form onSubmit={handleTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
@@ -337,12 +347,12 @@ export default function ChatWidget({ config }) {
       {/* ── TICKET SENT ── */}
       {isOpen && step === 'ticket_sent' && (
         <div style={panelStyle}>
-          <PanelHeader title="Message Sent!" onClose={handleClose} />
+          <PanelHeader title="Ticket Sent!" onClose={handleClose} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#222', marginBottom: '8px' }}>We've received your message!</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: '#222', marginBottom: '8px' }}>We've received your ticket!</div>
             <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6' }}>
-              Our team will reply to <strong>{form.email || 'your email'}</strong> within 24 hours.
+              Our team will reply to <strong>{form.email || lead.email || 'your email'}</strong> within 24 hours.
             </div>
             <button onClick={() => setStep('chat')}
               style={{ marginTop: '24px', padding: '10px 20px', borderRadius: '10px', border: '1.5px solid #ddd', background: 'white', cursor: 'pointer', fontSize: '13px', color: '#444' }}>

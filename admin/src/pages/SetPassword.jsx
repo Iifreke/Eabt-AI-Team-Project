@@ -12,21 +12,34 @@ export default function SetPassword() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    // Supabase JS client automatically exchanges the invite token from the URL hash
+    let mounted = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
       if (session) {
         setReady(true);
       } else if (event === 'SIGNED_OUT') {
         setError('This invite link is invalid or has expired. Please ask a Super Admin to resend the invite.');
+        setReady(true);
+      } else if (event === 'PASSWORD_RECOVERY' || event === 'USER_UPDATED') {
+        setReady(true);
       }
     });
 
-    // Also check for an existing session (in case the event already fired)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setReady(true);
+      if (!mounted) return;
+      if (session) {
+        setReady(true);
+      } else if (!window.location.hash) {
+        setError('No invite token found in the URL. Please click the exact link from your email.');
+        setReady(true);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e) => {

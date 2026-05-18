@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       let school_id = null;
       let school = null;
       if (schoolId) {
-        // Widget passes the slug (e.g. 'backock') — try slug first, fall back to UUID
+        // Widget passes the slug (e.g. 'babcock') — try slug first, fall back to UUID
         let { data: s } = await supabase
           .from('schools').select('id, name, staff_email, slug').eq('slug', schoolId).single();
         if (!s) {
@@ -30,12 +30,13 @@ export default async function handler(req, res) {
 
       const { data: ticket, error } = await supabase
         .from('tickets')
-        .insert({ school_id, name, email, phone: phone || null, subject, message })
+        .insert({ school_id, name, email, phone: phone || null, subject, message, status: 'open' })
         .select()
         .single();
 
       if (error) throw error;
 
+      // Send notification email to staff
       if (school?.staff_email) {
         sendTicketEmail({ school, ticket }).catch(() => {});
       }
@@ -86,18 +87,35 @@ export default async function handler(req, res) {
       const { id, status, assigned_to, staff_reply, tags } = req.body;
       if (!id) return res.status(400).json({ error: 'Missing id' });
 
-      // Capture replied_at before update to know if this is the first reply
+      // Load existing ticket to compare staff_reply and current status
       const { data: existing } = await supabase
-        .from('tickets').select('replied_at').eq('id', id).single();
-      const isFirstReply = !existing?.replied_at;
+        .from('tickets')
+        .select('staff_reply, replied_at, status, email, name, subject, message, created_at')
+        .eq('id', id)
+        .single();
+
+      const replyChanged = staff_reply !== undefined &&
+        staff_reply.trim() &&
+        staff_reply.trim() !== (existing?.staff_reply || '').trim();
 
       const updates = { updated_at: new Date().toISOString() };
+
+      // Apply explicit status changes from UI
       if (status) updates.status = status;
-      if (assigned_to !== undefined) updates.assigned_to = assigned_to;
-      if (staff_reply !== undefined) {
+
+      // If a new reply is being saved, auto-advance status from 'open' to 'pending'
+      if (replyChanged) {
+        updates.staff_reply = staff_reply.trim();
+        updates.replied_at = new Date().toISOString();
+        // Auto-advance status: open → pending (in progress), keep others unchanged
+        if (!status && existing?.status === 'open') {
+          updates.status = 'pending';
+        }
+      } else if (staff_reply !== undefined) {
         updates.staff_reply = staff_reply;
-        if (isFirstReply) updates.replied_at = new Date().toISOString();
       }
+
+      if (assigned_to !== undefined) updates.assigned_to = assigned_to;
       if (tags !== undefined) updates.tags = tags;
 
       const { data: ticket, error } = await supabase
@@ -109,10 +127,19 @@ export default async function handler(req, res) {
 
       if (error) throw error;
 
-      // ── Send reply email to lead on first reply only ─────────────
-      if (staff_reply && staff_reply.trim() && ticket?.email && isFirstReply) {
+      // ── Send reply email to lead whenever staff_reply actually changed ─────
+      if (replyChanged && ticket?.email) {
         const school = ticket.schools || { name: 'Support Team' };
-        sendTicketReplyEmail({ school, ticket, staffReply: staff_reply.trim() }).catch(() => {});
+        // Merge existing ticket fields for the email (schools relation stripped)
+        const ticketForEmail = {
+          ...existing,
+          id: ticket.id,
+          staff_reply: staff_reply.trim(),
+          schools: undefined,
+        };
+        sendTicketReplyEmail({ school, ticket: ticketForEmail, staffReply: staff_reply.trim() }).catch(err => {
+          console.error('sendTicketReplyEmail failed:', err);
+        });
       }
 
       return res.status(200).json({ ticket });

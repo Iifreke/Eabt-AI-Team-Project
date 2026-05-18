@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
@@ -53,7 +53,7 @@ function useShortcuts() {
 }
 
 // ── Live Chat Panel ─────────────────────────────────────────────
-function LiveChatPanel({ esc, onUpdate }) {
+const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
   const { profile } = useUser();
   const shortcuts = useShortcuts();
   const [messages, setMessages] = useState([]);
@@ -66,16 +66,22 @@ function LiveChatPanel({ esc, onUpdate }) {
   const typingTimerRef = useRef(null);
   const autoResolveRef = useRef(null);
 
+  // Use refs to stabilize callbacks and prevent re-render loops
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
+
   const resetAutoResolve = useCallback(() => {
     clearTimeout(autoResolveRef.current);
     if (esc.status === 'resolved' || !profile?.full_name) return;
     autoResolveRef.current = setTimeout(async () => {
       try {
         await api.updateEscalation({ id: esc.id, status: 'resolved', resolved_by: profile.full_name });
-        onUpdate?.();
+        onUpdateRef.current?.();
       } catch {}
     }, 5 * 60 * 1000);
-  }, [esc.id, esc.status, profile, onUpdate]);
+  }, [esc.id, esc.status, profile]);
 
   const sessionId = esc.conversations?.session_id;
 
@@ -85,7 +91,13 @@ function LiveChatPanel({ esc, onUpdate }) {
       const res = await fetch(`/api/chat/messages?sessionId=${sessionId}`);
       const data = await res.json();
       if (Array.isArray(data?.messages)) {
-        setMessages(data.messages);
+        setMessages(prev => {
+          // Only update if lengths differ or last message timestamp differs to prevent jumpy UI
+          if (prev.length !== data.messages.length || prev[prev.length - 1]?.ts !== data.messages[data.messages.length - 1]?.ts) {
+             return data.messages;
+          }
+          return prev;
+        });
         resetAutoResolve();
       }
     } catch (e) {
@@ -176,7 +188,7 @@ function LiveChatPanel({ esc, onUpdate }) {
           <p className="text-xs text-gray-400 text-center py-4">No messages yet. Reply below to start the live conversation.</p>
         ) : (
           messages.map((msg, i) => (
-            <div key={i} className={`text-xs px-3 py-2 rounded-lg ${roleBg(msg.role)}`}>
+            <div key={msg.ts || i} className={`text-xs px-3 py-2 rounded-lg ${roleBg(msg.role)}`}>
               <div className="font-semibold mb-0.5">{roleLabel(msg)}</div>
               <div className="whitespace-pre-wrap">{msg.content}</div>
               {msg.ts && (
@@ -227,7 +239,7 @@ function LiveChatPanel({ esc, onUpdate }) {
       )}
     </div>
   );
-}
+});
 
 // ── Tags editor ──────────────────────────────────────────────────
 function TagsEditor({ tags, onSave }) {
@@ -276,6 +288,7 @@ function TagsEditor({ tags, onSave }) {
 
 // ── Chat Row ─────────────────────────────────────────────────────
 function ChatRow({ esc, onUpdate }) {
+  const { profile } = useUser();
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(esc.staff_notes || '');
   const [saving, setSaving] = useState(false);
@@ -360,13 +373,13 @@ function ChatRow({ esc, onUpdate }) {
 
                 <div className="flex gap-2 mt-3 flex-wrap">
                   {esc.status === 'pending' && (
-                    <button onClick={() => update({ status: 'in_progress' })} disabled={saving}
+                    <button onClick={() => update({ status: 'in_progress', attended_by: profile?.full_name })} disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">
                       Serve
                     </button>
                   )}
                   {(esc.status === 'pending' || esc.status === 'in_progress') && (
-                    <button onClick={() => update({ status: 'resolved' })} disabled={saving}
+                    <button onClick={() => update({ status: 'resolved', resolved_by: profile?.full_name })} disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
                       End Chat
                     </button>
