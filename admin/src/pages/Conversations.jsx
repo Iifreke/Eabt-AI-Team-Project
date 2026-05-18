@@ -28,6 +28,7 @@ export default function Conversations() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [viewingId, setViewingId] = useState(null);
+  const [viewingConv, setViewingConv] = useState(null);
 
   const fetchConversations = useCallback(async () => {
     setLoading(true);
@@ -98,7 +99,7 @@ export default function Conversations() {
                 {conversations.map(conv => (
                   <tr
                     key={conv.id}
-                    onClick={() => setViewingId(conv.id)}
+                    onClick={() => { setViewingId(conv.id); setViewingConv(conv); }}
                     className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                   >
                     <td className="px-5 py-3 font-medium">{conv.leads?.name || '—'}</td>
@@ -137,7 +138,11 @@ export default function Conversations() {
       </div>
 
       {viewingId && (
-        <ConversationViewer conversationId={viewingId} onClose={() => setViewingId(null)} />
+        <ConversationViewer
+          conversationId={viewingId}
+          initialConv={viewingConv}
+          onClose={() => { setViewingId(null); setViewingConv(null); }}
+        />
       )}
     </div>
   );

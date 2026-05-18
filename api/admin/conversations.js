@@ -78,7 +78,6 @@ export default async function handler(req, res) {
     const mapped = (conversations || []).map(conv => ({
       ...conv,
       message_count: Array.isArray(conv.messages) ? conv.messages.length : 0,
-      messages: undefined,
     }));
 
     return res.status(200).json({ conversations: mapped, total: count || 0, page: pageNum, limit: limitNum });

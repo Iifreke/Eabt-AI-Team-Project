@@ -3,9 +3,9 @@ import { api } from '../lib/api.js';
 
 const SLUG_DISPLAY = { backock: 'Babcock University', abu: 'ABU (Ahmadu Bello University)' };
 
-export default function ConversationViewer({ conversationId, onClose }) {
-  const [conv, setConv] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function ConversationViewer({ conversationId, initialConv, onClose }) {
+  const [conv, setConv] = useState(initialConv || null);
+  const [loading, setLoading] = useState(!initialConv);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState('');
@@ -14,7 +14,15 @@ export default function ConversationViewer({ conversationId, onClose }) {
 
   const fetchConv = useCallback(() => {
     api.conversation(conversationId)
-      .then(setConv)
+      .then(data => {
+        setConv(prev => ({
+          // Prefer list data for messages/leads/schools if API returns empty
+          ...data,
+          messages: data.messages?.length ? data.messages : prev?.messages,
+          leads: data.leads || prev?.leads,
+          schools: data.schools || prev?.schools,
+        }));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [conversationId]);
