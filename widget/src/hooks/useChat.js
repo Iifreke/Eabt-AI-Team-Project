@@ -89,11 +89,12 @@ export function useChat() {
   const uploadFiles = useCallback(async (files, cfg) => {
     return Promise.all(files.map(async (file) => {
       const fd = new FormData();
+      fd.append('action', 'upload');
       fd.append('file', file, file.name);
       fd.append('schoolId', cfg.schoolId || 'general');
       fd.append('mimeType', file.type);
       fd.append('fileName', file.name);
-      const res = await fetch(`${cfg.apiUrl}/api/chat/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${cfg.apiUrl}/api/chat/media`, { method: 'POST', body: fd });
       if (!res.ok) throw new Error('Upload failed');
       return res.json();
     }));

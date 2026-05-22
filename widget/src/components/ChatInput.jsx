@@ -106,9 +106,10 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
     if (fileIdx !== undefined) setTranscribingIdx(fileIdx);
     try {
       const fd = new FormData();
+      fd.append('action', 'transcribe');
       fd.append('audio', blob, 'audio');
       fd.append('mimeType', mimeType);
-      const res = await fetch(`${apiUrl}/api/chat/transcribe`, { method: 'POST', body: fd });
+      const res = await fetch(`${apiUrl}/api/chat/media`, { method: 'POST', body: fd });
       const data = await res.json();
       if (data.text) {
         setValue(data.text);
