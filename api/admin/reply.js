@@ -54,6 +54,22 @@ export default async function handler(req, res) {
     const profile = await getProfile(user.id);
     const adminName = profile?.full_name || user.email || 'Support Agent';
 
+    // Set first_response_at on the escalation if this is the first admin reply
+    const { data: esc } = await supabase
+      .from('escalations')
+      .select('id, first_response_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (esc && !esc.first_response_at) {
+      await supabase
+        .from('escalations')
+        .update({ first_response_at: new Date().toISOString() })
+        .eq('id', esc.id);
+    }
+
     // Append admin message (also clears any typing indicator)
     const messages = (Array.isArray(conv.messages) ? conv.messages : []).filter(m => m.role !== '__typing__');
     messages.push({

@@ -191,6 +191,13 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
             <div key={msg.ts || i} className={`text-xs px-3 py-2 rounded-lg ${roleBg(msg.role)}`}>
               <div className="font-semibold mb-0.5">{roleLabel(msg)}</div>
               <div className="whitespace-pre-wrap">{msg.content}</div>
+              {msg.attachments?.map((att, ai) => (
+                att.type?.startsWith('image/')
+                  ? <img key={ai} src={att.url} alt={att.name} className="mt-1 max-w-xs rounded" />
+                  : att.type?.startsWith('audio/')
+                    ? <audio key={ai} controls src={att.url} className="mt-1 max-w-xs" />
+                    : <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="mt-1 text-xs underline flex items-center gap-1">📄 {att.name}</a>
+              ))}
               {msg.ts && (
                 <div className="text-gray-400 mt-0.5 text-right">
                   {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

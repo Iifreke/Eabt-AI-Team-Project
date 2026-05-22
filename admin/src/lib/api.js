@@ -41,6 +41,9 @@ export const api = {
 
   conversation: (id) => authFetch(`/api/admin/conversations?id=${id}`),
 
+  conversationsByLead: (leadId) =>
+    authFetch(`/api/admin/conversations?leadId=${leadId}`),
+
   tickets: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return authFetch(`/api/admin/tickets${qs ? '?' + qs : ''}`);

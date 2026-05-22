@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   try {
-    const { message, schoolId, sessionId } = req.body;
+    const { message, schoolId, sessionId, attachments } = req.body;
 
     if (!message || !schoolId || !sessionId) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -71,7 +71,9 @@ export default async function handler(req, res) {
 
     // Append user message
     const messages = conv.messages || [];
-    messages.push({ role: 'user', content: message, ts: Date.now() });
+    const userMsg = { role: 'user', content: message, ts: Date.now() };
+    if (Array.isArray(attachments) && attachments.length > 0) userMsg.attachments = attachments;
+    messages.push(userMsg);
 
     // Setup SSE
     res.setHeader('Content-Type', 'text/event-stream');

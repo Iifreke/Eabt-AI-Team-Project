@@ -30,6 +30,60 @@ function formatTime(ts) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+function renderContent(text, textColor) {
+  if (!text) return null;
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) =>
+    URL_REGEX.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: textColor === 'white' ? 'rgba(255,255,255,0.85)' : '#1d4ed8', textDecoration: 'underline' }}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
+function AttachmentView({ att, textColor }) {
+  if (att.type?.startsWith('image/')) {
+    return (
+      <img
+        src={att.url}
+        alt={att.name || 'image'}
+        style={{ maxWidth: '200px', borderRadius: '8px', marginTop: '6px', display: 'block' }}
+      />
+    );
+  }
+  if (att.type?.startsWith('audio/')) {
+    return <audio controls src={att.url} style={{ display: 'block', marginTop: '6px', maxWidth: '220px' }} />;
+  }
+  // PDF or other file
+  return (
+    <a
+      href={att.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px',
+        color: textColor === 'white' ? 'rgba(255,255,255,0.9)' : '#1d4ed8',
+        textDecoration: 'none',
+        background: 'rgba(0,0,0,0.08)',
+        borderRadius: '6px', padding: '5px 10px', fontSize: '12px',
+      }}
+    >
+      📄 {att.name || 'File'}
+    </a>
+  );
+}
+
 export { TypingDots };
 
 export default function MessageBubble({ message, primaryColor }) {
@@ -71,7 +125,10 @@ export default function MessageBubble({ message, primaryColor }) {
           boxShadow: isAdmin ? '0 2px 8px rgba(124,58,237,0.15)' : 'none',
         }}
       >
-        {message.content}
+        {renderContent(message.content, textColor)}
+        {message.attachments?.map((att, i) => (
+          <AttachmentView key={i} att={att} textColor={textColor} />
+        ))}
       </div>
       <div style={{ fontSize: '10px', color: '#999', marginTop: '3px', paddingLeft: '2px', paddingRight: '2px' }}>
         {formatTime(message.ts || Date.now())}

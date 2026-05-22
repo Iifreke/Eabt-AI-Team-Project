@@ -29,6 +29,7 @@ export function useChat() {
           role: m.role,
           content: m.content,
           adminName: m.adminName,
+          attachments: m.attachments,
           suggestions: [],
           suggestionsUsed: true,
           ts: m.ts || Date.now(),
@@ -83,6 +84,99 @@ export function useChat() {
       setHasGreeted(true);
     }
   }, []);
+
+  // Upload files to /api/chat/upload and return attachment metadata array
+  const uploadFiles = useCallback(async (files, cfg) => {
+    return Promise.all(files.map(async (file) => {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('schoolId', cfg.schoolId || 'general');
+      fd.append('mimeType', file.type);
+      fd.append('fileName', file.name);
+      const res = await fetch(`${cfg.apiUrl}/api/chat/upload`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      return res.json();
+    }));
+  }, []);
+
+  // Send message with file attachments
+  const sendWithAttachments = useCallback(async (text, files, cfg, sid) => {
+    if ((!text.trim() && files.length === 0) || isLoading) return;
+    setConfig(cfg);
+    setSessionId(sid);
+    setIsLoading(true);
+
+    let attachments = [];
+    try {
+      attachments = await uploadFiles(files, cfg);
+    } catch {
+      setIsLoading(false);
+      return;
+    }
+
+    // Optimistically show the user message with attachments
+    const userMsgId = nextId();
+    const botMsgId = nextId();
+
+    if (stage !== 'escalated') {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: userMsgId, role: 'user', content: text,
+          attachments, suggestions: [], suggestionsUsed: false, ts: Date.now(),
+        },
+      ]);
+      setMessages(prev => [
+        ...prev,
+        { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
+      ]);
+    }
+
+    try {
+      const response = await fetch(`${cfg.apiUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, schoolId: cfg.schoolId, sessionId: sid, attachments }),
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.chunk !== undefined) {
+              setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, content: m.content + event.chunk } : m));
+            }
+            if (event.done) {
+              if (event.stage) setStage(event.stage);
+              if (event.lead) setLead(event.lead);
+              if (event.stage === 'escalated' && event.messages) {
+                setMessages(event.messages.map((m, i) => ({
+                  id: i + 1, role: m.role, content: m.content,
+                  adminName: m.adminName, attachments: m.attachments,
+                  suggestions: [], suggestionsUsed: true, ts: m.ts || Date.now(),
+                })));
+              } else {
+                setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, suggestions: event.suggestions || [] } : m));
+              }
+              setIsLoading(false);
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch {
+      setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, content: 'Sorry, something went wrong.' } : m));
+      setIsLoading(false);
+    }
+  }, [isLoading, stage, uploadFiles]);
 
   const sendMessage = useCallback(async (text, cfg, sid) => {
     if (!text.trim() || isLoading) return;
@@ -159,6 +253,7 @@ export function useChat() {
                     role: m.role,
                     content: m.content,
                     adminName: m.adminName,
+                    attachments: m.attachments,
                     suggestions: [],
                     suggestionsUsed: true,
                     ts: m.ts || Date.now(),
@@ -270,6 +365,7 @@ export function useChat() {
     agentTyping,
     fetchGreeting,
     sendMessage,
+    sendWithAttachments,
     handleSuggestionClick,
     submitLead,
   };

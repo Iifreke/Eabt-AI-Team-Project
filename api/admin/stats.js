@@ -109,22 +109,55 @@ export default async function handler(req, res) {
     // Agent performance
     let agentPerformance = [];
     {
-      let q = supabase.from('escalations').select('attended_by, resolved_by, status');
+      let q = supabase.from('escalations')
+        .select('attended_by, resolved_by, status, created_at, first_response_at, lead_id');
       if (schoolUUID) q = q.eq('school_id', schoolUUID);
       if (cutoff) q = q.gte('created_at', cutoff);
       const { data: escData } = await q;
       const map = {};
       (escData || []).forEach(e => {
         if (e.attended_by) {
-          if (!map[e.attended_by]) map[e.attended_by] = { agent: e.attended_by, served: 0, resolved: 0 };
+          if (!map[e.attended_by]) {
+            map[e.attended_by] = {
+              agent: e.attended_by,
+              served: 0,
+              resolved: 0,
+              totalResponseMs: 0,
+              responseCount: 0,
+              uniqueLeads: new Set(),
+            };
+          }
           map[e.attended_by].served++;
+          if (e.first_response_at && e.created_at) {
+            const ms = new Date(e.first_response_at) - new Date(e.created_at);
+            if (ms > 0) {
+              map[e.attended_by].totalResponseMs += ms;
+              map[e.attended_by].responseCount++;
+            }
+          }
+          if (e.lead_id) map[e.attended_by].uniqueLeads.add(e.lead_id);
         }
         if (e.status === 'resolved' && e.resolved_by) {
-          if (!map[e.resolved_by]) map[e.resolved_by] = { agent: e.resolved_by, served: 0, resolved: 0 };
+          if (!map[e.resolved_by]) {
+            map[e.resolved_by] = {
+              agent: e.resolved_by,
+              served: 0,
+              resolved: 0,
+              totalResponseMs: 0,
+              responseCount: 0,
+              uniqueLeads: new Set(),
+            };
+          }
           map[e.resolved_by].resolved++;
         }
       });
-      agentPerformance = Object.values(map).sort((a, b) => b.served - a.served);
+      agentPerformance = Object.values(map).map(a => ({
+        agent: a.agent,
+        served: a.served,
+        resolved: a.resolved,
+        avgResponseMs: a.responseCount > 0 ? Math.round(a.totalResponseMs / a.responseCount) : null,
+        usersRespondedTo: a.uniqueLeads.size,
+      })).sort((a, b) => b.served - a.served);
     }
 
     // Open tickets

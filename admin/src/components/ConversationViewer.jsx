@@ -119,6 +119,13 @@ export default function ConversationViewer({ conversationId, initialConv, onClos
                           {getRoleLabel(msg.role)}
                           <div className={`px-4 py-2.5 rounded-2xl text-sm ${getBubbleStyle(msg.role)}`}>
                             <div className="whitespace-pre-wrap">{msg.content}</div>
+                            {msg.attachments?.map((att, ai) => (
+                              att.type?.startsWith('image/')
+                                ? <img key={ai} src={att.url} alt={att.name} className="mt-1 max-w-xs rounded" />
+                                : att.type?.startsWith('audio/')
+                                  ? <audio key={ai} controls src={att.url} className="mt-1 max-w-xs" />
+                                  : <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="mt-1 text-xs underline flex items-center gap-1">📄 {att.name}</a>
+                            ))}
                             <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-200' : msg.role === 'admin' ? 'text-purple-300' : 'text-gray-400'}`}>
                               {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                             </div>

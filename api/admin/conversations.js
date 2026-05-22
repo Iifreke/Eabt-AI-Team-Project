@@ -45,6 +45,31 @@ export default async function handler(req, res) {
       });
     }
 
+    // All conversations for a specific lead
+    if (req.query.leadId) {
+      const { data: lead, error: leadErr } = await supabase
+        .from('leads')
+        .select('id, name, email, phone, school_id, created_at')
+        .eq('id', req.query.leadId)
+        .single();
+
+      if (leadErr || !lead) return res.status(404).json({ error: 'Lead not found' });
+
+      const { data: convs } = await supabase
+        .from('conversations')
+        .select('id, session_id, stage, messages, created_at, updated_at, schools(name, slug)')
+        .eq('lead_id', req.query.leadId)
+        .order('updated_at', { ascending: false });
+
+      return res.status(200).json({
+        lead,
+        conversations: (convs || []).map(c => ({
+          ...c,
+          message_count: Array.isArray(c.messages) ? c.messages.length : 0,
+        })),
+      });
+    }
+
     // List conversations
     const { schoolId, stage, page = '1', limit = '20' } = req.query;
     const pageNum = parseInt(page, 10);

@@ -151,7 +151,9 @@ export default function Dashboard() {
                     <tr className="text-left text-gray-400 border-b border-gray-100">
                       <th className="pb-2 pr-4 font-medium">Agent</th>
                       <th className="pb-2 pr-4 font-medium">Chats Served</th>
-                      <th className="pb-2 font-medium">Chats Resolved</th>
+                      <th className="pb-2 pr-4 font-medium">Chats Resolved</th>
+                      <th className="pb-2 pr-4 font-medium">Avg Response Time</th>
+                      <th className="pb-2 font-medium">Users Served</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -161,8 +163,22 @@ export default function Dashboard() {
                         <td className="py-2 pr-4">
                           <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">{a.served}</span>
                         </td>
-                        <td className="py-2">
+                        <td className="py-2 pr-4">
                           <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">{a.resolved}</span>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                            {a.avgResponseMs != null
+                              ? a.avgResponseMs < 60000
+                                ? `${Math.round(a.avgResponseMs / 1000)}s`
+                                : `${Math.round(a.avgResponseMs / 60000)}m`
+                              : '—'}
+                          </span>
+                        </td>
+                        <td className="py-2">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700">
+                            {a.usersRespondedTo ?? 0}
+                          </span>
                         </td>
                       </tr>
                     ))}

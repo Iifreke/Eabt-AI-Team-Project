@@ -58,7 +58,7 @@ export default function ChatWidget({ config }) {
   const noResponseTimerRef = useRef(null);
 
   const { sessionId } = useSession();
-  const { messages, stage, isLoading, agentTyping, submitLead, sendMessage, handleSuggestionClick } = useChat();
+  const { messages, stage, isLoading, agentTyping, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick } = useChat();
 
   // Keep a live ref so timer callbacks always read the latest messages
   const messagesRef = useRef(messages);
@@ -277,8 +277,10 @@ export default function ChatWidget({ config }) {
           />
           <ChatInput
             onSend={(text) => sendMessage(text, effectiveConfig, sessionId)}
+            onSendWithAttachments={(text, files) => sendWithAttachments(text, files, effectiveConfig, sessionId)}
             isLoading={isLoading}
             primaryColor={primaryColor}
+            apiUrl={effectiveConfig?.apiUrl}
           />
           {/* No-response hint — shown after 2 min in escalated with no admin reply */}
           {showNoResponseHint && (
