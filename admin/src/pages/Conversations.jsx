@@ -4,7 +4,7 @@ import Sidebar from '../components/Sidebar.jsx';
 import ConversationViewer from '../components/ConversationViewer.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 
-const STAGES = ['all', 'onboarding', 'active', 'escalated'];
+const STAGES = ['all', 'onboarding', 'active', 'escalated', 'resolved'];
 
 const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
 const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
@@ -14,6 +14,7 @@ const stageBadge = (stage) => {
     onboarding: 'bg-yellow-100 text-yellow-700',
     active: 'bg-green-100 text-green-700',
     escalated: 'bg-red-100 text-red-700',
+    resolved: 'bg-gray-100 text-gray-500',
   };
   return `px-2 py-0.5 rounded-full text-xs font-medium ${map[stage] || 'bg-gray-100 text-gray-600'}`;
 };
@@ -48,10 +49,15 @@ export default function Conversations() {
     try {
       const params = { page, limit: 20 };
       if (selectedSchool !== 'all') params.schoolId = selectedSchool;
-      if (stage !== 'all') params.stage = stage;
+      // 'resolved' is a display-only filter — fetch escalated stage then filter client-side
+      if (stage !== 'all' && stage !== 'resolved') params.stage = stage;
+      if (stage === 'resolved') params.stage = 'escalated';
       const data = await api.conversations(params);
-      setConversations(data.conversations || []);
-      setTotal(data.total || 0);
+      let convs = data.conversations || [];
+      // Client-side filter for 'resolved' (escalated + resolved escalation status)
+      if (stage === 'resolved') convs = convs.filter(c => c.displayStage === 'resolved');
+      setConversations(convs);
+      setTotal(stage === 'resolved' ? convs.length : (data.total || 0));
     } catch (err) {
       console.error(err);
     } finally {
@@ -201,7 +207,7 @@ export default function Conversations() {
                         </span>
                       </td>
                       <td className="px-5 py-3">
-                        <span className={stageBadge(conv.stage)}>{conv.stage}</span>
+                        <span className={stageBadge(conv.displayStage || conv.stage)}>{conv.displayStage || conv.stage}</span>
                       </td>
                       <td className="px-5 py-3 text-gray-500">{conv.message_count ?? 0}</td>
                       <td className="px-5 py-3 text-gray-500">{conv.agent || '—'}</td>
@@ -295,7 +301,7 @@ export default function Conversations() {
                         </span>
                       </td>
                       <td className="px-5 py-3">
-                        <span className={stageBadge(conv.stage)}>{conv.stage}</span>
+                        <span className={stageBadge(conv.displayStage || conv.stage)}>{conv.displayStage || conv.stage}</span>
                       </td>
                       <td className="px-5 py-3 text-gray-500">{conv.message_count ?? 0}</td>
                       <td className="px-5 py-3 text-gray-500">{conv.agent || '—'}</td>

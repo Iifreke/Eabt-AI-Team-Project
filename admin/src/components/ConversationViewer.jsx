@@ -15,12 +15,15 @@ export default function ConversationViewer({ conversationId, initialConv, onClos
   const fetchConv = useCallback(() => {
     api.conversation(conversationId)
       .then(data => {
+        if (!data) return;
         setConv(prev => ({
-          // Prefer list data for messages/leads/schools if API returns empty
-          ...data,
-          messages: data.messages?.length ? data.messages : prev?.messages,
-          leads: data.leads || prev?.leads,
-          schools: data.schools || prev?.schools,
+          ...prev,   // keep initialConv as base so messages/leads/schools are never lost
+          ...data,   // overlay with fresh API data
+          messages: (data.messages && data.messages.length > 0)
+            ? data.messages
+            : (prev?.messages || []),
+          leads: data.leads || prev?.leads || null,
+          schools: data.schools || prev?.schools || null,
         }));
       })
       .catch(console.error)

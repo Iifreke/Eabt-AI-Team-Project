@@ -34,7 +34,7 @@ export default async function handler(req, res) {
           .eq('conversation_id', req.query.id)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single(),
+          .maybeSingle(),
       ]);
 
       return res.status(200).json({
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
 
       const { data: convs } = await supabase
         .from('conversations')
-        .select('id, session_id, stage, messages, created_at, updated_at, schools(name, slug), escalations(attended_by, resolved_by)')
+        .select('id, session_id, stage, messages, created_at, updated_at, schools(name, slug), escalations(attended_by, resolved_by, status)')
         .eq('lead_id', req.query.leadId)
         .order('updated_at', { ascending: false });
 
@@ -65,13 +65,15 @@ export default async function handler(req, res) {
         lead,
         conversations: (convs || []).map(c => {
           const escalation = c.escalations?.[0] || null;
-          const agent = escalation 
+          const agent = escalation
             ? (escalation.attended_by || escalation.resolved_by || '—')
             : '—';
+          const displayStage = (escalation?.status === 'resolved') ? 'resolved' : c.stage;
           return {
             ...c,
             message_count: Array.isArray(c.messages) ? c.messages.length : 0,
             agent,
+            displayStage,
           };
         }),
       });
@@ -86,7 +88,7 @@ export default async function handler(req, res) {
     let query = supabase
       .from('conversations')
       .select(
-        'id, session_id, stage, failed_attempts, updated_at, created_at, messages, leads(name, email), schools(name, slug), escalations(attended_by, resolved_by)',
+        'id, session_id, stage, failed_attempts, updated_at, created_at, messages, leads(name, email), schools(name, slug), escalations(attended_by, resolved_by, status)',
         { count: 'exact' }
       );
 
@@ -109,13 +111,15 @@ export default async function handler(req, res) {
 
     const mapped = (conversations || []).map(conv => {
       const escalation = conv.escalations?.[0] || null;
-      const agent = escalation 
+      const agent = escalation
         ? (escalation.attended_by || escalation.resolved_by || '—')
         : '—';
+      const displayStage = (escalation?.status === 'resolved') ? 'resolved' : conv.stage;
       return {
         ...conv,
         message_count: Array.isArray(conv.messages) ? conv.messages.length : 0,
         agent,
+        displayStage,
       };
     });
 

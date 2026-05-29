@@ -254,7 +254,7 @@ export default async function handler(req, res) {
         resolved,
         avgResponseMs: responseCount > 0 ? Math.round(totalResponseMs / responseCount) : null,
         leadsTrend: dailyTrend,
-        recentLeads: Array.from(recentLeadsMap.values()).slice(0, 10),
+        recentLeads: Array.from(recentLeadsMap.values()).slice(0, 50),
       };
     }
 

@@ -8,8 +8,9 @@ import { v4 as uuidv4 } from 'uuid';
 export const config = { api: { bodyParser: false } };
 
 // ── Upload constants ───────────────────────────────────────────
-const MAX_UPLOAD = 10 * 1024 * 1024;  // 10MB
-const MAX_AUDIO  = 25 * 1024 * 1024;  // 25MB (Whisper limit)
+const MAX_UPLOAD = 10 * 1024 * 1024;   // 10MB for images/docs/audio
+const MAX_VIDEO  = 50 * 1024 * 1024;   // 50MB for video files
+const MAX_AUDIO  = 25 * 1024 * 1024;   // 25MB (Whisper limit)
 
 const EXT_MAP = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg',
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   try {
-    const { fields, fileBuffer, fileMime, fileOrigName } = await parseMultipart(req, MAX_AUDIO + 1);
+    const { fields, fileBuffer, fileMime, fileOrigName } = await parseMultipart(req, MAX_VIDEO + 1);
     const action = fields.action;
 
     // ── action=upload ──────────────────────────────────────────
@@ -42,8 +43,10 @@ export default async function handler(req, res) {
       if (!ALLOWED_TYPES.has(mimeType)) {
         return res.status(400).json({ error: 'File type not allowed' });
       }
-      if (!fileBuffer || fileBuffer.length > MAX_UPLOAD) {
-        return res.status(400).json({ error: 'File too large (max 10MB)' });
+      const isVideo = mimeType.startsWith('video/');
+      const sizeLimit = isVideo ? MAX_VIDEO : MAX_UPLOAD;
+      if (!fileBuffer || fileBuffer.length > sizeLimit) {
+        return res.status(400).json({ error: `File too large (max ${isVideo ? '50' : '10'}MB)` });
       }
 
       const ext = EXT_MAP[mimeType] || 'bin';

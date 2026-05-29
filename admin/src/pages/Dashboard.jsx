@@ -206,7 +206,15 @@ export default function Dashboard() {
                       <tbody>
                         {stats.agentPerformance.map((a, i) => (
                           <tr key={i} className="border-b border-gray-50">
-                            <td className="py-2 pr-4 font-medium">{a.agent}</td>
+                            <td className="py-2 pr-4 font-medium">
+                              <button
+                                onClick={() => { setSelectedAgent(a.agent); setTab('agent'); }}
+                                className="text-blue-600 hover:underline font-medium text-left"
+                                title="View agent dashboard"
+                              >
+                                {a.agent}
+                              </button>
+                            </td>
                             <td className="py-2 pr-4">
                               <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">{a.served}</span>
                             </td>
