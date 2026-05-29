@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dev Report — School AI Chatbot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f4f6fb;
+      color: #1a1a2e;
+      line-height: 1.6;
+    }
+    header {
+      background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+      color: white;
+      padding: 36px 48px;
+    }
+    header h1 { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+    header p { font-size: 13px; opacity: 0.85; }
+    .meta { display: flex; gap: 24px; margin-top: 14px; font-size: 12px; opacity: 0.85; flex-wrap: wrap; }
+
+    .container { max-width: 860px; margin: 32px auto; padding: 0 20px 60px; }
+
+    .section {
+      background: white;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f2f8;
+    }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .card {
+      border: 1px solid #e8eaf2;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .card .icon { font-size: 20px; margin-bottom: 6px; }
+    .card h4 { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+    .card p { font-size: 12px; color: #666; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #f4f6fb; text-align: left; padding: 9px 12px; font-weight: 600; color: #555; border-bottom: 2px solid #e8eaf2; }
+    td { padding: 9px 12px; border-bottom: 1px solid #f0f2f8; }
+    tr:last-child td { border-bottom: none; }
+
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .green { background: #d1fae5; color: #065f46; }
+    .red   { background: #fee2e2; color: #991b1b; }
+    .amber { background: #fef3c7; color: #92400e; }
+    .blue  { background: #dbeafe; color: #1e40af; }
+
+    .url {
+      font-family: monospace;
+      font-size: 13px;
+      background: #f4f6fb;
+      border: 1px solid #e0e4f0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: #1a73e8;
+      margin-top: 8px;
+      display: block;
+    }
+
+    /* Test steps */
+    .steps { counter-reset: step; }
+    .step {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+      align-items: flex-start;
+    }
+    .step-num {
+      counter-increment: step;
+      min-width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #1a73e8;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-body h4 { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+    .step-body p { font-size: 12px; color: #555; }
+    .step-body code {
+      background: #f0f2f8;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+    .note {
+      background: #e8f0fe;
+      border-left: 3px solid #1a73e8;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #1557b0;
+      margin-top: 12px;
+    }
+
+    footer { text-align: center; padding: 24px; font-size: 12px; color: #aaa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Development Report — School AI Chatbot Admin Platform</h1>
+  <p>Babcock University &amp; ABU (Ahmadu Bello University) · Powered by Antigravity</p>
+  <div class="meta">
+    <span>📅 14 May 2026</span>
+    <span>🔗 edutechbabcockabu.vercel.app</span>
+    <span>👤 For: Internal Team</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Live URLs -->
+  <div class="section">
+    <div class="section-title">🔗 Live URLs</div>
+    <div class="two-col">
+      <div>
+        <div style="font-size:13px; font-weight:600;">Admin Dashboard</div>
+        <a class="url" href="https://edutechbabcockabu.vercel.app" target="_blank">https://edutechbabcockabu.vercel.app</a>
+      </div>
+      <div>
+        <div style="font-size:13px; font-weight:600;">Widget Test Page (share with team)</div>
+        <a class="url" href="https://edutechbabcockabu.vercel.app/test-widget.html" target="_blank">https://edutechbabcockabu.vercel.app/test-widget.html</a>
+      </div>
+    </div>
+    <div class="note">⚠️ The old URL <strong>school-rag-agent.vercel.app</strong> is no longer updated. Use the links above only.</div>
+  </div>
+
+  <!-- What Was Built -->
+  <div class="section">
+    <div class="section-title">✅ What Was Built</div>
+    <div class="grid">
+      <div class="card">
+        <div class="icon">💬</div>
+        <h4>Live Chat (Chats Page)</h4>
+        <p>Agents see pending chats, expand them to read history, and reply in real time. Refreshes every 4 seconds.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🎫</div>
+        <h4>Tickets</h4>
+        <p>Visitors can leave offline messages from the widget. Team manages them in the Tickets page — assign, reply, close.</p>
+      </div>
+      <div class="card">
+        <div class="icon">⚡</div>
+        <h4>Canned Shortcuts</h4>
+        <p>Pre-write common replies. Type <code>/</code> in the chat box to pick a shortcut instantly.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🌟</div>
+        <h4>CSAT Rating</h4>
+        <p>Visitors rate their experience (😞–😊) after a live chat. Scores appear in the Overview.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔔</div>
+        <h4>Desktop Notifications</h4>
+        <p>Browser alert + sound when a new chat request arrives — no need to keep the tab in focus.</p>
+      </div>
+      <div class="card">
+        <div class="icon">👁️</div>
+        <h4>Monitoring</h4>
+        <p>Live view of all active AI conversations. See who is chatting right now, updated every 30 seconds.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📊</div>
+        <h4>Enhanced Overview</h4>
+        <p>Stats by Today / Week / Month: total contacts, served chats, AI vs human resolved, avg CSAT, open tickets.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🟢</div>
+        <h4>Agent Status</h4>
+        <p>Set yourself Online / Away / Invisible from the sidebar. Status saved to the database.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bugs Fixed -->
+  <div class="section">
+    <div class="section-title">🐛 Bugs Fixed</div>
+    <table>
+      <tr>
+        <th>Bug</th>
+        <th>Status</th>
+      </tr>
+      <tr>
+        <td>Chats list was empty even with pending chats</td>
+        <td><span class="tag green">Fixed</span></td>
+      </tr>
+      <tr>
+        <td>Clicking a pending chat made it disappear from the list</td>
+        <td><span class="tag green">Fixed</span></td>
+      </tr>
+      <tr>
+        <td>Live Chat panel showed "No messages yet" even with real messages</td>
+        <td><span class="tag green">Fixed</span></td>
+      </tr>
+      <tr>
+        <td>Conversation history blank in the History modal</td>
+        <td><span class="tag green">Fixed</span></td>
+      </tr>
+      <tr>
+        <td>Desktop notification firing on every page load</td>
+        <td><span class="tag green">Fixed</span></td>
+      </tr>
+      <tr>
+        <td>Test widget pointing to old/localhost URLs — broken for team testing</td>
+        <td><span class="tag green">Fixed</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- How to Test -->
+  <div class="section">
+    <div class="section-title">🧪 How to Test — Step by Step</div>
+
+    <p style="font-size:13px; color:#555; margin-bottom:18px;">
+      You need <strong>two browser windows</strong> open at the same time: one as the <strong>visitor</strong> (widget), one as the <strong>agent</strong> (admin).
+    </p>
+
+    <div style="font-size:13px; font-weight:700; color:#1a73e8; margin-bottom:10px;">Window 1 — Visitor (Widget)</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Open the test widget page</h4>
+          <p>Go to <code>edutechbabcockabu.vercel.app/test-widget.html</code> and click the blue chat bubble.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Complete onboarding</h4>
+          <p>Enter your name, email, and phone when prompted by Maverick (the AI).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Request a human agent</h4>
+          <p>Type <code>I want to speak to a human</code> or ask a question the bot cannot answer 3 times. The bot will escalate and notify admins.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:13px; font-weight:700; color:#7c3aed; margin-top:20px; margin-bottom:10px;">Window 2 — Agent (Admin)</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Log in to the admin dashboard</h4>
+          <p>Go to <code>edutechbabcockabu.vercel.app</code> and sign in with your agent account.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h4>Watch for the notification</h4>
+          <p>A red badge appears on <strong>Chats</strong> in the sidebar. If browser notifications are allowed, a desktop popup fires too.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h4>Open the Chats page and expand the row</h4>
+          <p>Click the visitor's row. You will see their details, conversation history, and the Live Chat panel below.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <h4>Click "Serve" then reply</h4>
+          <p>Click <strong>Serve</strong> to take the chat. Type a reply and press Enter. <br/>In Window 1 (widget), the visitor should see your message within a few seconds.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-body">
+          <h4>Test shortcuts</h4>
+          <p>Type <code>/</code> in the reply box. If you have saved any shortcuts (Shortcuts page), they appear as a dropdown.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">9</div>
+        <div class="step-body">
+          <h4>End the chat and check ratings</h4>
+          <p>Click <strong>End Chat</strong>. In the widget, the visitor can click <strong>Rate this chat ★</strong> and submit a score. Check Overview to see the CSAT update.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">10</div>
+        <div class="step-body">
+          <h4>Test offline ticket</h4>
+          <p>In the widget, click <strong>✉ Leave a message</strong>, fill in Subject and message, and submit. Then check the <strong>Tickets</strong> page in the admin — the ticket should appear there.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:16px;">
+      💡 <strong>Tip:</strong> Use an incognito window for the visitor side so it doesn't conflict with your admin session.
+    </div>
+  </div>
+
+</div>
+
+<footer>School AI Chatbot Platform &nbsp;·&nbsp; Antigravity &nbsp;·&nbsp; May 2026</footer>
+
+</body>
+</html>

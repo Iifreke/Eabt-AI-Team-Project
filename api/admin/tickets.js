@@ -1,7 +1,7 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
 import supabase from '../../src/db/supabase.js';
-import { sendTicketEmail, sendTicketReplyEmail } from '../../src/services/email.js';
+import { sendTicketEmail, sendTicketReplyEmail, sendTicketConfirmationEmail } from '../../src/services/email.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -40,6 +40,12 @@ export default async function handler(req, res) {
       if (school?.staff_email) {
         sendTicketEmail({ school, ticket }).catch(() => {});
       }
+
+      // Send confirmation email to visitor
+      const schoolForVisitor = school || { name: 'Support Team' };
+      sendTicketConfirmationEmail({ school: schoolForVisitor, ticket }).catch(err => {
+        console.error('sendTicketConfirmationEmail failed:', err);
+      });
 
       return res.status(201).json({ ticket });
     } catch (err) {

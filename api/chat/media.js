@@ -8,20 +8,22 @@ import { v4 as uuidv4 } from 'uuid';
 export const config = { api: { bodyParser: false } };
 
 // ── Upload constants ───────────────────────────────────────────
-const ALLOWED_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'application/pdf',
-  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/m4a', 'audio/webm',
-]);
 const MAX_UPLOAD = 10 * 1024 * 1024;  // 10MB
 const MAX_AUDIO  = 25 * 1024 * 1024;  // 25MB (Whisper limit)
 
 const EXT_MAP = {
-  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg',
   'application/pdf': 'pdf',
-  'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg',
-  'audio/mp4': 'mp4', 'audio/m4a': 'm4a', 'audio/webm': 'webm',
+  'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg', 'audio/mp4': 'mp4', 'audio/m4a': 'm4a', 'audio/webm': 'webm',
+  'video/mp4': 'mp4', 'video/webm': 'webm', 'video/ogg': 'ogv', 'video/quicktime': 'mov',
+  'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-powerpoint': 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'text/plain': 'txt',
+  'application/zip': 'zip', 'application/x-rar-compressed': 'rar', 'application/x-tar': 'tar', 'application/x-7z-compressed': '7z'
 };
+
+const ALLOWED_TYPES = new Set(Object.keys(EXT_MAP));
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;

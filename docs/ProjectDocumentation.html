@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detailed Project Documentation: School RAG Agent</title>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --secondary: #e84118;
+            --dark: #111111;
+            --light: #f8f9fa;
+            --border: #e2e8f0;
+            --text: #334155;
+            --heading: #0f172a;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: #f1f5f9;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 50px 60px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+        }
+        h1 {
+            color: var(--heading);
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            color: #64748b;
+            font-size: 1.2em;
+            margin-top: 0;
+        }
+        h2 {
+            color: var(--heading);
+            font-size: 1.8em;
+            margin-top: 40px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        h3 {
+            color: var(--primary);
+            font-size: 1.3em;
+            margin-top: 30px;
+        }
+        p {
+            margin-bottom: 16px;
+        }
+        ul, ol {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .card {
+            background: var(--light);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .card h4 {
+            margin-top: 0;
+            color: var(--dark);
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+        code {
+            background: #f1f5f9;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+            color: #e11d48;
+        }
+        pre {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        pre code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background-color: var(--light);
+            font-weight: 600;
+            color: var(--heading);
+        }
+        .tag {
+            display: inline-block;
+            background: #e2e8f0;
+            color: #475569;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>School RAG Agent</h1>
+            <p class="subtitle">Technical Documentation &amp; Architecture Overview</p>
+            <div>
+                <span class="tag">Next.js / Vite</span>
+                <span class="tag">Supabase pgvector</span>
+                <span class="tag">OpenRouter (Claude)</span>
+                <span class="tag">Zoho CRM</span>
+            </div>
+        </div>
+
+        <h2>1. Executive Summary</h2>
+        <p>The <strong>School RAG Agent (Skylar)</strong> is a production-ready, AI-powered support and admissions chatbot designed specifically for educational institutions like <strong>Babcock School</strong> and <strong>ABU</strong>. Deployed entirely on Vercel, the platform seamlessly integrates an embeddable website widget, a robust Retrieval-Augmented Generation (RAG) backend API, and a centralized React-based Admin Dashboard. It autonomously handles visitor inquiries, captures lead details, triggers real-time escalations for complex queries, and synchronizes data with Zoho CRM.</p>
+
+        <h2>2. System Architecture</h2>
+        <div class="grid">
+            <div class="card">
+                <h4>Embeddable Widget</h4>
+                <p>Built with React + Vite and compiled to a single <code>widget.js</code> IIFE. It can be embedded on any partner school's website using a single <code>&lt;script&gt;</code> tag. The widget supports dynamic theming based on the school's brand guidelines.</p>
+            </div>
+            <div class="card">
+                <h4>Serverless API</h4>
+                <p>Located in the <code>api/</code> directory, these Vercel serverless functions handle the chatbot's logic. LLM inference is driven by OpenRouter (Claude-3.5-Sonnet), while vector embeddings are generated directly via OpenAI (text-embedding-3-small).</p>
+            </div>
+            <div class="card">
+                <h4>Admin Dashboard</h4>
+                <p>A secure React Single Page Application (SPA) utilizing Vite and Tailwind CSS. It allows administrators to manage knowledge base documents across multiple schools, monitor live chats, and intercept escalated conversations in real-time.</p>
+            </div>
+            <div class="card">
+                <h4>Database & Storage</h4>
+                <p>Powered by Supabase (PostgreSQL). Features native <code>pgvector</code> support for semantic search over chunked document embeddings, relational tables for lead tracking, and secure object storage for uploaded PDFs/TXTs.</p>
+            </div>
+        </div>
+
+        <h2>3. Key Integrations</h2>
+        <ul>
+            <li><strong>AI Models:</strong> <code>anthropic/claude-sonnet-4-5</code> via OpenRouter for conversational reasoning, and <code>text-embedding-3-small</code> via OpenAI for document embeddings.</li>
+            <li><strong>Zoho CRM:</strong> Once a visitor completes the onboarding phase (providing Name, Email, and Phone), their data is automatically synced to Zoho CRM as a Lead via an offline refresh token system.</li>
+            <li><strong>Resend API:</strong> Automatically dispatches email notifications to designated school administrators whenever a chat is flagged for escalation.</li>
+        </ul>
+
+        <h2>4. The "Skylar" Persona</h2>
+        <p>The AI Agent operates under the persona <strong>Skylar</strong>. The system prompts instruct the LLM to behave as a warm, knowledgeable, and helpful human admissions assistant. It collects necessary lead information incrementally during an "onboarding" phase before switching to an "active" phase where it utilizes RAG to answer specific school-related queries without hallucinating details.</p>
+
+        <h2>5. Embedding the Widget</h2>
+        <p>To integrate Skylar onto a school's website, insert the configuration object and the script tag just before the closing <code>&lt;/body&gt;</code> tag.</p>
+
+        <h3>Babcock School Configuration</h3>
+<pre><code>&lt;script&gt;
+  window.SchoolBotConfig = {
+    schoolId: 'backock',
+    apiUrl: 'https://your-project.vercel.app',
+    theme: {
+      primaryColor: '#1a73e8',
+      name: 'Backock School'
+    }
+  };
+&lt;/script&gt;
+&lt;script src="https://your-project.vercel.app/widget.js" async&gt;&lt;/script&gt;</code></pre>
+
+        <h3>ABU Configuration</h3>
+<pre><code>&lt;script&gt;
+  window.SchoolBotConfig = {
+    schoolId: 'abu',
+    apiUrl: 'https://your-project.vercel.app',
+    theme: {
+      primaryColor: '#e84118',
+      name: 'ABU'
+    }
+  };
+&lt;/script&gt;
+&lt;script src="https://your-project.vercel.app/widget.js" async&gt;&lt;/script&gt;</code></pre>
+
+        <h2>6. Environment Variables Configuration</h2>
+        <p>The application requires the following environment variables to function correctly in both local development (<code>.env</code>) and Vercel environments:</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Variable</th>
+                    <th>Description / Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>SUPABASE_URL</code> &amp; <code>VITE_SUPABASE_URL</code></td>
+                    <td>The core Supabase project URL used by both the server and browser.</td>
+                </tr>
+                <tr>
+                    <td><code>SUPABASE_SERVICE_KEY</code></td>
+                    <td>Service role key for administrative DB tasks (server-side only).</td>
+                </tr>
+                <tr>
+                    <td><code>SUPABASE_ANON_KEY</code> &amp; <code>VITE_SUPABASE_ANON_KEY</code></td>
+                    <td>Anon key used for client-side authentication and queries.</td>
+                </tr>
+                <tr>
+                    <td><code>OPENROUTER_API_KEY</code></td>
+                    <td>OpenRouter key for accessing Claude-3.5-Sonnet completions.</td>
+                </tr>
+                <tr>
+                    <td><code>OPENAI_API_KEY</code></td>
+                    <td>OpenAI key utilized exclusively for generating text embeddings.</td>
+                </tr>
+                <tr>
+                    <td><code>ZOHO_CLIENT_ID</code>, <code>ZOHO_CLIENT_SECRET</code>, <code>ZOHO_REFRESH_TOKEN</code></td>
+                    <td>Credentials necessary for the Zoho CRM Lead synchronization.</td>
+                </tr>
+                <tr>
+                    <td><code>RESEND_API_KEY</code></td>
+                    <td>API Key for sending escalation email alerts to administrators.</td>
+                </tr>
+                <tr>
+                    <td><code>APP_URL</code> &amp; <code>VITE_API_URL</code></td>
+                    <td>The root domain URL of the deployed application.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>7. Setup and Deployment Workflow</h2>
+        <p>The project is optimized for deployment on Vercel. The root <code>package.json</code> contains unified build scripts that compile the Widget and Admin panel, seamlessly moving the built <code>widget.js</code> artifact into the public <code>admin/dist</code> folder so it is served by the Next.js/Vercel architecture.</p>
+        
+        <ol>
+            <li>Initialize the Supabase database using the SQL schema found in <code>src/db/migrations/001_schema.sql</code>.</li>
+            <li>Create a private Supabase Storage bucket named <code>documents</code>.</li>
+            <li>In Vercel, set the <strong>Build Command</strong> to <code>npm run build</code> and the <strong>Output Directory</strong> to <code>admin/dist</code>.</li>
+            <li>Inject all necessary Environment Variables and execute the deployment.</li>
+        </ol>
+
+    </div>
+</body>
+</html>

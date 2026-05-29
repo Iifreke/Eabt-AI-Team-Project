@@ -57,8 +57,8 @@ export default function ChatWidget({ config }) {
   const [showNoResponseHint, setShowNoResponseHint] = useState(false);
   const noResponseTimerRef = useRef(null);
 
-  const { sessionId } = useSession();
-  const { messages, stage, isLoading, agentTyping, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick } = useChat();
+  const { sessionId, setSessionId } = useSession();
+  const { messages, stage, isLoading, agentTyping, adminsOnline, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick } = useChat();
 
   // Keep a live ref so timer callbacks always read the latest messages
   const messagesRef = useRef(messages);
@@ -139,7 +139,9 @@ export default function ChatWidget({ config }) {
     if (!phone || phone.length < 8) { setFormError('Please enter a valid phone number.'); return; }
     setFormError('');
     setFormLoading(true);
-    await submitLead({ name, email, phone }, effectiveConfig, sessionId);
+    await submitLead({ name, email, phone }, effectiveConfig, sessionId, (restoredSid) => {
+      setSessionId(restoredSid);
+    });
     setFormLoading(false);
     setStep('chat');
   }
@@ -265,6 +267,7 @@ export default function ChatWidget({ config }) {
           <ChatHeader
             schoolName={selectedSchool?.name || config?.theme?.name || 'School Support'}
             primaryColor={primaryColor}
+            adminsOnline={adminsOnline}
             onClose={handleClose}
           />
           <MessageList
@@ -282,8 +285,20 @@ export default function ChatWidget({ config }) {
             primaryColor={primaryColor}
             apiUrl={effectiveConfig?.apiUrl}
           />
+          {/* Offline warning banner */}
+          {!adminsOnline && (
+            <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
+              <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. Open a ticket and we'll reply to your email.</div>
+              <button
+                onClick={() => { setTicketError(''); setStep('ticket'); }}
+                style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                Open a Ticket →
+              </button>
+            </div>
+          )}
           {/* No-response hint — shown after 2 min in escalated with no admin reply */}
-          {showNoResponseHint && (
+          {showNoResponseHint && adminsOnline && (
             <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Open a ticket and we'll reply to your email.</div>

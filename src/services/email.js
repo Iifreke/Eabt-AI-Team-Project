@@ -202,3 +202,48 @@ export async function sendTicketReplyEmail({ school, ticket, staffReply }) {
     // Do not rethrow — email failure should not block the API response
   }
 }
+
+export async function sendTicketConfirmationEmail({ school, ticket }) {
+  try {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    <div style="background: #1565c0; padding: 24px; color: white;">
+      <h1 style="margin: 0; font-size: 20px;">🎫 Ticket Received — ${school.name}</h1>
+      <p style="margin: 8px 0 0; opacity: 0.9;">We have received your support request</p>
+    </div>
+    <div style="padding: 24px;">
+      <p style="font-size: 15px; color: #333; margin: 0 0 16px;">Hi <strong>${ticket.name}</strong>,</p>
+      <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 20px;">
+        Thank you for contacting us. We have received your support ticket regarding <strong>${ticket.subject}</strong>.
+        Our support team will review your request and get back to you as soon as possible (usually within 24 hours).
+      </p>
+      <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+        <h2 style="margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Your Message</h2>
+        <p style="margin: 0; font-size: 13px; color: #666; font-style: italic; line-height: 1.6;">${ticket.message}</p>
+      </div>
+      <p style="font-size: 13px; color: #666; margin: 0;">
+        Thank you for your patience.
+        <br>Best regards,
+        <br><strong>${school.name} Support Team</strong>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'support@notifications.schoolbot.ng';
+    await resend.emails.send({
+      from: fromAddress,
+      to: ticket.email,
+      subject: `🎫 Ticket Received: ${ticket.subject} — ${school.name}`,
+      html,
+    });
+    console.log(`Ticket confirmation email sent to ${ticket.email}`);
+  } catch (error) {
+    console.error('Ticket confirmation email failed:', error.message);
+  }
+}

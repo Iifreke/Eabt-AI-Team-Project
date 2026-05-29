@@ -194,9 +194,11 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
               {msg.attachments?.map((att, ai) => (
                 att.type?.startsWith('image/')
                   ? <img key={ai} src={att.url} alt={att.name} className="mt-1 max-w-xs rounded" />
-                  : att.type?.startsWith('audio/')
-                    ? <audio key={ai} controls src={att.url} className="mt-1 max-w-xs" />
-                    : <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="mt-1 text-xs underline flex items-center gap-1">📄 {att.name}</a>
+                  : att.type?.startsWith('video/')
+                    ? <video key={ai} controls src={att.url} className="mt-1 max-w-xs rounded" />
+                    : att.type?.startsWith('audio/')
+                      ? <audio key={ai} controls src={att.url} className="mt-1 max-w-xs" />
+                      : <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="mt-1 text-xs underline flex items-center gap-1">📄 {att.name}</a>
               ))}
               {msg.ts && (
                 <div className="text-gray-400 mt-0.5 text-right">
@@ -399,7 +401,7 @@ function ChatRow({ esc, onUpdate }) {
               </div>
             </div>
 
-            {esc.status !== 'resolved' && esc.conversation_id && (
+            {esc.conversation_id && (
               <LiveChatPanel esc={esc} onUpdate={onUpdate} />
             )}
           </td>

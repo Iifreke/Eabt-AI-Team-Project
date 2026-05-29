@@ -37,6 +37,13 @@ export default async function handler(req, res) {
 
     if (error || !conv) return res.status(404).json({ error: 'Conversation not found' });
 
+    // Count online agents
+    const { count: onlineCount } = await supabase
+      .from('admin_profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'online');
+    const adminsOnline = (onlineCount || 0) > 0;
+
     const all = conv.messages || [];
     const typingEntry = all.find(m => m.role === '__typing__');
     const agentTyping = typingEntry && (Date.now() - typingEntry.ts) < 8000
@@ -48,6 +55,7 @@ export default async function handler(req, res) {
       agentTyping,
       stage: conv.stage,
       updatedAt: conv.updated_at,
+      adminsOnline,
     });
   } catch (error) {
     console.error('poll messages error:', error);

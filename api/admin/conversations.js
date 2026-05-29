@@ -57,16 +57,23 @@ export default async function handler(req, res) {
 
       const { data: convs } = await supabase
         .from('conversations')
-        .select('id, session_id, stage, messages, created_at, updated_at, schools(name, slug)')
+        .select('id, session_id, stage, messages, created_at, updated_at, schools(name, slug), escalations(attended_by, resolved_by)')
         .eq('lead_id', req.query.leadId)
         .order('updated_at', { ascending: false });
 
       return res.status(200).json({
         lead,
-        conversations: (convs || []).map(c => ({
-          ...c,
-          message_count: Array.isArray(c.messages) ? c.messages.length : 0,
-        })),
+        conversations: (convs || []).map(c => {
+          const escalation = c.escalations?.[0] || null;
+          const agent = escalation 
+            ? (escalation.attended_by || escalation.resolved_by || '—')
+            : '—';
+          return {
+            ...c,
+            message_count: Array.isArray(c.messages) ? c.messages.length : 0,
+            agent,
+          };
+        }),
       });
     }
 
@@ -79,7 +86,7 @@ export default async function handler(req, res) {
     let query = supabase
       .from('conversations')
       .select(
-        'id, session_id, stage, failed_attempts, updated_at, created_at, messages, leads(name, email), schools(name, slug)',
+        'id, session_id, stage, failed_attempts, updated_at, created_at, messages, leads(name, email), schools(name, slug), escalations(attended_by, resolved_by)',
         { count: 'exact' }
       );
 
@@ -100,10 +107,17 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    const mapped = (conversations || []).map(conv => ({
-      ...conv,
-      message_count: Array.isArray(conv.messages) ? conv.messages.length : 0,
-    }));
+    const mapped = (conversations || []).map(conv => {
+      const escalation = conv.escalations?.[0] || null;
+      const agent = escalation 
+        ? (escalation.attended_by || escalation.resolved_by || '—')
+        : '—';
+      return {
+        ...conv,
+        message_count: Array.isArray(conv.messages) ? conv.messages.length : 0,
+        agent,
+      };
+    });
 
     return res.status(200).json({ conversations: mapped, total: count || 0, page: pageNum, limit: limitNum });
   } catch (error) {

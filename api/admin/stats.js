@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
-    const { schoolId, range } = req.query;
+    const { schoolId, range, agentName } = req.query;
 
     const now = new Date();
     const cutoff = range === 'today'
@@ -175,6 +175,89 @@ export default async function handler(req, res) {
       }
     }
 
+    // Agent-specific detailed statistics
+    let agentStats = null;
+    if (agentName) {
+      // Fetch escalations for this agent
+      let q = supabase.from('escalations')
+        .select('id, attended_by, resolved_by, status, created_at, first_response_at, leads(id, name, email, phone, created_at, schools(slug, name))')
+        .or(`attended_by.eq."${agentName}",resolved_by.eq."${agentName}"`);
+      if (schoolUUID) q = q.eq('school_id', schoolUUID);
+      
+      const { data: agentEscs } = await q.order('created_at', { ascending: false });
+      
+      const nowMs = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      const oneWeek = 7 * oneDay;
+      const oneMonth = 30 * oneDay;
+      
+      const served = { today: 0, week: 0, month: 0, allTime: 0 };
+      const resolved = { today: 0, week: 0, month: 0, allTime: 0 };
+      let totalResponseMs = 0;
+      let responseCount = 0;
+      
+      const recentLeadsMap = new Map();
+      const dailyGrouped = {};
+      
+      (agentEscs || []).forEach(e => {
+        const createdMs = new Date(e.created_at).getTime();
+        const diffMs = nowMs - createdMs;
+        
+        // Count served
+        if (e.attended_by === agentName) {
+          served.allTime++;
+          if (diffMs <= oneDay) served.today++;
+          if (diffMs <= oneWeek) served.week++;
+          if (diffMs <= oneMonth) served.month++;
+          
+          // Group by day for trend (past 30 days)
+          if (diffMs <= 30 * oneDay) {
+            const date = e.created_at.slice(0, 10);
+            dailyGrouped[date] = (dailyGrouped[date] || 0) + 1;
+          }
+        }
+        
+        // Count resolved
+        if (e.resolved_by === agentName && e.status === 'resolved') {
+          resolved.allTime++;
+          if (diffMs <= oneDay) resolved.today++;
+          if (diffMs <= oneWeek) resolved.week++;
+          if (diffMs <= oneMonth) resolved.month++;
+        }
+        
+        // Response time
+        if (e.attended_by === agentName && e.first_response_at && e.created_at) {
+          const ms = new Date(e.first_response_at) - new Date(e.created_at);
+          if (ms > 0) {
+            totalResponseMs += ms;
+            responseCount++;
+          }
+        }
+        
+        // Recent leads
+        if (e.leads && !recentLeadsMap.has(e.leads.id)) {
+          recentLeadsMap.set(e.leads.id, {
+            ...e.leads,
+            status: e.status,
+            attended_by: e.attended_by,
+            resolved_by: e.resolved_by,
+          });
+        }
+      });
+      
+      const dailyTrend = Object.entries(dailyGrouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, count]) => ({ date, count }));
+        
+      agentStats = {
+        served,
+        resolved,
+        avgResponseMs: responseCount > 0 ? Math.round(totalResponseMs / responseCount) : null,
+        leadsTrend: dailyTrend,
+        recentLeads: Array.from(recentLeadsMap.values()).slice(0, 10),
+      };
+    }
+
     return res.status(200).json({
       totalLeads: totalLeads || 0,
       totalConversations: totalConversations || 0,
@@ -189,6 +272,7 @@ export default async function handler(req, res) {
       aiOnlyCount,
       openTickets: openTickets || 0,
       avgCsat,
+      agentStats,
     });
   } catch (error) {
     console.error('stats error:', error);

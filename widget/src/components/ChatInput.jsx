@@ -1,15 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const ALLOWED_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'application/pdf',
-  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/m4a', 'audio/webm',
-]);
+const EXT_MAP = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg',
+  'application/pdf': 'pdf',
+  'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg', 'audio/mp4': 'mp4', 'audio/m4a': 'm4a', 'audio/webm': 'webm',
+  'video/mp4': 'mp4', 'video/webm': 'webm', 'video/ogg': 'ogv', 'video/quicktime': 'mov',
+  'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-powerpoint': 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'text/plain': 'txt',
+  'application/zip': 'zip', 'application/x-rar-compressed': 'rar', 'application/x-tar': 'tar', 'application/x-7z-compressed': '7z'
+};
+
+const ALLOWED_TYPES = new Set(Object.keys(EXT_MAP));
 
 function FilePreview({ file, onRemove, onTranscribe, isTranscribing }) {
   const isAudio = file.type.startsWith('audio/');
   const isImage = file.type.startsWith('image/');
-  const previewUrl = isImage ? URL.createObjectURL(file) : null;
+  const isVideo = file.type.startsWith('video/');
+  const previewUrl = (isImage || isVideo) ? URL.createObjectURL(file) : null;
 
   return (
     <div style={{
@@ -20,7 +29,10 @@ function FilePreview({ file, onRemove, onTranscribe, isTranscribing }) {
       {isImage && previewUrl && (
         <img src={previewUrl} alt={file.name} style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
       )}
-      {!isImage && <span style={{ flexShrink: 0 }}>{isAudio ? '🎵' : '📄'}</span>}
+      {isVideo && previewUrl && (
+        <video src={previewUrl} style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} muted />
+      )}
+      {!isImage && !isVideo && <span style={{ flexShrink: 0 }}>{isAudio ? '🎵' : '📄'}</span>}
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151' }}>
         {file.name}
       </span>
@@ -51,6 +63,7 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
   const [value, setValue] = useState('');
   const [pendingFiles, setPendingFiles] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceTyping, setIsVoiceTyping] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribingIdx, setTranscribingIdx] = useState(null);
@@ -61,11 +74,15 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
   const audioChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
   const autoStopTimerRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     return () => {
       clearInterval(recordingTimerRef.current);
       clearTimeout(autoStopTimerRef.current);
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
     };
   }, []);
 
@@ -123,7 +140,75 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
     }
   };
 
-  // ── Recording ──────────────────────────────────────────────
+  // ── Voice Typing & Recording ──────────────────────────────
+  const startVoiceTyping = () => {
+    setMicError('');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      startRecording();
+      return;
+    }
+
+    try {
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsVoiceTyping(true);
+      };
+
+      rec.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript || interimTranscript) {
+          setValue(prev => {
+            const cleanPrev = prev.trim();
+            const textToAppend = finalTranscript || interimTranscript;
+            return cleanPrev ? `${cleanPrev} ${textToAppend.trim()}` : textToAppend.trim();
+          });
+        }
+      };
+
+      rec.onerror = (e) => {
+        console.error('Speech recognition error:', e.error);
+        if (e.error === 'not-allowed') {
+          setMicError('Microphone access denied. Please check permission.');
+        } else {
+          setMicError('Voice typing failed. Falling back...');
+          startRecording();
+        }
+        stopVoiceTyping();
+      };
+
+      rec.onend = () => {
+        setIsVoiceTyping(false);
+      };
+
+      rec.start();
+      recognitionRef.current = rec;
+    } catch (e) {
+      console.error('Speech recognition failed to start:', e);
+      startRecording();
+    }
+  };
+
+  const stopVoiceTyping = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsVoiceTyping(false);
+  };
+
   const startRecording = async () => {
     setMicError('');
     try {
@@ -184,6 +269,18 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
         </div>
       )}
 
+      {/* Voice typing indicator */}
+      {isVoiceTyping && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 16px', fontSize: '12px', color: '#6366f1' }}>
+          <span style={{
+            width: '8px', height: '8px', borderRadius: '50%', background: '#6366f1',
+            display: 'inline-block',
+            animation: 'pulse 1s ease-in-out infinite',
+          }} />
+          Voice typing... speak clearly (tap microphone to stop)
+        </div>
+      )}
+
       {/* Transcribing indicator */}
       {isTranscribing && !isRecording && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 16px', fontSize: '12px', color: '#6b7280' }}>
@@ -223,7 +320,7 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,.pdf,audio/*"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
           multiple
           onChange={handleFileChange}
           style={{ display: 'none' }}
@@ -248,18 +345,18 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
         {/* Mic button */}
         {typeof navigator !== 'undefined' && navigator.mediaDevices && (
           <button
-            onClick={isRecording ? stopRecording : startRecording}
+            onClick={isVoiceTyping ? stopVoiceTyping : isRecording ? stopRecording : startVoiceTyping}
             disabled={isLoading || isTranscribing}
-            title={isRecording ? 'Stop recording' : 'Record voice message'}
+            title={isVoiceTyping ? 'Stop voice typing' : isRecording ? 'Stop recording' : 'Voice typing'}
             style={{
               width: '34px', height: '34px', borderRadius: '50%', border: 'none',
-              background: isRecording ? '#ef4444' : '#f3f4f6',
+              background: (isRecording || isVoiceTyping) ? '#ef4444' : '#f3f4f6',
               cursor: (isLoading || isTranscribing) ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               transition: 'background 0.15s ease',
             }}
           >
-            {isRecording ? (
+            {(isRecording || isVoiceTyping) ? (
               <span style={{ width: '10px', height: '10px', background: 'white', borderRadius: '2px', display: 'block' }} />
             ) : (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -279,7 +376,7 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isLoading}
-          placeholder={isRecording ? 'Recording...' : isTranscribing ? 'Transcribing...' : 'Type a message...'}
+          placeholder={isVoiceTyping ? 'Listening...' : isRecording ? 'Recording...' : isTranscribing ? 'Transcribing...' : 'Type a message...'}
           style={{
             flex: 1,
             border: '1px solid #ddd',

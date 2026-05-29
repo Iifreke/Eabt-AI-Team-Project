@@ -62,6 +62,15 @@ function AttachmentView({ att, textColor }) {
       />
     );
   }
+  if (att.type?.startsWith('video/')) {
+    return (
+      <video
+        controls
+        src={att.url}
+        style={{ maxWidth: '240px', borderRadius: '8px', marginTop: '6px', display: 'block' }}
+      />
+    );
+  }
   if (att.type?.startsWith('audio/')) {
     return <audio controls src={att.url} style={{ display: 'block', marginTop: '6px', maxWidth: '220px' }} />;
   }

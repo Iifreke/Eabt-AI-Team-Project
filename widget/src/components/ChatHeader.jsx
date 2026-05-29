@@ -1,6 +1,10 @@
 import React from 'react';
 
-export default function ChatHeader({ schoolName, primaryColor, onClose }) {
+export default function ChatHeader({ schoolName, primaryColor, adminsOnline = true, onClose }) {
+  const dotColor = adminsOnline ? '#4caf50' : '#9ca3af';
+  const shadowColor = adminsOnline ? 'rgba(76,175,80,0.3)' : 'rgba(156,163,175,0.3)';
+  const statusText = adminsOnline ? 'Online' : 'Offline';
+
   return (
     <div
       style={{
@@ -22,11 +26,11 @@ export default function ChatHeader({ schoolName, primaryColor, onClose }) {
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              background: '#4caf50',
-              boxShadow: '0 0 0 2px rgba(76,175,80,0.3)',
+              background: dotColor,
+              boxShadow: `0 0 0 2px ${shadowColor}`,
             }}
           />
-          <span style={{ fontSize: '12px', opacity: 0.9 }}>Online</span>
+          <span style={{ fontSize: '12px', opacity: 0.9 }}>{statusText}</span>
         </div>
       </div>
       <button

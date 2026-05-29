@@ -14,6 +14,7 @@ export function useChat() {
   const [sessionId, setSessionId] = useState(null);
   const [config, setConfig] = useState(null);
   const [agentTyping, setAgentTyping] = useState(null);
+  const [adminsOnline, setAdminsOnline] = useState(true);
   const pollRef = useRef(null);
 
   // Poll for new admin messages when stage is escalated
@@ -23,6 +24,9 @@ export function useChat() {
       const res = await fetch(`${cfg.apiUrl}/api/chat/messages?sessionId=${sid}`);
       if (!res.ok) return;
       const data = await res.json();
+      if (data.adminsOnline !== undefined) {
+        setAdminsOnline(data.adminsOnline);
+      }
       if (data.messages) {
         const rebuilt = data.messages.map((m, i) => ({
           id: i + 1,
@@ -313,7 +317,7 @@ export function useChat() {
     [sendMessage]
   );
 
-  const submitLead = useCallback(async (formData, cfg, sid) => {
+  const submitLead = useCallback(async (formData, cfg, sid, onSessionRestore) => {
     setConfig(cfg);
     setSessionId(sid);
     setIsLoading(true);
@@ -330,15 +334,37 @@ export function useChat() {
         }),
       });
       const data = await res.json();
-      setMessages([{
-        id: nextId(),
-        role: 'assistant',
-        content: data.message || 'Welcome! How can I help you today?',
-        suggestions: [],
-        suggestionsUsed: false,
-        ts: Date.now(),
-      }]);
-      setStage('active');
+      if (data.adminsOnline !== undefined) {
+        setAdminsOnline(data.adminsOnline);
+      }
+      if (data.messages && data.messages.length > 0) {
+        const rebuilt = data.messages.map((m, i) => ({
+          id: i + 1,
+          role: m.role,
+          content: m.content,
+          adminName: m.adminName,
+          attachments: m.attachments,
+          suggestions: [],
+          suggestionsUsed: true,
+          ts: m.ts || Date.now(),
+        }));
+        setMessages(rebuilt);
+        setStage(data.stage || 'active');
+        if (data.sessionId) {
+          setSessionId(data.sessionId);
+          if (onSessionRestore) onSessionRestore(data.sessionId);
+        }
+      } else {
+        setMessages([{
+          id: nextId(),
+          role: 'assistant',
+          content: data.message || 'Welcome! How can I help you today?',
+          suggestions: [],
+          suggestionsUsed: false,
+          ts: Date.now(),
+        }]);
+        setStage('active');
+      }
       setLead(data.lead || {});
       setHasGreeted(true);
     } catch {
@@ -364,6 +390,7 @@ export function useChat() {
     isLoading,
     hasGreeted,
     agentTyping,
+    adminsOnline,
     fetchGreeting,
     sendMessage,
     sendWithAttachments,

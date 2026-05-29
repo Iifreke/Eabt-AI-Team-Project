@@ -183,6 +183,7 @@ export default function Conversations() {
                     <th className="px-5 py-3 font-medium">School</th>
                     <th className="px-5 py-3 font-medium">Stage</th>
                     <th className="px-5 py-3 font-medium">Messages</th>
+                    <th className="px-5 py-3 font-medium">Agent</th>
                     <th className="px-5 py-3 font-medium">Last Updated</th>
                   </tr>
                 </thead>
@@ -203,6 +204,7 @@ export default function Conversations() {
                         <span className={stageBadge(conv.stage)}>{conv.stage}</span>
                       </td>
                       <td className="px-5 py-3 text-gray-500">{conv.message_count ?? 0}</td>
+                      <td className="px-5 py-3 text-gray-500">{conv.agent || '—'}</td>
                       <td className="px-5 py-3 text-gray-400">
                         {conv.updated_at ? new Date(conv.updated_at).toLocaleString() : '—'}
                       </td>
@@ -276,6 +278,7 @@ export default function Conversations() {
                     <th className="px-5 py-3 font-medium">School</th>
                     <th className="px-5 py-3 font-medium">Stage</th>
                     <th className="px-5 py-3 font-medium">Messages</th>
+                    <th className="px-5 py-3 font-medium">Agent</th>
                     <th className="px-5 py-3 font-medium">Last Updated</th>
                   </tr>
                 </thead>
@@ -295,6 +298,7 @@ export default function Conversations() {
                         <span className={stageBadge(conv.stage)}>{conv.stage}</span>
                       </td>
                       <td className="px-5 py-3 text-gray-500">{conv.message_count ?? 0}</td>
+                      <td className="px-5 py-3 text-gray-500">{conv.agent || '—'}</td>
                       <td className="px-5 py-3 text-gray-400">
                         {conv.updated_at ? new Date(conv.updated_at).toLocaleString() : '—'}
                       </td>

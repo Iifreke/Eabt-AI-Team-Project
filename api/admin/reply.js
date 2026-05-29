@@ -54,20 +54,32 @@ export default async function handler(req, res) {
     const profile = await getProfile(user.id);
     const adminName = profile?.full_name || user.email || 'Support Agent';
 
-    // Set first_response_at on the escalation if this is the first admin reply
+    // Set first_response_at, status and attended_by on the escalation when admin replies
     const { data: esc } = await supabase
       .from('escalations')
-      .select('id, first_response_at')
+      .select('id, first_response_at, status, attended_by')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (esc && !esc.first_response_at) {
-      await supabase
-        .from('escalations')
-        .update({ first_response_at: new Date().toISOString() })
-        .eq('id', esc.id);
+    if (esc) {
+      const updates = {};
+      if (!esc.first_response_at) {
+        updates.first_response_at = new Date().toISOString();
+      }
+      if (esc.status === 'pending') {
+        updates.status = 'in_progress';
+      }
+      if (!esc.attended_by) {
+        updates.attended_by = adminName;
+      }
+      if (Object.keys(updates).length > 0) {
+        await supabase
+          .from('escalations')
+          .update(updates)
+          .eq('id', esc.id);
+      }
     }
 
     // Append admin message (also clears any typing indicator)
