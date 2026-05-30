@@ -122,11 +122,19 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
     setIsTranscribing(true);
     if (fileIdx !== undefined) setTranscribingIdx(fileIdx);
     try {
-      const fd = new FormData();
-      fd.append('action', 'transcribe');
-      fd.append('audio', blob, 'audio');
-      fd.append('mimeType', mimeType);
-      const res = await fetch(`${apiUrl}/api/chat/media`, { method: 'POST', body: fd });
+      // Convert blob to base64 and send as JSON — no multipart needed
+      const arrayBuffer = await blob.arrayBuffer();
+      const uint8 = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < uint8.length; i += 8192) {
+        binary += String.fromCharCode(...uint8.slice(i, i + 8192));
+      }
+      const b64 = btoa(binary);
+      const res = await fetch(`${apiUrl}/api/chat/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'transcribe', data: b64, mimeType }),
+      });
       const data = await res.json();
       if (data.text) {
         setValue(data.text);

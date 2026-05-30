@@ -89,18 +89,32 @@ export function useChat() {
     }
   }, []);
 
-  // Upload files to /api/chat/upload and return attachment metadata array
+  // Upload files: get presigned URL then PUT directly to Supabase Storage
   const uploadFiles = useCallback(async (files, cfg) => {
     return Promise.all(files.map(async (file) => {
-      const fd = new FormData();
-      fd.append('action', 'upload');
-      fd.append('file', file, file.name);
-      fd.append('schoolId', cfg.schoolId || 'general');
-      fd.append('mimeType', file.type);
-      fd.append('fileName', file.name);
-      const res = await fetch(`${cfg.apiUrl}/api/chat/media`, { method: 'POST', body: fd });
-      if (!res.ok) throw new Error('Upload failed');
-      return res.json();
+      // Step 1: ask server for a signed upload URL (JSON — no file bytes sent to Vercel)
+      const presignRes = await fetch(`${cfg.apiUrl}/api/chat/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'presign',
+          mimeType: file.type,
+          fileName: file.name,
+          schoolId: cfg.schoolId || 'general',
+        }),
+      });
+      if (!presignRes.ok) throw new Error('Failed to get upload URL');
+      const { signedUrl, publicUrl, name, type } = await presignRes.json();
+
+      // Step 2: upload file directly to Supabase (bypasses Vercel completely)
+      const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type, 'x-upsert': 'false' },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error('Storage upload failed');
+
+      return { url: publicUrl, type: type || file.type, name: name || file.name, size: file.size };
     }));
   }, []);
 
