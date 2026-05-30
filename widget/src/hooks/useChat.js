@@ -104,17 +104,21 @@ export function useChat() {
         }),
       });
       if (!presignRes.ok) throw new Error('Failed to get upload URL');
-      const { signedUrl, publicUrl, name, type } = await presignRes.json();
+      const { uploadUrl, anonKey, publicUrl, name: storedName, type: storedType } = await presignRes.json();
 
-      // Step 2: upload file directly to Supabase (bypasses Vercel completely)
-      const uploadRes = await fetch(signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type, 'x-upsert': 'false' },
+      // Step 2: upload file directly to Supabase using anon key (bypasses Vercel)
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': file.type,
+          'x-upsert': 'false',
+        },
         body: file,
       });
       if (!uploadRes.ok) throw new Error('Storage upload failed');
 
-      return { url: publicUrl, type: type || file.type, name: name || file.name, size: file.size };
+      return { url: publicUrl, type: storedType || file.type, name: storedName || file.name, size: file.size };
     }));
   }, []);
 
