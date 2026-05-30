@@ -125,6 +125,10 @@ function parseMultipart(req, maxFileSize) {
 
     bb.on('finish', () => resolve({ fields, fileBuffer, fileMime, fileOrigName }));
     bb.on('error', reject);
-    req.pipe(bb);
+
+    // Use manual data/end events instead of req.pipe() for Vercel compatibility
+    req.on('data', chunk => { try { bb.write(chunk); } catch (e) { reject(e); } });
+    req.on('end', () => { try { bb.end(); } catch (e) { reject(e); } });
+    req.on('error', reject);
   });
 }
