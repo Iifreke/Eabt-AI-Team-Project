@@ -1,5 +1,4 @@
 import Busboy from 'busboy';
-import { toFile } from 'openai';
 import { applyCors } from '../../src/utils/cors.js';
 import supabase from '../../src/db/supabase.js';
 import { openaiClient } from '../../src/clients/index.js';
@@ -87,7 +86,7 @@ export default async function handler(req, res) {
       const baseMime = mimeType.split(';')[0].trim();
       const ext = extMap[baseMime] || 'webm';
 
-      const audioFile = await toFile(fileBuffer, `audio.${ext}`, { type: baseMime });
+      const audioFile = new File([fileBuffer], `audio.${ext}`, { type: baseMime });
       const transcription = await openaiClient.audio.transcriptions.create({
         model: 'whisper-1',
         file: audioFile,
@@ -104,7 +103,16 @@ export default async function handler(req, res) {
   }
 }
 
-function parseMultipart(req, maxFileSize) {
+async function parseMultipart(req, maxFileSize) {
+  // Step 1 — collect the entire raw body into a single Buffer
+  const rawBody = await new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+
+  // Step 2 — feed the buffer to busboy for multipart parsing
   return new Promise((resolve, reject) => {
     const bb = Busboy({ headers: req.headers, limits: { fileSize: maxFileSize } });
     const fields = {};
@@ -126,9 +134,7 @@ function parseMultipart(req, maxFileSize) {
     bb.on('finish', () => resolve({ fields, fileBuffer, fileMime, fileOrigName }));
     bb.on('error', reject);
 
-    // Use manual data/end events instead of req.pipe() for Vercel compatibility
-    req.on('data', chunk => { try { bb.write(chunk); } catch (e) { reject(e); } });
-    req.on('end', () => { try { bb.end(); } catch (e) { reject(e); } });
-    req.on('error', reject);
+    bb.write(rawBody);
+    bb.end();
   });
 }
