@@ -40,6 +40,10 @@ export default async function handler(req, res) {
       const baseUrl  = process.env.SUPABASE_URL;
       const anonKey  = process.env.SUPABASE_ANON_KEY;
 
+      if (!baseUrl || !anonKey) {
+        return res.status(500).json({ error: 'Storage not configured on server. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+      }
+
       return res.status(200).json({
         uploadUrl: `${baseUrl}/storage/v1/object/chat-attachments/${filePath}`,
         anonKey,

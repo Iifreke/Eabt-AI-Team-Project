@@ -75,6 +75,7 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
   const recordingTimerRef = useRef(null);
   const autoStopTimerRef = useRef(null);
   const recognitionRef = useRef(null);
+  const finalTextRef = useRef('');
 
   useEffect(() => {
     return () => {
@@ -163,27 +164,26 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
       rec.interimResults = true;
       rec.lang = 'en-US';
 
+      // Seed finalTextRef with whatever the user already typed
+      finalTextRef.current = value.trim();
+
       rec.onstart = () => {
         setIsVoiceTyping(true);
       };
 
       rec.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        let interim = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+          const result = event.results[i];
+          if (result.isFinal) {
+            // Commit this chunk permanently
+            finalTextRef.current = (finalTextRef.current + ' ' + result[0].transcript).trim();
           } else {
-            interimTranscript += event.results[i][0].transcript;
+            interim += result[0].transcript;
           }
         }
-        if (finalTranscript || interimTranscript) {
-          setValue(prev => {
-            const cleanPrev = prev.trim();
-            const textToAppend = finalTranscript || interimTranscript;
-            return cleanPrev ? `${cleanPrev} ${textToAppend.trim()}` : textToAppend.trim();
-          });
-        }
+        // Display = committed finals + live interim (no appending, always a fresh set)
+        setValue((finalTextRef.current + (interim ? ' ' + interim : '')).trim());
       };
 
       rec.onerror = (e) => {
@@ -198,6 +198,9 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
       };
 
       rec.onend = () => {
+        // Keep only finalized text; discard any in-flight interim
+        setValue(finalTextRef.current.trim());
+        finalTextRef.current = '';
         setIsVoiceTyping(false);
       };
 
@@ -211,10 +214,9 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
 
   const stopVoiceTyping = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      recognitionRef.current.stop(); // triggers onend which cleans up state
       recognitionRef.current = null;
     }
-    setIsVoiceTyping(false);
   };
 
   const startRecording = async () => {

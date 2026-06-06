@@ -133,6 +133,11 @@ export function useChat() {
     try {
       attachments = await uploadFiles(files, cfg);
     } catch {
+      setMessages(prev => [...prev, {
+        id: nextId(), role: 'assistant',
+        content: 'Sorry, the file upload failed. Please check your connection and try again, or send your message as text.',
+        suggestions: [], suggestionsUsed: true, ts: Date.now(),
+      }]);
       setIsLoading(false);
       return;
     }
