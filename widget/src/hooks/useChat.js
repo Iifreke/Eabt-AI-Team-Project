@@ -104,16 +104,12 @@ export function useChat() {
         }),
       });
       if (!presignRes.ok) throw new Error('Failed to get upload URL');
-      const { uploadUrl, anonKey, publicUrl, name: storedName, type: storedType } = await presignRes.json();
+      const { uploadUrl, publicUrl, name: storedName, type: storedType } = await presignRes.json();
 
-      // Step 2: upload file directly to Supabase using anon key (bypasses Vercel)
+      // Step 2: PUT directly to the signed URL — no auth header needed
       const uploadRes = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${anonKey}`,
-          'Content-Type': file.type,
-          'x-upsert': 'false',
-        },
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
         body: file,
       });
       if (!uploadRes.ok) throw new Error('Storage upload failed');

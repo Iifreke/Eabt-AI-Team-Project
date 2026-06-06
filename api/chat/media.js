@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { applyCors } from '../../src/utils/cors.js';
 import { openaiClient } from '../../src/clients/index.js';
 
@@ -25,8 +26,8 @@ export default async function handler(req, res) {
     const { action } = body;
 
     // ── action=presign ─────────────────────────────────────────────────────
-    // Returns upload URL + anon key so widget uploads directly to Supabase.
-    // No Supabase network calls here — pure URL construction.
+    // Uses the service key to generate a signed upload URL — no RLS needed,
+    // no anon key exposed to the browser. Creates the bucket if missing.
     if (action === 'presign') {
       const { mimeType, fileName, schoolId = 'general' } = body;
 
@@ -34,20 +35,40 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'File type not allowed' });
       }
 
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const serviceKey  = process.env.SUPABASE_SERVICE_KEY;
+
+      if (!supabaseUrl || !serviceKey) {
+        return res.status(500).json({ error: 'Storage not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.' });
+      }
+
+      const sb = createClient(supabaseUrl, serviceKey);
+
+      // Auto-create the bucket if it doesn't exist yet
+      const { error: bucketErr } = await sb.storage.createBucket('chat-attachments', { public: true });
+      if (bucketErr && !bucketErr.message.includes('already exists') && !bucketErr.message.includes('duplicate')) {
+        console.error('Bucket create error:', bucketErr.message);
+      }
+
       const ext      = EXT_MAP[mimeType] || 'bin';
       const rand     = Math.random().toString(36).slice(2, 10);
       const filePath = `${schoolId}/${Date.now()}-${rand}.${ext}`;
-      const baseUrl  = process.env.SUPABASE_URL;
-      const anonKey  = process.env.SUPABASE_ANON_KEY;
 
-      if (!baseUrl || !anonKey) {
-        return res.status(500).json({ error: 'Storage not configured on server. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+      // Signed upload URL — widget uploads directly with PUT, no auth header needed
+      const { data, error: signErr } = await sb.storage
+        .from('chat-attachments')
+        .createSignedUploadUrl(filePath);
+
+      if (signErr) {
+        console.error('Presign error:', signErr.message);
+        return res.status(500).json({ error: `Storage presign failed: ${signErr.message}` });
       }
 
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/chat-attachments/${filePath}`;
+
       return res.status(200).json({
-        uploadUrl: `${baseUrl}/storage/v1/object/chat-attachments/${filePath}`,
-        anonKey,
-        publicUrl: `${baseUrl}/storage/v1/object/public/chat-attachments/${filePath}`,
+        uploadUrl: data.signedUrl,
+        publicUrl,
         type: mimeType,
         name: fileName || `${Date.now()}.${ext}`,
       });
