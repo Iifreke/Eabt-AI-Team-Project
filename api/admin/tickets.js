@@ -153,7 +153,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ ticket });
     } catch (err) {
       console.error('ticket update error:', err);
-      return res.status(500).json({ error: err.message || 'Internal server error' });
+      return res.status(500).json({
+        error: err?.message || String(err) || 'unknown',
+        code: err?.code,
+        detail: err?.details,
+        _v: 'v4',
+      });
     }
   }
 
