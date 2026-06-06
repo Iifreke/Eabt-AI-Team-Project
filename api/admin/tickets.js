@@ -99,7 +99,7 @@ export default async function handler(req, res) {
       // Load existing ticket to compare staff_reply and current status
       const { data: existing } = await supabase
         .from('tickets')
-        .select('staff_reply, replied_at, status, email, name, subject, message, created_at')
+        .select('staff_reply, status, email, name, subject, message, created_at')
         .eq('id', id)
         .single();
 
@@ -115,7 +115,6 @@ export default async function handler(req, res) {
       // If a new reply is being saved, auto-advance status from 'open' to 'pending'
       if (replyChanged) {
         updates.staff_reply = staff_reply.trim();
-        updates.replied_at = new Date().toISOString();
         // Auto-advance status: open → pending (in progress), keep others unchanged
         if (!status && existing?.status === 'open') {
           updates.status = 'pending';
