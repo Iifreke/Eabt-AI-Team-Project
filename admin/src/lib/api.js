@@ -3,21 +3,28 @@ import { supabase } from './supabase.js';
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 
 async function authFetch(path, options = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
   const token = session?.access_token;
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  if (!token) {
+    console.warn('authFetch: no session token', { path, sessionErr });
+    throw new Error('Not authenticated — please refresh and log in again');
+  }
+
+  const url = `${BASE_URL}${path}`;
+  const res = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
       ...(options.headers || {}),
     },
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
+    console.error('authFetch error:', res.status, url, err);
+    throw new Error(err.error || `Request failed (${res.status})`);
   }
 
   return res.json();

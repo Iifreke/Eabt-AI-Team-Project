@@ -194,9 +194,11 @@ export default function Tickets() {
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const params = { page, limit: 20 };
       if (selectedSchool !== 'all') params.schoolId = selectedSchool;
@@ -205,7 +207,8 @@ export default function Tickets() {
       setTickets(data.tickets || []);
       setTotal(data.total || 0);
     } catch (err) {
-      console.error(err);
+      console.error('fetchTickets error:', err);
+      setFetchError(err.message || 'Failed to load tickets');
     } finally {
       setLoading(false);
     }
@@ -234,6 +237,13 @@ export default function Tickets() {
           ))}
           <span className="ml-auto text-sm text-gray-400 self-center">{total} ticket{total !== 1 ? 's' : ''}</span>
         </div>
+
+        {fetchError && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+            Error loading tickets: <strong>{fetchError}</strong>
+            <button onClick={fetchTickets} className="ml-3 underline">Retry</button>
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {loading ? (
