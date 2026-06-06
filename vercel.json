@@ -8,6 +8,6 @@
       "maxDuration": 30
     }
   },
-  "buildCommand": "npm run build:admin",
-  "outputDirectory": "admin/dist"
+  "buildCommand": "echo 'using pre-built deploy/'",
+  "outputDirectory": "deploy"
 }
