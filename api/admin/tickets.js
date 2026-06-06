@@ -131,7 +131,7 @@ export default async function handler(req, res) {
         .from('tickets')
         .update(updates)
         .eq('id', id)
-        .select('*, schools(id, name, slug, staff_email)')
+        .select('*, schools(id, name, slug)')
         .single();
 
       if (error) throw error;
