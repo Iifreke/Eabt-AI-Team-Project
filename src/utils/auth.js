@@ -11,8 +11,8 @@ export async function requireAuth(req, res) {
   const token = authHeader.split(' ')[1];
 
   const anonClient = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
+    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://elcugbusrvbrpbhwsrev.supabase.co',
+    process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3VnYnVzcnZicnBiaHdzcmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyOTY2NTAsImV4cCI6MjA5Mjg3MjY1MH0.Biy-na8wbeVhSl-wSMkAKwcujTZ2mX_PyusPGInGZ7o'
   );
 
   const { data: { user }, error } = await anonClient.auth.getUser(token);

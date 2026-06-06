@@ -79,12 +79,15 @@ export default async function handler(req, res) {
         .order('created_at', { ascending: false })
         .range(offset, offset + limitNum - 1);
 
-      if (error) throw error;
+      if (error) {
+        console.error('tickets query error:', error);
+        throw error;
+      }
 
       return res.status(200).json({ tickets: tickets || [], total: count || 0, page: pageNum, limit: limitNum });
     } catch (err) {
       console.error('tickets list error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: err.message || 'Internal server error' });
     }
   }
 

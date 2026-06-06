@@ -35,8 +35,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'File type not allowed' });
       }
 
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const serviceKey  = process.env.SUPABASE_SERVICE_KEY;
+      const supabaseUrl =
+        process.env.SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        'https://elcugbusrvbrpbhwsrev.supabase.co';
+      const serviceKey =
+        process.env.SUPABASE_SERVICE_KEY ||
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3VnYnVzcnZicnBiaHdzcmV2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzI5NjY1MCwiZXhwIjoyMDkyODcyNjUwfQ.m_Vl-sS0iZTNdfC8A7B6lh5_8cT_7FyKnTXmuntC8sc';
 
       if (!supabaseUrl || !serviceKey) {
         return res.status(500).json({ error: 'Storage not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.' });
