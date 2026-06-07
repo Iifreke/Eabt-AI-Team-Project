@@ -8,31 +8,14 @@ function generateUUID() {
   });
 }
 
-const SESSION_KEY = 'school_bot_sid';
-
-function getOrCreateSessionId() {
-  try {
-    const existing = sessionStorage.getItem(SESSION_KEY);
-    if (existing) return existing;
-    const id = generateUUID();
-    sessionStorage.setItem(SESSION_KEY, id);
-    return id;
-  } catch {
-    return generateUUID();
-  }
-}
-
+// Always generate a fresh session on every page load — no persistence
 export function useSession() {
-  const [sessionId, setSessionIdState] = useState(() => getOrCreateSessionId());
+  const [sessionId, setSessionIdState] = useState(() => generateUUID());
 
-  const setSessionId = (id) => {
-    try { sessionStorage.setItem(SESSION_KEY, id); } catch (e) {}
-    setSessionIdState(id);
-  };
+  const setSessionId = (id) => setSessionIdState(id);
 
   const resetSession = () => {
     const id = generateUUID();
-    try { sessionStorage.setItem(SESSION_KEY, id); } catch (e) {}
     setSessionIdState(id);
     return id;
   };
