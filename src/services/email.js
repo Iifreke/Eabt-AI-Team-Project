@@ -1,26 +1,17 @@
+import nodemailer from 'nodemailer';
 import supabase from '../db/supabase.js';
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM = process.env.RESEND_FROM || 'Support <onboarding@resend.dev>';
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '465', 10),
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
-async function sendEmail({ to, subject, html }) {
-  if (!RESEND_API_KEY) {
-    console.warn('RESEND_API_KEY not set — email skipped');
-    return;
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Resend API error ${res.status}: ${body}`);
-  }
-}
+const FROM = `"School Bot Support" <${process.env.SMTP_USER}>`;
 
 const reasonLabels = {
   user_request: 'Visitor requested a human agent',
@@ -72,7 +63,8 @@ ${transcript || '(No messages recorded)'}
 </body>
 </html>`;
 
-    await sendEmail({
+    await transporter.sendMail({
+      from: FROM,
       to: school.staff_email,
       subject: `Escalation — ${lead.name || 'Unknown Visitor'} — ${school.name}`,
       html,
@@ -125,7 +117,8 @@ export async function sendTicketEmail({ school, ticket }) {
 </body>
 </html>`;
 
-    await sendEmail({
+    await transporter.sendMail({
+      from: FROM,
       to: school.staff_email,
       subject: `New Ticket — ${ticket.subject} — ${school.name}`,
       html,
@@ -172,7 +165,8 @@ export async function sendTicketReplyEmail({ school, ticket, staffReply }) {
 </body>
 </html>`;
 
-    await sendEmail({
+    await transporter.sendMail({
+      from: FROM,
       to: ticket.email,
       subject: `Re: ${ticket.subject} — ${school.name} Support`,
       html,
@@ -216,7 +210,8 @@ export async function sendTicketConfirmationEmail({ school, ticket }) {
 </body>
 </html>`;
 
-    await sendEmail({
+    await transporter.sendMail({
+      from: FROM,
       to: ticket.email,
       subject: `Ticket Received: ${ticket.subject} — ${school.name}`,
       html,
