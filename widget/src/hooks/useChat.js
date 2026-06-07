@@ -41,6 +41,11 @@ export function useChat() {
         setMessages(rebuilt);
         setAgentTyping(data.agentTyping || null);
       }
+      // If admin resolved the conversation, stage is flipped back to 'active' in DB
+      // — hand the user back to the AI seamlessly
+      if (data.stage && data.stage !== 'escalated') {
+        setStage(data.stage);
+      }
     } catch {
       // silently ignore poll errors
     }

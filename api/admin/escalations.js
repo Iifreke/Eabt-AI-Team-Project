@@ -56,10 +56,33 @@ export default async function handler(req, res) {
         .from('escalations')
         .update(updates)
         .eq('id', id)
-        .select()
+        .select('id, conversation_id')
         .single();
 
       if (error) throw error;
+
+      // When resolved: set conversation stage back to 'active' so the widget
+      // detects it via polling and hands the user back to the AI
+      if (status === 'resolved' && escalation?.conversation_id) {
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('id, messages')
+          .eq('id', escalation.conversation_id)
+          .single();
+
+        if (conv) {
+          const messages = Array.isArray(conv.messages) ? conv.messages : [];
+          messages.push({
+            role: 'assistant',
+            content: 'The support agent has ended this session. You can continue asking questions and our AI assistant will help you.',
+            ts: Date.now(),
+          });
+          await supabase
+            .from('conversations')
+            .update({ stage: 'active', messages, updated_at: new Date().toISOString() })
+            .eq('id', escalation.conversation_id);
+        }
+      }
 
       return res.status(200).json({ escalation });
     } catch (error) {
