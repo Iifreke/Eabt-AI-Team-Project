@@ -24,11 +24,18 @@ function getOrCreateSessionId() {
 
 export function useSession() {
   const [sessionId, setSessionIdState] = useState(() => getOrCreateSessionId());
+
   const setSessionId = (id) => {
-    try {
-      sessionStorage.setItem(SESSION_KEY, id);
-    } catch (e) {}
+    try { sessionStorage.setItem(SESSION_KEY, id); } catch (e) {}
     setSessionIdState(id);
   };
-  return { sessionId, setSessionId };
+
+  const resetSession = () => {
+    const id = generateUUID();
+    try { sessionStorage.setItem(SESSION_KEY, id); } catch (e) {}
+    setSessionIdState(id);
+    return id;
+  };
+
+  return { sessionId, setSessionId, resetSession };
 }

@@ -57,8 +57,8 @@ export default function ChatWidget({ config }) {
   const [showNoResponseHint, setShowNoResponseHint] = useState(false);
   const noResponseTimerRef = useRef(null);
 
-  const { sessionId, setSessionId } = useSession();
-  const { messages, stage, isLoading, agentTyping, adminsOnline, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick } = useChat();
+  const { sessionId, setSessionId, resetSession } = useSession();
+  const { messages, stage, isLoading, agentTyping, adminsOnline, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick, resetChat } = useChat();
 
   // Keep a live ref so timer callbacks always read the latest messages
   const messagesRef = useRef(messages);
@@ -126,7 +126,19 @@ export default function ChatWidget({ config }) {
     );
   }
 
-  function handleClose() { setIsOpen(false); }
+  function handleClose() {
+    setIsOpen(false);
+    // Reset everything so next open starts a fresh session
+    resetSession();
+    resetChat();
+    setStep(isMultiSchool ? 'school' : 'form');
+    setSelectedSchool(isMultiSchool ? null : { id: config?.schoolId, name: config?.theme?.name || 'School Support' });
+    setForm({ name: '', email: '', phone: '' });
+    setFormError('');
+    setTicketForm({ subject: '', message: '' });
+    setTicketError('');
+    setShowNoResponseHint(false);
+  }
   function handleSchoolSelect(school) { setSelectedSchool(school); setStep('form'); }
 
   async function handleFormSubmit(e) {

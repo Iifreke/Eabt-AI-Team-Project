@@ -402,6 +402,19 @@ export function useChat() {
     }
   }, []);
 
+  const resetChat = useCallback(() => {
+    setMessages([]);
+    setStage('active');
+    setLead({});
+    setIsLoading(false);
+    setHasGreeted(false);
+    setSessionId(null);
+    setConfig(null);
+    setAgentTyping(null);
+    setAdminsOnline(true);
+    clearInterval(pollRef.current);
+  }, []);
+
   return {
     messages,
     stage,
@@ -415,5 +428,6 @@ export function useChat() {
     sendWithAttachments,
     handleSuggestionClick,
     submitLead,
+    resetChat,
   };
 }
