@@ -105,6 +105,9 @@ export default function MessageBubble({ message, primaryColor }) {
     ? '18px 18px 4px 18px'
     : '18px 18px 18px 4px';
 
+  const hasText = message.content && message.content.trim().length > 0;
+  const attachments = message.attachments || [];
+
   return (
     <div
       style={{
@@ -112,6 +115,7 @@ export default function MessageBubble({ message, primaryColor }) {
         flexDirection: 'column',
         alignItems: isUser ? 'flex-end' : 'flex-start',
         marginBottom: '4px',
+        gap: '4px',
       }}
     >
       {/* Admin label */}
@@ -120,26 +124,35 @@ export default function MessageBubble({ message, primaryColor }) {
           🧑‍💼 {message.adminName || 'Support Agent'}
         </div>
       )}
-      <div
-        style={{
-          background: bgColor,
-          color: textColor,
-          borderRadius,
-          padding: '10px 14px',
-          maxWidth: isUser ? '75%' : '85%',
-          fontSize: '14px',
-          lineHeight: '1.5',
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap',
-          boxShadow: isAdmin ? '0 2px 8px rgba(124,58,237,0.15)' : 'none',
-        }}
-      >
-        {renderContent(message.content, textColor)}
-        {message.attachments?.map((att, i) => (
-          <AttachmentView key={i} att={att} textColor={textColor} />
-        ))}
-      </div>
-      <div style={{ fontSize: '10px', color: '#999', marginTop: '3px', paddingLeft: '2px', paddingRight: '2px' }}>
+
+      {/* Text bubble — only if there's text */}
+      {hasText && (
+        <div
+          style={{
+            background: bgColor,
+            color: textColor,
+            borderRadius,
+            padding: '10px 14px',
+            maxWidth: isUser ? '75%' : '85%',
+            fontSize: '14px',
+            lineHeight: '1.5',
+            wordBreak: 'break-word',
+            whiteSpace: 'pre-wrap',
+            boxShadow: isAdmin ? '0 2px 8px rgba(124,58,237,0.15)' : 'none',
+          }}
+        >
+          {renderContent(message.content, textColor)}
+        </div>
+      )}
+
+      {/* Attachments — each as its own separate block */}
+      {attachments.map((att, i) => (
+        <div key={i} style={{ maxWidth: isUser ? '75%' : '85%' }}>
+          <AttachmentView att={att} textColor={isUser ? 'white' : '#222'} />
+        </div>
+      ))}
+
+      <div style={{ fontSize: '10px', color: '#999', marginTop: '1px', paddingLeft: '2px', paddingRight: '2px' }}>
         {formatTime(message.ts || Date.now())}
       </div>
     </div>

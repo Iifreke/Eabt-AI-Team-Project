@@ -10,9 +10,35 @@ import {
   stripEscalateToken,
   extractLeadFields,
 } from '../../src/services/llm.js';
-import { searchKnowledgeBase } from '../../src/services/rag.js';
+import { searchKnowledgeBase, extractText } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
 import * as email from '../../src/services/email.js';
+
+const READABLE_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+]);
+
+async function extractAttachmentText(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return '';
+  const parts = [];
+  for (const att of attachments) {
+    if (!READABLE_TYPES.has(att.type)) continue;
+    try {
+      const res = await fetch(att.url);
+      if (!res.ok) continue;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const text = await extractText(buffer, att.type);
+      if (text?.trim()) {
+        parts.push(`[Attached file: ${att.name}]\n${text.trim()}`);
+      }
+    } catch (err) {
+      console.error('Attachment extract failed:', att.name, err.message);
+    }
+  }
+  return parts.join('\n\n---\n\n');
+}
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -21,7 +47,7 @@ export default async function handler(req, res) {
   try {
     const { message, schoolId, sessionId, attachments } = req.body;
 
-    if (!message || !schoolId || !sessionId) {
+    if ((!message && (!attachments || attachments.length === 0)) || !schoolId || !sessionId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -69,7 +95,13 @@ export default async function handler(req, res) {
       conv.lead_id = lead.id;
     }
 
-    // Append user message
+    // Extract text from any readable attachments so the AI can see the content
+    const attachmentText = await extractAttachmentText(attachments);
+    const messageWithAttachments = attachmentText
+      ? `${message}\n\n${attachmentText}`
+      : message;
+
+    // Append user message (store original text in DB, AI gets enriched version)
     const messages = conv.messages || [];
     const userMsg = { role: 'user', content: message, ts: Date.now() };
     if (Array.isArray(attachments) && attachments.length > 0) userMsg.attachments = attachments;
@@ -151,7 +183,14 @@ export default async function handler(req, res) {
         : 'No specific information found in the knowledge base for this query.';
 
     const systemPrompt = buildActiveSystemPrompt(school.name, lead.name || 'there', context);
-    const messageHistory = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
+
+    // Build history — replace the last user message with the attachment-enriched version
+    const messageHistory = messages.slice(-10).map((m, i, arr) => {
+      if (m.role === 'user' && i === arr.length - 1 && messageWithAttachments !== message) {
+        return { role: 'user', content: messageWithAttachments };
+      }
+      return { role: m.role, content: m.content };
+    });
 
     await chatStream(systemPrompt, messageHistory, (chunk) => {
       fullResponse += chunk;
