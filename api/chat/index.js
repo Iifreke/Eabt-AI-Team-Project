@@ -209,13 +209,12 @@ export default async function handler(req, res) {
     const hasEscalation = detectEscalation(fullResponse);
     const cleanResponse = stripEscalateToken(fullResponse);
 
-    // Track failed answers — escalate after just 1 failed attempt
+    // Check if THIS response failed (not accumulated) — so AI can keep helping on later messages
     const fallbackPhrase = 'do not have that specific detail';
-    if (fullResponse.toLowerCase().includes(fallbackPhrase)) {
-      conv.failed_attempts = (conv.failed_attempts || 0) + 1;
-    }
+    const currentResponseFailed = fullResponse.toLowerCase().includes(fallbackPhrase);
 
-    const shouldEscalate = hasEscalation || conv.failed_attempts >= 1;
+    // Trigger on: user requested human OR this specific answer wasn't in the knowledge base
+    const shouldEscalate = hasEscalation || currentResponseFailed;
 
     // Business hours: Mon–Fri 8am–6pm WAT (UTC+1)
     const watNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
@@ -224,25 +223,20 @@ export default async function handler(req, res) {
 
     let newStage = conv.stage;
 
-    if (shouldEscalate) {
+    if (shouldEscalate && withinBusinessHours && newStage !== 'escalated') {
+      // During business hours → escalate to human agent (only once)
       const reason = hasEscalation ? 'user_request' : 'failed_attempts';
-
-      if (withinBusinessHours) {
-        // During business hours → escalate to human agent
-        await supabase.from('escalations').insert({
-          conversation_id: conv.id,
-          school_id: school.id,
-          lead_id: lead.id,
-          reason,
-        });
-
-        newStage = 'escalated';
-        conv.stage = 'escalated';
-
-        email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason }).catch(console.error);
-      }
-      // Outside business hours → stay in active stage, prompt user to raise a ticket
+      await supabase.from('escalations').insert({
+        conversation_id: conv.id,
+        school_id: school.id,
+        lead_id: lead.id,
+        reason,
+      });
+      newStage = 'escalated';
+      conv.stage = 'escalated';
+      email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason }).catch(console.error);
     }
+    // Outside business hours: stay active, AI keeps working — just show ticket prompt below
 
     messages.push({ role: 'assistant', content: cleanResponse, ts: Date.now() });
 
@@ -254,10 +248,10 @@ export default async function handler(req, res) {
         ts: Date.now() + 1,
       });
     } else if (shouldEscalate && !withinBusinessHours) {
-      // Outside business hours and AI couldn't help — prompt ticket
+      // Outside business hours — AI keeps running but suggest ticket for this unanswered need
       const ticketPrompt = hasEscalation
-        ? "Our support team is currently offline (available Mon–Fri, 8am–6pm WAT). Please open a ticket with your question and we'll reply to your email as soon as we're back."
-        : "I wasn't able to find a complete answer to your question. Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Please open a ticket with your question and we'll reply to your email.";
+        ? "Our support team is offline right now (available Mon–Fri, 8am–6pm WAT). You can still chat with me, or open a ticket and we'll reply to your email."
+        : "I wasn't able to find a complete answer to that. Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Feel free to keep chatting with me, or open a ticket and we'll reply to your email.";
       messages.push({
         role: 'assistant',
         content: ticketPrompt,
@@ -270,13 +264,13 @@ export default async function handler(req, res) {
       .update({
         messages,
         stage: newStage,
-        failed_attempts: conv.failed_attempts || 0,
         updated_at: new Date().toISOString(),
       })
       .eq('id', conv.id);
 
     const suggestions = await generateSuggestions(school.name, cleanResponse);
 
+    // Only signal ticket prompt on this specific response — not sticky across messages
     const offHoursTicketPrompt = shouldEscalate && !withinBusinessHours;
 
     // Include full messages when escalating so widget rebuilds immediately without waiting for poll

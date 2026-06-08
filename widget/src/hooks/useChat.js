@@ -234,7 +234,8 @@ export function useChat() {
   const sendMessage = useCallback(async (text, cfg, sid) => {
     if (!text.trim() || isLoading) return;
 
-    // Store config & sessionId for polling
+    // Reset ticket prompt on each new message — only re-show if this response also fails
+    setShowTicketPrompt(false);
     setConfig(cfg);
     setSessionId(sid);
 
