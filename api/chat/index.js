@@ -209,38 +209,58 @@ export default async function handler(req, res) {
     const hasEscalation = detectEscalation(fullResponse);
     const cleanResponse = stripEscalateToken(fullResponse);
 
-    // Track failed answers
+    // Track failed answers — escalate after just 1 failed attempt
     const fallbackPhrase = 'do not have that specific detail';
     if (fullResponse.toLowerCase().includes(fallbackPhrase)) {
       conv.failed_attempts = (conv.failed_attempts || 0) + 1;
     }
 
-    const shouldEscalate = hasEscalation || conv.failed_attempts >= 3;
+    const shouldEscalate = hasEscalation || conv.failed_attempts >= 1;
+
+    // Business hours: Mon–Fri 8am–6pm WAT (UTC+1)
+    const watNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+    const withinBusinessHours = watNow.getDay() >= 1 && watNow.getDay() <= 5
+      && watNow.getHours() >= 8 && watNow.getHours() < 18;
+
     let newStage = conv.stage;
 
     if (shouldEscalate) {
       const reason = hasEscalation ? 'user_request' : 'failed_attempts';
 
-      await supabase.from('escalations').insert({
-        conversation_id: conv.id,
-        school_id: school.id,
-        lead_id: lead.id,
-        reason,
-      });
+      if (withinBusinessHours) {
+        // During business hours → escalate to human agent
+        await supabase.from('escalations').insert({
+          conversation_id: conv.id,
+          school_id: school.id,
+          lead_id: lead.id,
+          reason,
+        });
 
-      newStage = 'escalated';
-      conv.stage = 'escalated';
+        newStage = 'escalated';
+        conv.stage = 'escalated';
 
-      email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason }).catch(console.error);
+        email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason }).catch(console.error);
+      }
+      // Outside business hours → stay in active stage, prompt user to raise a ticket
     }
 
     messages.push({ role: 'assistant', content: cleanResponse, ts: Date.now() });
 
-    // Only show the human handoff notice when an agent is actually online to receive it
     if (newStage === 'escalated' && adminsOnline) {
+      // Human agent is online — show handoff notice
       messages.push({
         role: 'assistant',
         content: "I've connected you with our support team. They'll reply here shortly — you can keep sending messages and they'll see them.",
+        ts: Date.now() + 1,
+      });
+    } else if (shouldEscalate && !withinBusinessHours) {
+      // Outside business hours and AI couldn't help — prompt ticket
+      const ticketPrompt = hasEscalation
+        ? "Our support team is currently offline (available Mon–Fri, 8am–6pm WAT). Please open a ticket with your question and we'll reply to your email as soon as we're back."
+        : "I wasn't able to find a complete answer to your question. Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Please open a ticket with your question and we'll reply to your email.";
+      messages.push({
+        role: 'assistant',
+        content: ticketPrompt,
         ts: Date.now() + 1,
       });
     }
