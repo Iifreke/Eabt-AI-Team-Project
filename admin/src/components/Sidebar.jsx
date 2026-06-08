@@ -6,7 +6,6 @@ import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
 
 const baseNav = [
-  { to: '/dashboard',     label: 'Overview',      icon: '📊' },
   { to: '/chats',         label: 'Chats',         icon: '💬' },
   { to: '/tickets',       label: 'Tickets',       icon: '🎫' },
   { to: '/contacts',      label: 'Contacts',      icon: '👥' },
@@ -17,7 +16,8 @@ const baseNav = [
 ];
 
 const superAdminNav = [
-  { to: '/agents', label: 'Agents', icon: '🔐' },
+  { to: '/dashboard', label: 'Overview',  icon: '📊' },
+  { to: '/agents',    label: 'Agents',    icon: '🔐' },
 ];
 
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Agent' };
@@ -38,7 +38,7 @@ export default function Sidebar() {
   const [localStatus, setLocalStatus] = useState(null);
 
   const isSuperAdmin = profile?.role === 'super_admin';
-  const navItems = isSuperAdmin ? [...baseNav, ...superAdminNav] : baseNav;
+  const navItems = isSuperAdmin ? [...superAdminNav, ...baseNav] : baseNav;
 
   // localStatus wins for immediate UI feedback; falls back to DB value
   const agentStatus = localStatus ?? profile?.status ?? 'online';

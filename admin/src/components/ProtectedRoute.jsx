@@ -2,20 +2,32 @@ import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, superAdminOnly = false }) {
   const [status, setStatus] = useState('loading'); // 'loading' | 'authed' | 'unauthed'
+  const [role, setRole] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setStatus(session ? 'authed' : 'unauthed');
-    });
+    async function check(session) {
+      if (!session) { setStatus('unauthed'); return; }
+      if (superAdminOnly) {
+        const { data } = await supabase
+          .from('admin_profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        setRole(data?.role || 'admin');
+      }
+      setStatus('authed');
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => check(session));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setStatus(session ? 'authed' : 'unauthed');
+      check(session);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [superAdminOnly]);
 
   if (status === 'loading') {
     return (
@@ -26,6 +38,8 @@ export default function ProtectedRoute({ children }) {
   }
 
   if (status === 'unauthed') return <Navigate to="/login" replace />;
+
+  if (superAdminOnly && role !== 'super_admin') return <Navigate to="/chats" replace />;
 
   return children;
 }
