@@ -170,15 +170,17 @@ export default async function handler(req, res) {
 
     // ── ESCALATED STAGE ───────────────────────────────────────
     if (conv.stage === 'escalated') {
-      // User message was already pushed at top — just persist and return
-      await supabase
-        .from('conversations')
-        .update({ messages, updated_at: new Date().toISOString() })
-        .eq('id', conv.id);
-
-      // Return the full updated messages so widget can display admin replies
-      sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages, adminsOnline });
-      return res.end();
+      if (adminsOnline) {
+        // Human agent is available — just store the message and let the agent reply
+        await supabase
+          .from('conversations')
+          .update({ messages, updated_at: new Date().toISOString() })
+          .eq('id', conv.id);
+        sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages, adminsOnline });
+        return res.end();
+      }
+      // No human agent available — fall through to AI so the user isn't left in silence
+      // The AI responds using the knowledge base; the widget shows the offline/ticket banner
     }
 
 
