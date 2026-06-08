@@ -7,13 +7,22 @@ const VALID_STATUSES = ['online', 'away', 'invisible'];
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
 
-  // PATCH — any authenticated admin can update their own status
   if (req.method === 'PATCH') {
     const user = await requireAuth(req, res);
     if (!user) return;
 
-    const { status } = req.body;
+    const { status, heartbeat } = req.body;
 
+    // Heartbeat — just refresh updated_at to mark agent as active
+    if (heartbeat) {
+      await supabase
+        .from('admin_profiles')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+      return res.status(200).json({ ok: true });
+    }
+
+    // Status change
     if (!status || !VALID_STATUSES.includes(status)) {
       return res.status(400).json({ error: 'Invalid status. Must be online, away, or invisible.' });
     }

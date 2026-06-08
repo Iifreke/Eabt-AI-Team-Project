@@ -76,6 +76,9 @@ export const api = {
   updateMyStatus: (status) =>
     authFetch('/api/admin/me', { method: 'PATCH', body: JSON.stringify({ status }) }),
 
+  heartbeat: () =>
+    authFetch('/api/admin/me', { method: 'PATCH', body: JSON.stringify({ heartbeat: true }) }),
+
   listUsers: () => authFetch('/api/admin/users'),
 
   inviteUser: ({ email, fullName, role }) =>

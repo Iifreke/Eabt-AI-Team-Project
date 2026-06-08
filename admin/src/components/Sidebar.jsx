@@ -38,6 +38,14 @@ export default function Sidebar() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState(null);
 
+  // Heartbeat — keeps updated_at fresh so auto-status doesn't demote an active agent
+  React.useEffect(() => {
+    if (!profile?.id) return;
+    api.heartbeat().catch(() => {});
+    const interval = setInterval(() => api.heartbeat().catch(() => {}), 60000);
+    return () => clearInterval(interval);
+  }, [profile?.id]);
+
   const isSuperAdmin = profile?.role === 'super_admin';
   const navItems = isSuperAdmin ? [...superAdminNav, ...baseNav] : baseNav;
 

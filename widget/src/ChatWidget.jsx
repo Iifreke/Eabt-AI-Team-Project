@@ -23,6 +23,14 @@ const inputStyle = {
   transition: 'border-color 0.15s',
 };
 
+// Business hours: 8am–6pm Mon–Fri in West Africa Time (UTC+1)
+function isBusinessHours() {
+  const wat = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+  const day = wat.getDay();   // 0=Sun, 6=Sat
+  const hour = wat.getHours();
+  return day >= 1 && day <= 5 && hour >= 8 && hour < 18;
+}
+
 const CSAT_OPTIONS = [
   { rating: 1, emoji: '😞', label: 'Very Bad' },
   { rating: 2, emoji: '😕', label: 'Bad' },
@@ -297,8 +305,8 @@ export default function ChatWidget({ config }) {
             primaryColor={primaryColor}
             apiUrl={effectiveConfig?.apiUrl}
           />
-          {/* Offline warning banner — only when no agent is online */}
-          {!adminsOnline && (
+          {/* Offline warning banner — only when no agent online AND outside business hours */}
+          {!adminsOnline && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. Open a ticket and we'll reply to your email.</div>
@@ -309,8 +317,8 @@ export default function ChatWidget({ config }) {
               </button>
             </div>
           )}
-          {/* No-response hint after 2 min in escalated with no reply — only when offline */}
-          {showNoResponseHint && !adminsOnline && (
+          {/* No-response hint — only outside business hours */}
+          {showNoResponseHint && !adminsOnline && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Open a ticket and we'll reply to your email.</div>
@@ -329,15 +337,15 @@ export default function ChatWidget({ config }) {
                 Rate this chat ★
               </button>
             )}
-            {adminsOnline ? (
-              /* Agent is online — escalate to human instead of opening a ticket */
+            {(adminsOnline || isBusinessHours()) ? (
+              /* Business hours or agent online — escalate, no ticket */
               <button
                 onClick={() => sendMessage('I would like to speak with a human agent', effectiveConfig, sessionId)}
                 style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                 💬 Chat with an Agent
               </button>
             ) : (
-              /* No agent online — ticket form is the right path */
+              /* Outside business hours and no agent online — ticket available */
               <button
                 onClick={() => { setTicketError(''); setStep('ticket'); }}
                 style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
@@ -348,15 +356,19 @@ export default function ChatWidget({ config }) {
         </div>
       )}
 
-      {/* ── TICKET FORM ── blocked when agents are online — redirect to escalation */}
-      {isOpen && step === 'ticket' && adminsOnline && (
+      {/* ── TICKET FORM ── blocked when agents online OR during business hours */}
+      {isOpen && step === 'ticket' && (adminsOnline || isBusinessHours()) && (
         <div style={panelStyle}>
-          <PanelHeader title="Agents are Online" subtitle="You'll be connected to a live agent" onClose={handleClose} />
+          <PanelHeader title={adminsOnline ? 'Agents are Online' : 'Support Available'} subtitle="You'll be connected to a live agent" onClose={handleClose} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center', gap: '16px' }}>
-            <div style={{ fontSize: '40px' }}>🟢</div>
-            <div style={{ fontWeight: 700, fontSize: '16px', color: '#111' }}>Our team is online right now</div>
+            <div style={{ fontSize: '40px' }}>{adminsOnline ? '🟢' : '🕐'}</div>
+            <div style={{ fontWeight: 700, fontSize: '16px', color: '#111' }}>
+              {adminsOnline ? 'Our team is online right now' : 'We\'re within support hours'}
+            </div>
             <div style={{ fontSize: '13px', color: '#555', lineHeight: '1.6' }}>
-              Tickets are only for when our team is offline. Since agents are available, we'll connect you directly in the chat.
+              {adminsOnline
+                ? 'Tickets are only for when our team is offline. Since agents are available, we\'ll connect you directly in the chat.'
+                : 'Our support team is available Mon–Fri, 8am–6pm WAT. Chat with us and an agent will be with you shortly.'}
             </div>
             <button
               onClick={() => {
@@ -369,7 +381,7 @@ export default function ChatWidget({ config }) {
           </div>
         </div>
       )}
-      {isOpen && step === 'ticket' && !adminsOnline && (
+      {isOpen && step === 'ticket' && !adminsOnline && !isBusinessHours() && (
         <div style={panelStyle}>
           <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
