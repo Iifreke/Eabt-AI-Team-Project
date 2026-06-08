@@ -61,6 +61,9 @@ export default function ChatWidget({ config }) {
   // CSAT state
   const [csatSending, setCsatSending] = useState(false);
 
+  // Banner shown when user tries to open a ticket during business hours
+  const [showAgentOnlineBanner, setShowAgentOnlineBanner] = useState(false);
+
   // No-response hint — shown after 2 min in escalated stage with no admin reply
   const [showNoResponseHint, setShowNoResponseHint] = useState(false);
   const noResponseTimerRef = useRef(null);
@@ -146,6 +149,7 @@ export default function ChatWidget({ config }) {
     setTicketForm({ subject: '', message: '' });
     setTicketError('');
     setShowNoResponseHint(false);
+    setShowAgentOnlineBanner(false);
   }
   function handleSchoolSelect(school) { setSelectedSchool(school); setStep('form'); }
 
@@ -305,6 +309,23 @@ export default function ChatWidget({ config }) {
             primaryColor={primaryColor}
             apiUrl={effectiveConfig?.apiUrl}
           />
+          {/* Agent online banner — shown when user tried to open a ticket during business hours */}
+          {showAgentOnlineBanner && (
+            <div style={{ margin: '0 12px 8px', background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#1b5e20', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <span style={{ fontSize: '16px', flexShrink: 0 }}>🟢</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, marginBottom: '2px' }}>
+                  {adminsOnline ? 'Agents are online' : 'Support hours are active'}
+                </div>
+                <div style={{ lineHeight: '1.5' }}>
+                  {adminsOnline
+                    ? 'Our team is online right now. Tickets are unavailable — type your question and an agent will assist you directly.'
+                    : 'We\'re available Mon–Fri, 8am–6pm WAT. Tickets are unavailable during support hours — type your question and we\'ll help you right away.'}
+                </div>
+              </div>
+              <button onClick={() => setShowAgentOnlineBanner(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#388e3c', fontSize: '14px', padding: '0', flexShrink: 0 }}>✕</button>
+            </div>
+          )}
           {/* Offline warning banner — only after escalation when no agent available */}
           {stage === 'escalated' && !adminsOnline && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
@@ -339,7 +360,8 @@ export default function ChatWidget({ config }) {
               <button
                 onClick={() => {
                   if (adminsOnline || isBusinessHours()) {
-                    setStep('chat'); // AI available — stay in chat, no ticket
+                    setShowAgentOnlineBanner(true);
+                    setStep('chat');
                   } else {
                     setTicketError(''); setStep('ticket');
                   }
