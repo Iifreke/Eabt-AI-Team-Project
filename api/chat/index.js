@@ -247,17 +247,9 @@ export default async function handler(req, res) {
         content: "I've connected you with our support team. They'll reply here shortly — you can keep sending messages and they'll see them.",
         ts: Date.now() + 1,
       });
-    } else if (shouldEscalate && !withinBusinessHours) {
-      // Outside business hours — AI keeps running but suggest ticket for this unanswered need
-      const ticketPrompt = hasEscalation
-        ? "Our support team is offline right now (available Mon–Fri, 8am–6pm WAT). You can still chat with me, or open a ticket and we'll reply to your email."
-        : "I wasn't able to find a complete answer to that. Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Feel free to keep chatting with me, or open a ticket and we'll reply to your email.";
-      messages.push({
-        role: 'assistant',
-        content: ticketPrompt,
-        ts: Date.now() + 1,
-      });
     }
+    // Off-hours: don't push ticket prompt to DB — it pollutes AI context on future turns.
+    // The widget receives offHoursTicketPrompt flag via SSE and shows the banner directly.
 
     await supabase
       .from('conversations')
