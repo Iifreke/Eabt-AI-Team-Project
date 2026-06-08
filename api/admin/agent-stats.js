@@ -63,12 +63,20 @@ export default async function handler(req, res) {
     });
 
     // ── AI Bot stats ──────────────────────────────────────────
-    const { data: conversations } = await supabase
-      .from('conversations')
-      .select('id, stage, messages, created_at, updated_at, lead_id, school_id')
-      .order('updated_at', { ascending: false });
+    const [{ data: conversations }, { data: resolvedEscs }] = await Promise.all([
+      supabase
+        .from('conversations')
+        .select('id, stage, messages, created_at, updated_at, lead_id, school_id')
+        .order('updated_at', { ascending: false }),
+      supabase
+        .from('escalations')
+        .select('conversation_id')
+        .eq('status', 'resolved'),
+    ]);
 
     const convs = conversations || [];
+    const resolvedConvIds = new Set((resolvedEscs || []).map(e => e.conversation_id));
+
     const convLeadIds   = [...new Set(convs.map(c => c.lead_id).filter(Boolean))];
     const convSchoolIds = [...new Set(convs.map(c => c.school_id).filter(Boolean))];
 
@@ -84,20 +92,26 @@ export default async function handler(req, res) {
     const convLeadsMap   = Object.fromEntries((convLeads.data  || []).map(l => [l.id, l]));
     const convSchoolsMap = Object.fromEntries((convSchools.data || []).map(s => [s.id, s]));
 
-    const botRows = convs.map(c => ({
-      id:           c.id,
-      stage:        c.stage,
-      messageCount: Array.isArray(c.messages) ? c.messages.filter(m => !m.role?.startsWith('__')).length : 0,
-      startedAt:    c.created_at,
-      lastActivity: c.updated_at,
-      lead:         convLeadsMap[c.lead_id]  || null,
-      school:       convSchoolsMap[c.school_id]?.name || '—',
-    }));
+    const botRows = convs.map(c => {
+      // A conversation counts as resolved if its escalation was resolved by a human
+      const isResolved = resolvedConvIds.has(c.id);
+      const displayStage = isResolved ? 'resolved' : c.stage;
+      return {
+        id:           c.id,
+        stage:        displayStage,
+        messageCount: Array.isArray(c.messages) ? c.messages.filter(m => !m.role?.startsWith('__')).length : 0,
+        startedAt:    c.created_at,
+        lastActivity: c.updated_at,
+        lead:         convLeadsMap[c.lead_id]  || null,
+        school:       convSchoolsMap[c.school_id]?.name || '—',
+      };
+    });
 
     const botStats = {
       total:     botRows.length,
       active:    botRows.filter(r => r.stage === 'active' || r.stage === 'onboarding').length,
       escalated: botRows.filter(r => r.stage === 'escalated').length,
+      resolved:  botRows.filter(r => r.stage === 'resolved').length,
       conversations: botRows,
     };
 

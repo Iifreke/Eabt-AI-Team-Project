@@ -169,6 +169,7 @@ const STAGE_CONFIG = {
   active:     { label: 'Active',     bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-400'   },
   onboarding: { label: 'Onboarding', bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-400' },
   escalated:  { label: 'Escalated',  bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-400' },
+  resolved:   { label: 'Resolved',   bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-400'  },
 };
 
 const ESC_STATUS_CONFIG = {
@@ -239,9 +240,9 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [agentStats, setAgentStats] = useState([]);
-  const [botStats, setBotStats] = useState({ total: 0, active: 0, escalated: 0, conversations: [] });
+  const [botStats, setBotStats] = useState({ total: 0, active: 0, escalated: 0, resolved: 0, conversations: [] });
   const [selectedAgent, setSelectedAgent] = useState(null);
-  const [showAllConvs, setShowAllConvs] = useState(false);
+  const [botFilter, setBotFilter] = useState('active'); // 'active' | 'all' | 'resolved'
 
   // Guard: redirect non-super-admins
   useEffect(() => {
@@ -445,7 +446,7 @@ export default function Users() {
           <p className="text-gray-500 text-sm mt-0.5">Users the AI bot is currently attending to or has attended</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-5">
+        <div className="grid grid-cols-4 gap-4 mb-5">
           <div className="bg-white border border-gray-200 rounded-xl p-5 text-center">
             <div className="text-3xl font-bold text-gray-900">{botStats.total}</div>
             <div className="text-xs text-gray-400 mt-1">Total Users</div>
@@ -458,22 +459,41 @@ export default function Users() {
             <div className="text-3xl font-bold text-orange-600">{botStats.escalated}</div>
             <div className="text-xs text-orange-500 mt-1">Escalated to Human</div>
           </div>
+          <div className="bg-green-50 border border-green-100 rounded-xl p-5 text-center">
+            <div className="text-3xl font-bold text-green-600">{botStats.resolved}</div>
+            <div className="text-xs text-green-500 mt-1">Resolved</div>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {showAllConvs ? 'All conversations' : 'Currently active conversations'}
-            </span>
-            <button onClick={() => setShowAllConvs(v => !v)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-              {showAllConvs ? 'Show active only' : 'Show all'}
-            </button>
+            <div className="flex gap-1">
+              {[
+                { key: 'active',   label: 'Active' },
+                { key: 'resolved', label: 'Resolved' },
+                { key: 'all',      label: 'All' },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setBotFilter(f.key)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    botFilter === f.key
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
           {(() => {
-            const rows = showAllConvs
+            const rows = botFilter === 'all'
               ? botStats.conversations
+              : botFilter === 'resolved'
+              ? botStats.conversations.filter(c => c.stage === 'resolved')
               : botStats.conversations.filter(c => c.stage === 'active' || c.stage === 'onboarding');
-            if (!rows.length) return <p className="text-sm text-gray-400 text-center py-8">No active conversations.</p>;
+            if (!rows.length) return <p className="text-sm text-gray-400 text-center py-8">No conversations to show.</p>;
             return (
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50">
