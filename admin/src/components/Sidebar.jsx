@@ -6,18 +6,18 @@ import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
 
 const baseNav = [
-  { to: '/chats',         label: 'Chats',         icon: '💬' },
-  { to: '/tickets',       label: 'Tickets',       icon: '🎫' },
-  { to: '/contacts',      label: 'Contacts',      icon: '👥' },
-  { to: '/history',       label: 'History',       icon: '🗂️' },
-  { to: '/shortcuts',     label: 'Shortcuts',     icon: '⚡' },
-  { to: '/monitoring',    label: 'Monitoring',    icon: '👁️' },
-  { to: '/knowledge-base',label: 'Knowledge Base',icon: '📚' },
+  { to: '/chats',      label: 'Chats',      icon: '💬' },
+  { to: '/tickets',    label: 'Tickets',    icon: '🎫' },
+  { to: '/contacts',   label: 'Contacts',   icon: '👥' },
+  { to: '/history',    label: 'History',    icon: '🗂️' },
+  { to: '/shortcuts',  label: 'Shortcuts',  icon: '⚡' },
+  { to: '/monitoring', label: 'Monitoring', icon: '👁️' },
 ];
 
 const superAdminNav = [
-  { to: '/dashboard', label: 'Overview',  icon: '📊' },
-  { to: '/agents',    label: 'Agents',    icon: '🔐' },
+  { to: '/dashboard',     label: 'Overview',       icon: '📊' },
+  { to: '/agents',        label: 'Agents',         icon: '🔐' },
+  { to: '/knowledge-base',label: 'Knowledge Base', icon: '📚' },
 ];
 
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Agent' };

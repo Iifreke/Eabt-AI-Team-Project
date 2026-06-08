@@ -28,7 +28,7 @@ export default function App() {
         <Route path="/history" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
         <Route path="/shortcuts" element={<ProtectedRoute><Shortcuts /></ProtectedRoute>} />
         <Route path="/monitoring" element={<ProtectedRoute><Monitoring /></ProtectedRoute>} />
-        <Route path="/knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
+        <Route path="/knowledge-base" element={<ProtectedRoute superAdminOnly><KnowledgeBase /></ProtectedRoute>} />
         <Route path="/agents" element={<ProtectedRoute><Users /></ProtectedRoute>} />
 
         {/* Legacy redirects */}
