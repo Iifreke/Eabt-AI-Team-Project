@@ -69,7 +69,7 @@ export default function ChatWidget({ config }) {
   const noResponseTimerRef = useRef(null);
 
   const { sessionId, setSessionId, resetSession } = useSession();
-  const { messages, stage, isLoading, agentTyping, adminsOnline, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick, resetChat } = useChat();
+  const { messages, stage, isLoading, agentTyping, adminsOnline, showTicketPrompt, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick, resetChat } = useChat();
 
   // Keep a live ref so timer callbacks always read the latest messages
   const messagesRef = useRef(messages);
@@ -322,6 +322,18 @@ export default function ChatWidget({ config }) {
               <button onClick={() => setShowAgentOnlineBanner(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#388e3c', fontSize: '14px', padding: '0', flexShrink: 0 }}>✕</button>
             </div>
           )}
+          {/* Off-hours ticket prompt — shown when AI couldn't help outside business hours */}
+          {showTicketPrompt && !isBusinessHours() && (
+            <div style={{ margin: '0 12px 8px', background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#e65100' }}>
+              <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is offline (Mon–Fri 8am–6pm WAT). Open a ticket and we'll reply to your email.</div>
+              <button
+                onClick={() => { setTicketError(''); setStep('ticket'); }}
+                style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                Open a Ticket →
+              </button>
+            </div>
+          )}
           {/* Offline warning banner — only after escalation, outside business hours */}
           {stage === 'escalated' && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
@@ -346,8 +358,8 @@ export default function ChatWidget({ config }) {
               </button>
             </div>
           )}
-          {/* Footer actions — only shown after AI has escalated to human */}
-          {stage === 'escalated' && (
+          {/* Footer actions — escalated to human, OR off-hours ticket prompt */}
+          {(stage === 'escalated' || showTicketPrompt) && (
             <div style={{ background: '#f9f9f9', borderTop: '1px solid #eee', padding: '8px 16px', display: 'flex', gap: '12px', justifyContent: 'center', flexShrink: 0 }}>
               <button onClick={() => setStep('rating')}
                 style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>

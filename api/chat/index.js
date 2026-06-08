@@ -277,8 +277,10 @@ export default async function handler(req, res) {
 
     const suggestions = await generateSuggestions(school.name, cleanResponse);
 
+    const offHoursTicketPrompt = shouldEscalate && !withinBusinessHours;
+
     // Include full messages when escalating so widget rebuilds immediately without waiting for poll
-    sendChunk({ done: true, stage: newStage, lead, suggestions, adminsOnline, ...(newStage === 'escalated' ? { messages } : {}) });
+    sendChunk({ done: true, stage: newStage, lead, suggestions, adminsOnline, offHoursTicketPrompt, ...(newStage === 'escalated' ? { messages } : {}) });
     return res.end();
   } catch (error) {
     console.error('chat error:', error);

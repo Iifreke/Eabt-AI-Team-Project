@@ -15,6 +15,7 @@ export function useChat() {
   const [config, setConfig] = useState(null);
   const [agentTyping, setAgentTyping] = useState(null);
   const [adminsOnline, setAdminsOnline] = useState(true);
+  const [showTicketPrompt, setShowTicketPrompt] = useState(false);
   const pollRef = useRef(null);
   const statusPollRef = useRef(null);
 
@@ -209,6 +210,7 @@ export function useChat() {
               if (event.stage) setStage(event.stage);
               if (event.lead) setLead(event.lead);
               if (event.adminsOnline !== undefined) setAdminsOnline(event.adminsOnline);
+              if (event.offHoursTicketPrompt) setShowTicketPrompt(true);
               if (event.stage === 'escalated' && event.messages) {
                 setMessages(event.messages.map((m, i) => ({
                   id: i + 1, role: m.role, content: m.content,
@@ -296,6 +298,7 @@ export function useChat() {
               if (event.stage) setStage(event.stage);
               if (event.lead) setLead(event.lead);
               if (event.adminsOnline !== undefined) setAdminsOnline(event.adminsOnline);
+              if (event.offHoursTicketPrompt) setShowTicketPrompt(true);
 
               // When escalated, rebuild messages from the full DB array (includes admin messages)
               if (newStage === 'escalated' && event.messages) {
@@ -440,6 +443,7 @@ export function useChat() {
     setConfig(null);
     setAgentTyping(null);
     setAdminsOnline(true);
+    setShowTicketPrompt(false);
     clearInterval(pollRef.current);
     clearInterval(statusPollRef.current);
   }, []);
@@ -452,6 +456,7 @@ export function useChat() {
     hasGreeted,
     agentTyping,
     adminsOnline,
+    showTicketPrompt,
     fetchGreeting,
     sendMessage,
     sendWithAttachments,
