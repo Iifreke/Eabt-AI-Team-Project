@@ -336,17 +336,11 @@ export default function ChatWidget({ config }) {
                 style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                 Rate this chat ★
               </button>
-              {(adminsOnline || isBusinessHours()) ? (
-                /* Human agent is reachable — already escalated, nothing more needed */
-                <span style={{ fontSize: '12px', color: '#666' }}>💬 Agent will reply shortly</span>
-              ) : (
-                /* Outside business hours, no agent — offer ticket instead */
-                <button
-                  onClick={() => { setTicketError(''); setStep('ticket'); }}
-                  style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                  📋 Open a Ticket
-                </button>
-              )}
+              <button
+                onClick={() => { setTicketError(''); setStep('ticket'); }}
+                style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                📋 Open a Ticket
+              </button>
             </div>
           )}
         </div>
