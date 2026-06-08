@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { supabase } from '../lib/supabase.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useUser } from '../context/UserContext.jsx';
 
@@ -192,6 +193,24 @@ export default function Users() {
   }, []);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // Realtime: update status instantly when any agent changes theirs
+  useEffect(() => {
+    const channel = supabase
+      .channel('agents-status')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'admin_profiles' },
+        (payload) => {
+          setUsers(prev =>
+            prev.map(u => u.id === payload.new.id ? { ...u, status: payload.new.status } : u)
+          );
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
 
   const handleRoleChange = async (userId, newRole) => {
     await api.updateUser(userId, { role: newRole });
