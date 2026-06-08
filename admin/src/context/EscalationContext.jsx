@@ -34,7 +34,7 @@ export function EscalationProvider({ children }) {
       Notification.requestPermission().catch(() => {});
     }
     refresh();
-    const t = setInterval(refresh, 30000);
+    const t = setInterval(refresh, 5000);
     return () => clearInterval(t);
   }, [refresh]);
 

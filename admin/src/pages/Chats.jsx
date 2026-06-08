@@ -109,7 +109,7 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
 
   useEffect(() => {
     fetchMessages();
-    pollRef.current = setInterval(fetchMessages, 4000);
+    pollRef.current = setInterval(fetchMessages, 1000);
     return () => {
       clearInterval(pollRef.current);
       clearTimeout(typingTimerRef.current);
