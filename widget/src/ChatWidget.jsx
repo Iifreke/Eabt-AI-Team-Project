@@ -305,8 +305,8 @@ export default function ChatWidget({ config }) {
             primaryColor={primaryColor}
             apiUrl={effectiveConfig?.apiUrl}
           />
-          {/* Offline warning banner — only when no agent online AND outside business hours */}
-          {!adminsOnline && !isBusinessHours() && (
+          {/* Offline warning banner — only after escalation when no agent available */}
+          {stage === 'escalated' && !adminsOnline && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. Open a ticket and we'll reply to your email.</div>
@@ -317,8 +317,8 @@ export default function ChatWidget({ config }) {
               </button>
             </div>
           )}
-          {/* No-response hint — only outside business hours */}
-          {showNoResponseHint && !adminsOnline && !isBusinessHours() && (
+          {/* No-response hint — only after escalation, outside business hours */}
+          {showNoResponseHint && stage === 'escalated' && !adminsOnline && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Open a ticket and we'll reply to your email.</div>
@@ -329,30 +329,26 @@ export default function ChatWidget({ config }) {
               </button>
             </div>
           )}
-          {/* Footer actions */}
-          <div style={{ background: '#f9f9f9', borderTop: '1px solid #eee', padding: '8px 16px', display: 'flex', gap: '12px', justifyContent: 'center', flexShrink: 0 }}>
-            {stage === 'escalated' && (
+          {/* Footer actions — only shown after AI has escalated to human */}
+          {stage === 'escalated' && (
+            <div style={{ background: '#f9f9f9', borderTop: '1px solid #eee', padding: '8px 16px', display: 'flex', gap: '12px', justifyContent: 'center', flexShrink: 0 }}>
               <button onClick={() => setStep('rating')}
                 style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                 Rate this chat ★
               </button>
-            )}
-            {(adminsOnline || isBusinessHours()) ? (
-              /* Business hours or agent online — escalate, no ticket */
-              <button
-                onClick={() => sendMessage('I would like to speak with a human agent', effectiveConfig, sessionId)}
-                style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                💬 Chat with an Agent
-              </button>
-            ) : (
-              /* Outside business hours and no agent online — ticket available */
-              <button
-                onClick={() => { setTicketError(''); setStep('ticket'); }}
-                style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                📋 Open a Ticket
-              </button>
-            )}
-          </div>
+              {(adminsOnline || isBusinessHours()) ? (
+                /* Human agent is reachable — already escalated, nothing more needed */
+                <span style={{ fontSize: '12px', color: '#666' }}>💬 Agent will reply shortly</span>
+              ) : (
+                /* Outside business hours, no agent — offer ticket instead */
+                <button
+                  onClick={() => { setTicketError(''); setStep('ticket'); }}
+                  style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                  📋 Open a Ticket
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
