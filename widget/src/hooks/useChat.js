@@ -16,6 +16,7 @@ export function useChat() {
   const [agentTyping, setAgentTyping] = useState(null);
   const [adminsOnline, setAdminsOnline] = useState(true);
   const pollRef = useRef(null);
+  const statusPollRef = useRef(null);
 
   // Poll for new admin messages when stage is escalated
   const pollEscalated = useCallback(async (cfg, sid) => {
@@ -60,6 +61,26 @@ export function useChat() {
     }
     return () => clearInterval(pollRef.current);
   }, [stage, sessionId, config, pollEscalated]);
+
+  // Poll adminsOnline every 30s in non-escalated stages so the ticket/escalate
+  // button always reflects current agent availability
+  useEffect(() => {
+    if (stage !== 'escalated' && config?.apiUrl) {
+      const checkStatus = async () => {
+        try {
+          const res = await fetch(`${config.apiUrl}/api/chat/status`);
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.adminsOnline !== undefined) setAdminsOnline(data.adminsOnline);
+        } catch { /* ignore */ }
+      };
+      checkStatus(); // immediate check
+      statusPollRef.current = setInterval(checkStatus, 30000);
+    } else {
+      clearInterval(statusPollRef.current);
+    }
+    return () => clearInterval(statusPollRef.current);
+  }, [stage, config]);
 
   const fetchGreeting = useCallback(async (cfg, sid) => {
     try {
@@ -187,6 +208,7 @@ export function useChat() {
             if (event.done) {
               if (event.stage) setStage(event.stage);
               if (event.lead) setLead(event.lead);
+              if (event.adminsOnline !== undefined) setAdminsOnline(event.adminsOnline);
               if (event.stage === 'escalated' && event.messages) {
                 setMessages(event.messages.map((m, i) => ({
                   id: i + 1, role: m.role, content: m.content,
@@ -273,6 +295,7 @@ export function useChat() {
               const newStage = event.stage || stage;
               if (event.stage) setStage(event.stage);
               if (event.lead) setLead(event.lead);
+              if (event.adminsOnline !== undefined) setAdminsOnline(event.adminsOnline);
 
               // When escalated, rebuild messages from the full DB array (includes admin messages)
               if (newStage === 'escalated' && event.messages) {
@@ -418,6 +441,7 @@ export function useChat() {
     setAgentTyping(null);
     setAdminsOnline(true);
     clearInterval(pollRef.current);
+    clearInterval(statusPollRef.current);
   }, []);
 
   return {

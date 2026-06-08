@@ -119,6 +119,13 @@ export default async function handler(req, res) {
 
     let fullResponse = '';
 
+    // Check admin online status once — used in all done events
+    const { count: onlineCount } = await supabase
+      .from('admin_profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'online');
+    const adminsOnline = (onlineCount || 0) > 0;
+
     // ── ONBOARDING STAGE ──────────────────────────────────────
     if (conv.stage === 'onboarding') {
       const systemPrompt = buildOnboardingSystemPrompt(school.name);
@@ -157,7 +164,7 @@ export default async function handler(req, res) {
         .update({ messages, stage: newStage, updated_at: new Date().toISOString() })
         .eq('id', conv.id);
 
-      sendChunk({ done: true, stage: newStage, lead, suggestions: [] });
+      sendChunk({ done: true, stage: newStage, lead, suggestions: [], adminsOnline });
       return res.end();
     }
 
@@ -170,7 +177,7 @@ export default async function handler(req, res) {
         .eq('id', conv.id);
 
       // Return the full updated messages so widget can display admin replies
-      sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages });
+      sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages, adminsOnline });
       return res.end();
     }
 
@@ -250,7 +257,7 @@ export default async function handler(req, res) {
     const suggestions = await generateSuggestions(school.name, cleanResponse);
 
     // Include full messages when escalating so widget rebuilds immediately without waiting for poll
-    sendChunk({ done: true, stage: newStage, lead, suggestions, ...(newStage === 'escalated' ? { messages } : {}) });
+    sendChunk({ done: true, stage: newStage, lead, suggestions, adminsOnline, ...(newStage === 'escalated' ? { messages } : {}) });
     return res.end();
   } catch (error) {
     console.error('chat error:', error);

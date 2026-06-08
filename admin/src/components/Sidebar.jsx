@@ -35,12 +35,19 @@ export default function Sidebar() {
   const { profile } = useUser();
   const { pendingCount } = useEscalation();
   const [statusOpen, setStatusOpen] = useState(false);
+  const [localStatus, setLocalStatus] = useState(null);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const navItems = isSuperAdmin ? [...baseNav, ...superAdminNav] : baseNav;
 
-  const agentStatus = profile?.status || 'online';
+  // localStatus wins for immediate UI feedback; falls back to DB value
+  const agentStatus = localStatus ?? profile?.status ?? 'online';
   const currentStatusDot = STATUS_OPTIONS.find(s => s.value === agentStatus)?.dot || 'bg-green-400';
+
+  // Sync localStatus when profile loads/changes from DB
+  React.useEffect(() => {
+    if (profile?.status) setLocalStatus(profile.status);
+  }, [profile?.status]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -49,9 +56,13 @@ export default function Sidebar() {
 
   const handleStatusChange = async (value) => {
     setStatusOpen(false);
+    setLocalStatus(value); // optimistic — shows instantly
     if (!profile?.id) return;
-    await supabase.from('admin_profiles').update({ status: value }).eq('id', profile.id);
-    // profile will refresh on next auth change; optimistic update skipped intentionally
+    const { error } = await supabase
+      .from('admin_profiles')
+      .update({ status: value })
+      .eq('id', profile.id);
+    if (error) setLocalStatus(profile?.status ?? 'online'); // revert on failure
   };
 
   return (

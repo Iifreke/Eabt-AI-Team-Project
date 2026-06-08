@@ -297,7 +297,7 @@ export default function ChatWidget({ config }) {
             primaryColor={primaryColor}
             apiUrl={effectiveConfig?.apiUrl}
           />
-          {/* Offline warning banner */}
+          {/* Offline warning banner — only when no agent is online */}
           {!adminsOnline && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
@@ -309,8 +309,8 @@ export default function ChatWidget({ config }) {
               </button>
             </div>
           )}
-          {/* No-response hint — shown after 2 min in escalated with no admin reply */}
-          {showNoResponseHint && adminsOnline && (
+          {/* No-response hint after 2 min in escalated with no reply — only when offline */}
+          {showNoResponseHint && !adminsOnline && (
             <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Open a ticket and we'll reply to your email.</div>
@@ -329,16 +329,47 @@ export default function ChatWidget({ config }) {
                 Rate this chat ★
               </button>
             )}
-            <button onClick={() => { setTicketError(''); setStep('ticket'); }}
-              style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-              📋 Open a Ticket
-            </button>
+            {adminsOnline ? (
+              /* Agent is online — escalate to human instead of opening a ticket */
+              <button
+                onClick={() => sendMessage('I would like to speak with a human agent', effectiveConfig, sessionId)}
+                style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                💬 Chat with an Agent
+              </button>
+            ) : (
+              /* No agent online — ticket form is the right path */
+              <button
+                onClick={() => { setTicketError(''); setStep('ticket'); }}
+                style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                📋 Open a Ticket
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── TICKET FORM ── */}
-      {isOpen && step === 'ticket' && (
+      {/* ── TICKET FORM ── blocked when agents are online — redirect to escalation */}
+      {isOpen && step === 'ticket' && adminsOnline && (
+        <div style={panelStyle}>
+          <PanelHeader title="Agents are Online" subtitle="You'll be connected to a live agent" onClose={handleClose} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center', gap: '16px' }}>
+            <div style={{ fontSize: '40px' }}>🟢</div>
+            <div style={{ fontWeight: 700, fontSize: '16px', color: '#111' }}>Our team is online right now</div>
+            <div style={{ fontSize: '13px', color: '#555', lineHeight: '1.6' }}>
+              Tickets are only for when our team is offline. Since agents are available, we'll connect you directly in the chat.
+            </div>
+            <button
+              onClick={() => {
+                setStep('chat');
+                sendMessage('I would like to speak with a human agent', effectiveConfig, sessionId);
+              }}
+              style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+              Connect to an Agent →
+            </button>
+          </div>
+        </div>
+      )}
+      {isOpen && step === 'ticket' && !adminsOnline && (
         <div style={panelStyle}>
           <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
