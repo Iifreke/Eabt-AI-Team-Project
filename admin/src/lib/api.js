@@ -90,6 +90,8 @@ export const api = {
   removeUser: (userId) =>
     authFetch('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ userId }) }),
 
+  agentStats: () => authFetch('/api/admin/agent-stats'),
+
   documents: (schoolId) =>
     authFetch(`/api/documents?schoolId=${schoolId}`),
 
