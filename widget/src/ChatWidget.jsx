@@ -64,6 +64,9 @@ export default function ChatWidget({ config }) {
   // Banner shown when user tries to open a ticket during business hours
   const [showAgentOnlineBanner, setShowAgentOnlineBanner] = useState(false);
 
+  // Dismissed state for the escalated offline banner
+  const [escalatedBannerDismissed, setEscalatedBannerDismissed] = useState(false);
+
   // No-response hint — shown after 2 min in escalated stage with no admin reply
   const [showNoResponseHint, setShowNoResponseHint] = useState(false);
   const noResponseTimerRef = useRef(null);
@@ -327,9 +330,9 @@ export default function ChatWidget({ config }) {
             <div style={{ margin: '0 12px 8px', background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#e65100', position: 'relative' }}>
               <button
                 onClick={dismissTicketPrompt}
-                style={{ position: 'absolute', top: '8px', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#e65100', fontSize: '16px', lineHeight: 1, padding: 0 }}
-                aria-label="Dismiss">×</button>
-              <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
+                style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#e65100', fontSize: '18px', fontWeight: 700, lineHeight: 1, padding: '2px 4px' }}
+                aria-label="Dismiss">&#x2715;</button>
+              <div style={{ fontWeight: 700, marginBottom: '4px', paddingRight: '20px' }}>Support Team is Offline</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is offline (Mon–Fri 8am–6pm WAT). Open a ticket and we'll reply to your email.</div>
               <button
                 onClick={() => { setTicketError(''); setStep('ticket'); }}
@@ -339,9 +342,13 @@ export default function ChatWidget({ config }) {
             </div>
           )}
           {/* Offline warning banner — only after escalation, outside business hours */}
-          {stage === 'escalated' && !isBusinessHours() && (
-            <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
-              <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
+          {stage === 'escalated' && !isBusinessHours() && !escalatedBannerDismissed && (
+            <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828', position: 'relative' }}>
+              <button
+                onClick={() => setEscalatedBannerDismissed(true)}
+                style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#c62828', fontSize: '18px', fontWeight: 700, lineHeight: 1, padding: '2px 4px' }}
+                aria-label="Dismiss">&#x2715;</button>
+              <div style={{ fontWeight: 700, marginBottom: '4px', paddingRight: '20px' }}>Support Team is Offline</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. The AI BOT can help otherwise, Open a ticket and we'll reply to your email.</div>
               <button
                 onClick={() => { setTicketError(''); setStep('ticket'); }}
