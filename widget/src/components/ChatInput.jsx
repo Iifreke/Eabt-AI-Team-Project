@@ -32,7 +32,11 @@ function FilePreview({ file, onRemove, onTranscribe, isTranscribing }) {
       {isVideo && previewUrl && (
         <video src={previewUrl} style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} muted />
       )}
-      {!isImage && !isVideo && <span style={{ flexShrink: 0 }}>{isAudio ? '🎵' : '📄'}</span>}
+      {!isImage && !isVideo && (
+        <span style={{ flexShrink: 0 }}>
+          {isAudio && file.name?.startsWith('voice-') ? '🎙️' : isAudio ? '🎵' : '📄'}
+        </span>
+      )}
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151' }}>
         {file.name}
       </span>
@@ -68,6 +72,8 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribingIdx, setTranscribingIdx] = useState(null);
   const [micError, setMicError] = useState('');
+  const [isVoiceMessage, setIsVoiceMessage] = useState(false);
+  const [voiceSeconds, setVoiceSeconds] = useState(0);
 
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -76,13 +82,22 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
   const autoStopTimerRef = useRef(null);
   const recognitionRef = useRef(null);
   const finalTextRef = useRef('');
+  const voiceRecorderRef = useRef(null);
+  const voiceChunksRef = useRef([]);
+  const voiceTimerRef = useRef(null);
+  const voiceAutoStopRef = useRef(null);
 
   useEffect(() => {
     return () => {
       clearInterval(recordingTimerRef.current);
       clearTimeout(autoStopTimerRef.current);
+      clearInterval(voiceTimerRef.current);
+      clearTimeout(voiceAutoStopRef.current);
       if (recognitionRef.current) {
         recognitionRef.current.abort();
+      }
+      if (voiceRecorderRef.current?.state !== 'inactive') {
+        voiceRecorderRef.current?.stop();
       }
     };
   }, []);
@@ -263,6 +278,53 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
     }
   };
 
+  // ── Voice message (record → upload as audio attachment) ───────
+  const startVoiceMessage = async () => {
+    setMicError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/mp4';
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      voiceChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) voiceChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const baseMime = mimeType.split(';')[0];
+        const blob = new Blob(voiceChunksRef.current, { type: baseMime });
+        const ext = baseMime === 'audio/mp4' ? 'm4a' : 'webm';
+        const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: baseMime });
+        setPendingFiles(prev => [...prev, file]);
+        setIsVoiceMessage(false);
+        setVoiceSeconds(0);
+      };
+      recorder.start();
+      voiceRecorderRef.current = recorder;
+      setIsVoiceMessage(true);
+      setVoiceSeconds(0);
+      voiceTimerRef.current = setInterval(() => setVoiceSeconds(s => s + 1), 1000);
+      voiceAutoStopRef.current = setTimeout(() => stopVoiceMessage(), 120000);
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        setMicError('Microphone access denied. Please allow it in your browser.');
+      } else {
+        setMicError('Could not access microphone.');
+      }
+    }
+  };
+
+  const stopVoiceMessage = () => {
+    clearInterval(voiceTimerRef.current);
+    clearTimeout(voiceAutoStopRef.current);
+    if (voiceRecorderRef.current?.state !== 'inactive') {
+      voiceRecorderRef.current.stop();
+    }
+  };
+
   const canSend = (value.trim() || pendingFiles.length > 0) && !isLoading;
 
   return (
@@ -288,6 +350,17 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
             animation: 'pulse 1s ease-in-out infinite',
           }} />
           Voice typing... speak clearly (tap microphone to stop)
+        </div>
+      )}
+
+      {/* Voice message indicator */}
+      {isVoiceMessage && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 16px', fontSize: '12px', color: '#dc2626' }}>
+          <span style={{
+            width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626',
+            display: 'inline-block', animation: 'pulse 1s ease-in-out infinite',
+          }} />
+          Voice message — {voiceSeconds}s · tap stop to send
         </div>
       )}
 
@@ -352,18 +425,19 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
           </svg>
         </button>
 
-        {/* Mic button */}
+        {/* Mic button — voice typing (speech-to-text) */}
         {typeof navigator !== 'undefined' && navigator.mediaDevices && (
           <button
             onClick={isVoiceTyping ? stopVoiceTyping : isRecording ? stopRecording : startVoiceTyping}
-            disabled={isLoading || isTranscribing}
-            title={isVoiceTyping ? 'Stop voice typing' : isRecording ? 'Stop recording' : 'Voice typing'}
+            disabled={isLoading || isTranscribing || isVoiceMessage}
+            title={isVoiceTyping ? 'Stop voice typing' : isRecording ? 'Stop recording' : 'Voice typing (speech to text)'}
             style={{
               width: '34px', height: '34px', borderRadius: '50%', border: 'none',
               background: (isRecording || isVoiceTyping) ? '#ef4444' : '#f3f4f6',
-              cursor: (isLoading || isTranscribing) ? 'not-allowed' : 'pointer',
+              cursor: (isLoading || isTranscribing || isVoiceMessage) ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               transition: 'background 0.15s ease',
+              opacity: isVoiceMessage ? 0.4 : 1,
             }}
           >
             {(isRecording || isVoiceTyping) ? (
@@ -379,6 +453,38 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
           </button>
         )}
 
+        {/* Voice message button — record audio and send as attachment */}
+        {typeof navigator !== 'undefined' && navigator.mediaDevices && (
+          <button
+            onClick={isVoiceMessage ? stopVoiceMessage : startVoiceMessage}
+            disabled={isLoading || isTranscribing || isVoiceTyping || isRecording}
+            title={isVoiceMessage ? 'Stop & attach voice message' : 'Record voice message'}
+            style={{
+              width: '34px', height: '34px', borderRadius: '50%', border: 'none',
+              background: isVoiceMessage ? '#dc2626' : '#f3f4f6',
+              cursor: (isLoading || isTranscribing || isVoiceTyping || isRecording) ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              transition: 'background 0.15s ease',
+              opacity: (isVoiceTyping || isRecording) ? 0.4 : 1,
+            }}
+          >
+            {isVoiceMessage ? (
+              <span style={{ width: '10px', height: '10px', background: 'white', borderRadius: '2px', display: 'block' }} />
+            ) : (
+              /* Waveform icon — distinct from the STT mic */
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="2" y1="12" x2="2" y2="12" />
+                <line x1="5" y1="8" x2="5" y2="16" />
+                <line x1="8" y1="5" x2="8" y2="19" />
+                <line x1="11" y1="9" x2="11" y2="15" />
+                <line x1="14" y1="4" x2="14" y2="20" />
+                <line x1="17" y1="8" x2="17" y2="16" />
+                <line x1="20" y1="10" x2="20" y2="14" />
+              </svg>
+            )}
+          </button>
+        )}
+
         {/* Text input */}
         <input
           type="text"
@@ -386,7 +492,7 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isLoading}
-          placeholder={isVoiceTyping ? 'Listening...' : isRecording ? 'Recording...' : isTranscribing ? 'Transcribing...' : 'Type a message...'}
+          placeholder={isVoiceTyping ? 'Listening...' : isRecording ? 'Recording...' : isTranscribing ? 'Transcribing...' : isVoiceMessage ? 'Recording voice message...' : 'Type a message...'}
           style={{
             flex: 1,
             border: '1px solid #ddd',
@@ -395,7 +501,7 @@ export default function ChatInput({ onSend, onSendWithAttachments, isLoading, pr
             fontSize: '14px',
             outline: 'none',
             fontFamily: 'inherit',
-            background: isLoading ? '#f9f9f9' : 'white',
+            background: (isLoading || isVoiceMessage) ? '#f9f9f9' : 'white',
             color: '#333',
           }}
         />
