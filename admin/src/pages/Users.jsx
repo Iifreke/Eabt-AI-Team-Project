@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { supabase } from '../lib/supabase.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useUser } from '../context/UserContext.jsx';
 
@@ -194,23 +193,18 @@ export default function Users() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  // Poll agent statuses every 5s so changes show without a page refresh
-  useEffect(() => {
-    const poll = setInterval(async () => {
-      const { data } = await supabase
-        .from('admin_profiles')
-        .select('id, status');
-      if (data) {
-        setUsers(prev =>
-          prev.map(u => {
-            const fresh = data.find(d => d.id === u.id);
-            return fresh ? { ...u, status: fresh.status } : u;
-          })
-        );
-      }
-    }, 5000);
-    return () => clearInterval(poll);
+  // Silent refresh every 5s — uses service-key API so RLS doesn't block it
+  const silentRefresh = useCallback(async () => {
+    try {
+      const data = await api.listUsers();
+      if (data.users) setUsers(data.users);
+    } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    const poll = setInterval(silentRefresh, 5000);
+    return () => clearInterval(poll);
+  }, [silentRefresh]);
 
   const handleRoleChange = async (userId, newRole) => {
     await api.updateUser(userId, { role: newRole });
