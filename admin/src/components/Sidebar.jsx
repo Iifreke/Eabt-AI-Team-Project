@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
+import { api } from '../lib/api.js';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
@@ -56,13 +57,12 @@ export default function Sidebar() {
 
   const handleStatusChange = async (value) => {
     setStatusOpen(false);
-    setLocalStatus(value); // optimistic — shows instantly
-    if (!profile?.id) return;
-    const { error } = await supabase
-      .from('admin_profiles')
-      .update({ status: value })
-      .eq('id', profile.id);
-    if (error) setLocalStatus(profile?.status ?? 'online'); // revert on failure
+    setLocalStatus(value); // optimistic — shows instantly in sidebar
+    try {
+      await api.updateMyStatus(value); // server-side update bypasses RLS
+    } catch {
+      setLocalStatus(profile?.status ?? 'online'); // revert on failure
+    }
   };
 
   return (

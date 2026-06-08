@@ -73,6 +73,9 @@ export const api = {
   setTyping: (conversationId, typing) =>
     authFetch('/api/admin/reply', { method: 'PATCH', body: JSON.stringify({ conversationId, typing }) }).catch(() => {}),
 
+  updateMyStatus: (status) =>
+    authFetch('/api/admin/me', { method: 'PATCH', body: JSON.stringify({ status }) }),
+
   listUsers: () => authFetch('/api/admin/users'),
 
   inviteUser: ({ email, fullName, role }) =>
