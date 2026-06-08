@@ -337,7 +337,13 @@ export default function ChatWidget({ config }) {
                 Rate this chat ★
               </button>
               <button
-                onClick={() => { setTicketError(''); setStep('ticket'); }}
+                onClick={() => {
+                  if (adminsOnline || isBusinessHours()) {
+                    setStep('chat'); // AI available — stay in chat, no ticket
+                  } else {
+                    setTicketError(''); setStep('ticket');
+                  }
+                }}
                 style={{ fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                 📋 Open a Ticket
               </button>
@@ -346,31 +352,7 @@ export default function ChatWidget({ config }) {
         </div>
       )}
 
-      {/* ── TICKET FORM ── blocked when agents online OR during business hours */}
-      {isOpen && step === 'ticket' && (adminsOnline || isBusinessHours()) && (
-        <div style={panelStyle}>
-          <PanelHeader title={adminsOnline ? 'Agents are Online' : 'Support Available'} subtitle="You'll be connected to a live agent" onClose={handleClose} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center', gap: '16px' }}>
-            <div style={{ fontSize: '40px' }}>{adminsOnline ? '🟢' : '🕐'}</div>
-            <div style={{ fontWeight: 700, fontSize: '16px', color: '#111' }}>
-              {adminsOnline ? 'Our team is online right now' : 'We\'re within support hours'}
-            </div>
-            <div style={{ fontSize: '13px', color: '#555', lineHeight: '1.6' }}>
-              {adminsOnline
-                ? 'Tickets are only for when our team is offline. Since agents are available, we\'ll connect you directly in the chat.'
-                : 'Our support team is available Mon–Fri, 8am–6pm WAT. Chat with us and an agent will be with you shortly.'}
-            </div>
-            <button
-              onClick={() => {
-                setStep('chat');
-                sendMessage('I would like to speak with a human agent', effectiveConfig, sessionId);
-              }}
-              style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
-              Connect to an Agent →
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ── TICKET FORM — only available outside business hours when no agents online ── */}
       {isOpen && step === 'ticket' && !adminsOnline && !isBusinessHours() && (
         <div style={panelStyle}>
           <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
