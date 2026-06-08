@@ -69,7 +69,7 @@ export default function ChatWidget({ config }) {
   const noResponseTimerRef = useRef(null);
 
   const { sessionId, setSessionId, resetSession } = useSession();
-  const { messages, stage, isLoading, agentTyping, adminsOnline, showTicketPrompt, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick, resetChat } = useChat();
+  const { messages, stage, isLoading, agentTyping, adminsOnline, showTicketPrompt, dismissTicketPrompt, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick, resetChat } = useChat();
 
   // Keep a live ref so timer callbacks always read the latest messages
   const messagesRef = useRef(messages);
@@ -324,7 +324,11 @@ export default function ChatWidget({ config }) {
           )}
           {/* Off-hours ticket prompt — shown when AI couldn't help outside business hours */}
           {showTicketPrompt && !isBusinessHours() && (
-            <div style={{ margin: '0 12px 8px', background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#e65100' }}>
+            <div style={{ margin: '0 12px 8px', background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#e65100', position: 'relative' }}>
+              <button
+                onClick={dismissTicketPrompt}
+                style={{ position: 'absolute', top: '8px', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#e65100', fontSize: '16px', lineHeight: 1, padding: 0 }}
+                aria-label="Dismiss">×</button>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is offline (Mon–Fri 8am–6pm WAT). Open a ticket and we'll reply to your email.</div>
               <button

@@ -449,6 +449,8 @@ export function useChat() {
     clearInterval(statusPollRef.current);
   }, []);
 
+  const dismissTicketPrompt = useCallback(() => setShowTicketPrompt(false), []);
+
   return {
     messages,
     stage,
@@ -458,6 +460,7 @@ export function useChat() {
     agentTyping,
     adminsOnline,
     showTicketPrompt,
+    dismissTicketPrompt,
     fetchGreeting,
     sendMessage,
     sendWithAttachments,
