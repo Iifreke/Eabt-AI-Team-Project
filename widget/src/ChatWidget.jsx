@@ -314,20 +314,16 @@ export default function ChatWidget({ config }) {
             <div style={{ margin: '0 12px 8px', background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#1b5e20', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
               <span style={{ fontSize: '16px', flexShrink: 0 }}>🟢</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, marginBottom: '2px' }}>
-                  {adminsOnline ? 'Agents are online' : 'Support hours are active'}
-                </div>
+                <div style={{ fontWeight: 700, marginBottom: '2px' }}>Support hours are active</div>
                 <div style={{ lineHeight: '1.5' }}>
-                  {adminsOnline
-                    ? 'Our team is online right now. Tickets are unavailable — type your question and an agent will assist you directly.'
-                    : 'We\'re available Mon–Fri, 8am–6pm WAT. Tickets are unavailable during support hours — type your question and we\'ll help you right away.'}
+                  Tickets are only available outside support hours (Mon–Fri 8am–6pm WAT). Type your question and the AI will help you right away.
                 </div>
               </div>
               <button onClick={() => setShowAgentOnlineBanner(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#388e3c', fontSize: '14px', padding: '0', flexShrink: 0 }}>✕</button>
             </div>
           )}
-          {/* Offline warning banner — only after escalation when no agent available */}
-          {stage === 'escalated' && !adminsOnline && !isBusinessHours() && (
+          {/* Offline warning banner — only after escalation, outside business hours */}
+          {stage === 'escalated' && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. The AI BOT can help otherwise, Open a ticket and we'll reply to your email.</div>
@@ -339,7 +335,7 @@ export default function ChatWidget({ config }) {
             </div>
           )}
           {/* No-response hint — only after escalation, outside business hours */}
-          {showNoResponseHint && stage === 'escalated' && !adminsOnline && !isBusinessHours() && (
+          {showNoResponseHint && stage === 'escalated' && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
               <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. The AI BOT can help otherwise, Open a ticket and we'll reply to your email.</div>
@@ -359,7 +355,7 @@ export default function ChatWidget({ config }) {
               </button>
               <button
                 onClick={() => {
-                  if (adminsOnline || isBusinessHours()) {
+                  if (isBusinessHours()) {
                     setShowAgentOnlineBanner(true);
                     setStep('chat');
                   } else {
@@ -374,8 +370,8 @@ export default function ChatWidget({ config }) {
         </div>
       )}
 
-      {/* ── TICKET FORM — only available outside business hours when no agents online ── */}
-      {isOpen && step === 'ticket' && !adminsOnline && !isBusinessHours() && (
+      {/* ── TICKET FORM — only available outside business hours ── */}
+      {isOpen && step === 'ticket' && !isBusinessHours() && (
         <div style={panelStyle}>
           <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
