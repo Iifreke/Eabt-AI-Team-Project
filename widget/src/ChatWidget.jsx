@@ -330,7 +330,7 @@ export default function ChatWidget({ config }) {
           {stage === 'escalated' && !adminsOnline && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>Support Team is Offline</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. Open a ticket and we'll reply to your email.</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. The AI BOT can help otherwise, Open a ticket and we'll reply to your email.</div>
               <button
                 onClick={() => { setTicketError(''); setStep('ticket'); }}
                 style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
@@ -342,7 +342,7 @@ export default function ChatWidget({ config }) {
           {showNoResponseHint && stage === 'escalated' && !adminsOnline && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. Open a ticket and we'll reply to your email.</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. The AI BOT can help otherwise, Open a ticket and we'll reply to your email.</div>
               <button
                 onClick={() => { setTicketError(''); setStep('ticket'); }}
                 style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
