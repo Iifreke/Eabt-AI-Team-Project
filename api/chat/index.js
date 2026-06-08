@@ -236,9 +236,8 @@ export default async function handler(req, res) {
 
     messages.push({ role: 'assistant', content: cleanResponse, ts: Date.now() });
 
-    // Add escalation notification into the conversation so the visitor sees it
-    // and it survives polling rebuilds (it's stored in DB, not just local state)
-    if (newStage === 'escalated') {
+    // Only show the human handoff notice when an agent is actually online to receive it
+    if (newStage === 'escalated' && adminsOnline) {
       messages.push({
         role: 'assistant',
         content: "I've connected you with our support team. They'll reply here shortly — you can keep sending messages and they'll see them.",
