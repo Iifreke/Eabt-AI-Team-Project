@@ -171,13 +171,76 @@ const STAGE_CONFIG = {
   escalated:  { label: 'Escalated',  bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-400' },
 };
 
+const ESC_STATUS_CONFIG = {
+  in_progress: { label: 'Active',   bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-400'   },
+  pending:     { label: 'Pending',  bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-400' },
+  resolved:    { label: 'Resolved', bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-400'  },
+};
+
+function AgentConversationsPanel({ stat, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <div className="font-bold text-gray-900">{stat.name}</div>
+            <div className="text-xs text-gray-400">{stat.email} · {stat.total} conversation{stat.total !== 1 ? 's' : ''} total</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          {!stat.conversations.length ? (
+            <p className="text-sm text-gray-400 text-center py-8">No conversations yet.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                <tr>
+                  <th className="pb-2 text-left font-medium">User</th>
+                  <th className="pb-2 text-left font-medium">School</th>
+                  <th className="pb-2 text-left font-medium">Status</th>
+                  <th className="pb-2 text-left font-medium">Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stat.conversations.map(c => {
+                  const cfg = ESC_STATUS_CONFIG[c.status] || ESC_STATUS_CONFIG.resolved;
+                  return (
+                    <tr key={c.escalationId} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2.5 pr-4">
+                        <div className="font-medium text-gray-900">{c.lead?.name || '—'}</div>
+                        <div className="text-xs text-gray-400">{c.lead?.email || ''}</div>
+                      </td>
+                      <td className="py-2.5 pr-4 text-xs text-gray-500">{c.school}</td>
+                      <td className="py-2.5 pr-4">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-xs text-gray-400">
+                        {c.startedAt ? new Date(c.startedAt).toLocaleDateString() : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Users() {
   const navigate = useNavigate();
   const { profile, loadingProfile } = useUser();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
-  const [aiStats, setAiStats] = useState({ total: 0, active: 0, escalated: 0, conversations: [] });
+  const [agentStats, setAgentStats] = useState([]);
+  const [botStats, setBotStats] = useState({ total: 0, active: 0, escalated: 0, conversations: [] });
+  const [selectedAgent, setSelectedAgent] = useState(null);
   const [showAllConvs, setShowAllConvs] = useState(false);
 
   // Guard: redirect non-super-admins
@@ -192,7 +255,8 @@ export default function Users() {
     try {
       const [userData, statsData] = await Promise.all([api.listUsers(), api.agentStats()]);
       setUsers(userData.users || []);
-      setAiStats(statsData);
+      setAgentStats(statsData.agentStats || []);
+      setBotStats(statsData.botStats || { total: 0, active: 0, escalated: 0, conversations: [] });
     } catch (err) {
       console.error(err);
     } finally {
@@ -207,7 +271,8 @@ export default function Users() {
     try {
       const [userData, statsData] = await Promise.all([api.listUsers(), api.agentStats()]);
       if (userData.users) setUsers(userData.users);
-      if (statsData) setAiStats(statsData);
+      if (statsData?.agentStats) setAgentStats(statsData.agentStats);
+      if (statsData?.botStats) setBotStats(statsData.botStats);
     } catch { /* ignore */ }
   }, []);
 
@@ -298,49 +363,117 @@ export default function Users() {
         </div>
       </div>
 
-      {/* ── AI AGENT CONVERSATION LOAD ── */}
+      {/* ── HUMAN AGENT CONVERSATION LOAD ── */}
       <div className="mt-8 max-w-4xl">
         <div className="mb-4">
-          <h2 className="text-lg font-bold text-gray-900">AI Agent — Conversation Load</h2>
-          <p className="text-gray-500 text-sm mt-0.5">Users the AI agent is currently attending to or has attended</p>
+          <h2 className="text-lg font-bold text-gray-900">Conversation Load</h2>
+          <p className="text-gray-500 text-sm mt-0.5">Users each agent is attending to or has attended</p>
         </div>
 
-        {/* Summary stat cards */}
+        {agentStats.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-xl p-6 text-sm text-gray-400">No data yet.</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4 mb-5 lg:grid-cols-3">
+              {agentStats.map(stat => {
+                const statusCfg = STATUS_CONFIG[stat.status] || STATUS_CONFIG.invisible;
+                return (
+                  <button key={stat.id} onClick={() => setSelectedAgent(stat)}
+                    className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-blue-400 hover:shadow-sm transition-all">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`w-2 h-2 rounded-full ${statusCfg.dot}`} />
+                      <span className="font-semibold text-sm text-gray-900 truncate">{stat.name}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div><div className="text-xl font-bold text-gray-900">{stat.total}</div><div className="text-xs text-gray-400">Total</div></div>
+                      <div><div className="text-xl font-bold text-blue-600">{stat.active}</div><div className="text-xs text-gray-400">Active</div></div>
+                      <div><div className="text-xl font-bold text-green-600">{stat.resolved}</div><div className="text-xs text-gray-400">Resolved</div></div>
+                    </div>
+                    <div className="mt-3 text-xs text-blue-500 font-medium">View conversations →</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr className="text-left text-gray-500 text-xs uppercase tracking-wider">
+                    <th className="px-5 py-3 font-medium">Agent</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium text-center">Total</th>
+                    <th className="px-5 py-3 font-medium text-center">Active</th>
+                    <th className="px-5 py-3 font-medium text-center">Resolved</th>
+                    <th className="px-5 py-3 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agentStats.map(stat => {
+                    const statusCfg = STATUS_CONFIG[stat.status] || STATUS_CONFIG.invisible;
+                    return (
+                      <tr key={stat.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-5 py-3">
+                          <div className="font-medium text-gray-900">{stat.name}</div>
+                          <div className="text-xs text-gray-400">{stat.email}</div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                            {statusCfg.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-center font-bold text-gray-900">{stat.total}</td>
+                        <td className="px-5 py-3 text-center font-bold text-blue-600">{stat.active}</td>
+                        <td className="px-5 py-3 text-center font-bold text-green-600">{stat.resolved}</td>
+                        <td className="px-5 py-3">
+                          <button onClick={() => setSelectedAgent(stat)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">View →</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── AI BOT CONVERSATION LOAD ── */}
+      <div className="mt-10 max-w-4xl">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-gray-900">AI Bot — Conversation Load</h2>
+          <p className="text-gray-500 text-sm mt-0.5">Users the AI bot is currently attending to or has attended</p>
+        </div>
+
         <div className="grid grid-cols-3 gap-4 mb-5">
           <div className="bg-white border border-gray-200 rounded-xl p-5 text-center">
-            <div className="text-3xl font-bold text-gray-900">{aiStats.total}</div>
+            <div className="text-3xl font-bold text-gray-900">{botStats.total}</div>
             <div className="text-xs text-gray-400 mt-1">Total Users</div>
           </div>
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 text-center">
-            <div className="text-3xl font-bold text-blue-600">{aiStats.active}</div>
+            <div className="text-3xl font-bold text-blue-600">{botStats.active}</div>
             <div className="text-xs text-blue-500 mt-1">Currently Active</div>
           </div>
           <div className="bg-orange-50 border border-orange-100 rounded-xl p-5 text-center">
-            <div className="text-3xl font-bold text-orange-600">{aiStats.escalated}</div>
+            <div className="text-3xl font-bold text-orange-600">{botStats.escalated}</div>
             <div className="text-xs text-orange-500 mt-1">Escalated to Human</div>
           </div>
         </div>
 
-        {/* Conversation table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               {showAllConvs ? 'All conversations' : 'Currently active conversations'}
             </span>
-            <button
-              onClick={() => setShowAllConvs(v => !v)}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
+            <button onClick={() => setShowAllConvs(v => !v)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
               {showAllConvs ? 'Show active only' : 'Show all'}
             </button>
           </div>
           {(() => {
             const rows = showAllConvs
-              ? aiStats.conversations
-              : aiStats.conversations.filter(c => c.stage === 'active' || c.stage === 'onboarding');
-            if (!rows.length) return (
-              <p className="text-sm text-gray-400 text-center py-8">No conversations to show.</p>
-            );
+              ? botStats.conversations
+              : botStats.conversations.filter(c => c.stage === 'active' || c.stage === 'onboarding');
+            if (!rows.length) return <p className="text-sm text-gray-400 text-center py-8">No active conversations.</p>;
             return (
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50">
@@ -386,6 +519,13 @@ export default function Users() {
         <InviteModal
           onClose={() => setShowInvite(false)}
           onSuccess={fetchUsers}
+        />
+      )}
+
+      {selectedAgent && (
+        <AgentConversationsPanel
+          stat={selectedAgent}
+          onClose={() => setSelectedAgent(null)}
         />
       )}
     </div>
