@@ -12,7 +12,7 @@ export default async function handler(req, res) {
 
     const { data: profiles, error } = await supabase
       .from('admin_profiles')
-      .select('id, email, full_name, role, created_at')
+      .select('id, email, full_name, role, status, created_at')
       .order('created_at', { ascending: true });
 
     if (error) {

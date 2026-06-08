@@ -10,6 +10,12 @@ const ROLE_COLOR = {
   admin: 'bg-blue-100 text-blue-700',
 };
 
+const STATUS_CONFIG = {
+  online:    { dot: 'bg-green-400',  label: 'Online',    text: 'text-green-700',  bg: 'bg-green-50'  },
+  away:      { dot: 'bg-yellow-400', label: 'Away',      text: 'text-yellow-700', bg: 'bg-yellow-50' },
+  invisible: { dot: 'bg-gray-400',   label: 'Invisible', text: 'text-gray-500',   bg: 'bg-gray-100'  },
+};
+
 function InviteModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({ fullName: '', email: '', role: 'admin' });
   const [loading, setLoading] = useState(false);
@@ -109,6 +115,8 @@ function UserRow({ user, currentUserId, onRoleChange, onRemove }) {
     try { await onRoleChange(user.id, newRole); } finally { setUpdating(false); }
   };
 
+  const statusCfg = STATUS_CONFIG[user.status] || STATUS_CONFIG.invisible;
+
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="px-5 py-3">
@@ -118,6 +126,12 @@ function UserRow({ user, currentUserId, onRoleChange, onRemove }) {
       <td className="px-5 py-3">
         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLOR[user.role] || 'bg-gray-100 text-gray-600'}`}>
           {ROLE_LABEL[user.role] || user.role}
+        </span>
+      </td>
+      <td className="px-5 py-3">
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.text}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+          {statusCfg.label}
         </span>
       </td>
       <td className="px-5 py-3 text-xs text-gray-400">
@@ -240,6 +254,7 @@ export default function Users() {
                 <tr className="text-left text-gray-500 text-xs uppercase tracking-wider">
                   <th className="px-5 py-3 font-medium">Name / Email</th>
                   <th className="px-5 py-3 font-medium">Role</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Added</th>
                   <th className="px-5 py-3 font-medium">Actions</th>
                 </tr>
