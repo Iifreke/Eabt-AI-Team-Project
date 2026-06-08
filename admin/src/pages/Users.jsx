@@ -194,22 +194,22 @@ export default function Users() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  // Realtime: update status instantly when any agent changes theirs
+  // Poll agent statuses every 5s so changes show without a page refresh
   useEffect(() => {
-    const channel = supabase
-      .channel('agents-status')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'admin_profiles' },
-        (payload) => {
-          setUsers(prev =>
-            prev.map(u => u.id === payload.new.id ? { ...u, status: payload.new.status } : u)
-          );
-        }
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
+    const poll = setInterval(async () => {
+      const { data } = await supabase
+        .from('admin_profiles')
+        .select('id, status');
+      if (data) {
+        setUsers(prev =>
+          prev.map(u => {
+            const fresh = data.find(d => d.id === u.id);
+            return fresh ? { ...u, status: fresh.status } : u;
+          })
+        );
+      }
+    }, 5000);
+    return () => clearInterval(poll);
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
