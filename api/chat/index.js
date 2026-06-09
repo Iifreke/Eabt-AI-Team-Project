@@ -196,13 +196,17 @@ export default async function handler(req, res) {
 
     const systemPrompt = buildActiveSystemPrompt(school.name, lead.name || 'there', context);
 
-    // Build history — replace the last user message with the attachment-enriched version
-    const messageHistory = messages.slice(-10).map((m, i, arr) => {
-      if (m.role === 'user' && i === arr.length - 1 && messageWithAttachments !== message) {
-        return { role: 'user', content: messageWithAttachments };
-      }
-      return { role: m.role, content: m.content };
-    });
+    // Build history — exclude system notification messages (__*) and replace the last user
+    // message with the attachment-enriched version so the AI sees file content.
+    const messageHistory = messages
+      .filter(m => !m.role?.startsWith('__'))
+      .slice(-10)
+      .map((m, i, arr) => {
+        if (m.role === 'user' && i === arr.length - 1 && messageWithAttachments !== message) {
+          return { role: 'user', content: messageWithAttachments };
+        }
+        return { role: m.role, content: m.content };
+      });
 
     await chatStream(systemPrompt, messageHistory, (chunk) => {
       fullResponse += chunk;
@@ -244,9 +248,9 @@ export default async function handler(req, res) {
     messages.push({ role: 'assistant', content: cleanResponse, ts: Date.now() });
 
     if (newStage === 'escalated' && adminsOnline) {
-      // Human agent is online — show handoff notice
+      // Store as __notification so it displays in widget but is never fed back to the AI
       messages.push({
-        role: 'assistant',
+        role: '__notification',
         content: "I've connected you with our support team. They'll reply here shortly — you can keep sending messages and they'll see them.",
         ts: Date.now() + 1,
       });

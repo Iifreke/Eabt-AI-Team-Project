@@ -73,7 +73,7 @@ export default async function handler(req, res) {
         if (conv) {
           const messages = Array.isArray(conv.messages) ? conv.messages : [];
           messages.push({
-            role: 'assistant',
+            role: '__notification',
             content: 'The support agent has ended this session. You can continue asking questions and our AI assistant will help you.',
             ts: Date.now(),
           });
