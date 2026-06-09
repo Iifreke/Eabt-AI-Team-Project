@@ -247,16 +247,9 @@ export default async function handler(req, res) {
 
     messages.push({ role: 'assistant', content: cleanResponse, ts: Date.now() });
 
-    if (newStage === 'escalated' && adminsOnline) {
-      // Store as __notification so it displays in widget but is never fed back to the AI
-      messages.push({
-        role: '__notification',
-        content: "I've connected you with our support team. They'll reply here shortly — you can keep sending messages and they'll see them.",
-        ts: Date.now() + 1,
-      });
-    }
-    // Off-hours: don't push ticket prompt to DB — it pollutes AI context on future turns.
-    // The widget receives offHoursTicketPrompt flag via SSE and shows the banner directly.
+    // No notification message during business hours — escalation is silent on the user side.
+    // The human agent sees the chat in the dashboard and replies directly.
+    // Off-hours: the widget banner (offHoursTicketPrompt flag) handles user communication.
 
     await supabase
       .from('conversations')

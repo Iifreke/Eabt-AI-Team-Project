@@ -307,21 +307,6 @@ export function useChat() {
                     ts: m.ts || Date.now(),
                   }))
                 );
-                // Show escalated notice as last message if not already there
-                const lastMsg = event.messages[event.messages.length - 1];
-                if (!lastMsg || lastMsg.role !== 'assistant') {
-                  setMessages(prev => [
-                    ...prev,
-                    {
-                      id: nextId(),
-                      role: 'assistant',
-                      content: 'Our support team has been notified and will reply here shortly. You can keep chatting — we\'ll see your messages.',
-                      suggestions: [],
-                      suggestionsUsed: true,
-                      ts: Date.now(),
-                    },
-                  ]);
-                }
               } else {
                 setMessages(prev =>
                   prev.map(m =>
