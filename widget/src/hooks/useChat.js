@@ -169,19 +169,17 @@ export function useChat() {
     const userMsgId = nextId();
     const botMsgId = nextId();
 
-    if (stage !== 'escalated') {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: userMsgId, role: 'user', content: text,
-          attachments, suggestions: [], suggestionsUsed: false, ts: Date.now(),
-        },
-      ]);
-      setMessages(prev => [
-        ...prev,
-        { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
-      ]);
-    }
+    setMessages(prev => [
+      ...prev,
+      {
+        id: userMsgId, role: 'user', content: text,
+        attachments, suggestions: [], suggestionsUsed: false, ts: Date.now(),
+      },
+    ]);
+    setMessages(prev => [
+      ...prev,
+      { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
+    ]);
 
     try {
       const response = await fetch(`${cfg.apiUrl}/api/chat`, {
@@ -242,25 +240,19 @@ export function useChat() {
     const userMsgId = nextId();
     const botMsgId = nextId();
 
-    // In escalated stage the server returns the full DB messages array,
-    // so we don't add locally — the next poll will include this message.
-    if (stage !== 'escalated') {
-      setMessages(prev => [
-        ...prev,
-        { id: userMsgId, role: 'user', content: text, suggestions: [], suggestionsUsed: false, ts: Date.now() },
-      ]);
-    }
+    // Always add user message and bot placeholder optimistically.
+    // If the server returns a full messages rebuild (escalated handoff), it will replace these.
+    setMessages(prev => [
+      ...prev,
+      { id: userMsgId, role: 'user', content: text, suggestions: [], suggestionsUsed: false, ts: Date.now() },
+    ]);
 
     setIsLoading(true);
 
-    // Only add a placeholder when the bot will actually stream a response.
-    // During escalated stage the server returns existing messages directly — no streaming.
-    if (stage !== 'escalated') {
-      setMessages(prev => [
-        ...prev,
-        { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
-      ]);
-    }
+    setMessages(prev => [
+      ...prev,
+      { id: botMsgId, role: 'assistant', content: '', suggestions: [], suggestionsUsed: false, ts: Date.now() },
+    ]);
 
     try {
       const response = await fetch(`${cfg.apiUrl}/api/chat`, {
