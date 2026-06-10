@@ -72,7 +72,7 @@ export default function ChatWidget({ config }) {
   const noResponseTimerRef = useRef(null);
 
   const { sessionId, setSessionId, resetSession } = useSession();
-  const { messages, stage, isLoading, agentTyping, adminsOnline, showTicketPrompt, dismissTicketPrompt, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick, resetChat } = useChat();
+  const { messages, stage, isLoading, agentTyping, adminsOnline, showTicketPrompt, askSatisfaction, dismissTicketPrompt, submitLead, sendMessage, sendWithAttachments, handleSuggestionClick, resetChat } = useChat();
 
   // Keep a live ref so timer callbacks always read the latest messages
   const messagesRef = useRef(messages);
@@ -367,6 +367,31 @@ export default function ChatWidget({ config }) {
                 style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
                 Open a Ticket →
               </button>
+            </div>
+          )}
+          {/* Satisfaction check — shown after AI successfully answers */}
+          {askSatisfaction && stage !== 'resolved' && (
+            <div style={{ margin: '0 12px 8px', background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#1e40af' }}>
+              <div style={{ fontWeight: 700, marginBottom: '6px' }}>Were you satisfied with this answer?</div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => sendMessage('yes', effectiveConfig, sessionId)}
+                  style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '7px', padding: '6px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                  Yes ✓
+                </button>
+                <button
+                  onClick={() => sendMessage('no', effectiveConfig, sessionId)}
+                  style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '7px', padding: '6px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                  No, I need more help
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Resolved banner */}
+          {stage === 'resolved' && (
+            <div style={{ margin: '0 12px 8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#15803d', textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, marginBottom: '2px' }}>✓ Conversation Resolved</div>
+              <div>Start a new chat any time you need help.</div>
             </div>
           )}
           {/* Footer actions — escalated to human, OR off-hours ticket prompt */}

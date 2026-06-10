@@ -16,6 +16,7 @@ export function useChat() {
   const [agentTyping, setAgentTyping] = useState(null);
   const [adminsOnline, setAdminsOnline] = useState(true);
   const [showTicketPrompt, setShowTicketPrompt] = useState(false);
+  const [askSatisfaction, setAskSatisfaction] = useState(false);
   const pollRef = useRef(null);
   const statusPollRef = useRef(null);
 
@@ -232,8 +233,9 @@ export function useChat() {
   const sendMessage = useCallback(async (text, cfg, sid) => {
     if (!text.trim() || isLoading) return;
 
-    // Reset ticket prompt on each new message — only re-show if this response also fails
+    // Reset prompts on each new message
     setShowTicketPrompt(false);
+    setAskSatisfaction(false);
     setConfig(cfg);
     setSessionId(sid);
 
@@ -292,6 +294,7 @@ export function useChat() {
               if (event.lead) setLead(event.lead);
               if (event.adminsOnline !== undefined) setAdminsOnline(event.adminsOnline);
               if (event.offHoursTicketPrompt) setShowTicketPrompt(true);
+              if (event.askSatisfaction) setAskSatisfaction(true);
 
               // When escalated, rebuild messages from the full DB array (includes admin messages)
               if (newStage === 'escalated' && event.messages) {
@@ -422,6 +425,7 @@ export function useChat() {
     setAgentTyping(null);
     setAdminsOnline(true);
     setShowTicketPrompt(false);
+    setAskSatisfaction(false);
     clearInterval(pollRef.current);
     clearInterval(statusPollRef.current);
   }, []);
@@ -437,6 +441,7 @@ export function useChat() {
     agentTyping,
     adminsOnline,
     showTicketPrompt,
+    askSatisfaction,
     dismissTicketPrompt,
     fetchGreeting,
     sendMessage,

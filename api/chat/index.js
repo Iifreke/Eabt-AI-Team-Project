@@ -187,6 +187,49 @@ export default async function handler(req, res) {
     }
 
 
+    // ── RESOLVED STAGE ───────────────────────────────────────
+    if (conv.stage === 'resolved') {
+      // Conversation already resolved — restart as active
+      await supabase.from('conversations').update({ stage: 'active', updated_at: new Date().toISOString() }).eq('id', conv.id);
+      conv.stage = 'active';
+    }
+
+    // ── SATISFACTION RESPONSE ─────────────────────────────────
+    // Check if the previous assistant message asked for satisfaction
+    const prevMsgs = (conv.messages || []).filter(m => !m.role?.startsWith('__'));
+    const lastAssistantMsg = [...prevMsgs].reverse().find(m => m.role === 'assistant');
+    if (lastAssistantMsg?.satisfactionCheck) {
+      const lower = message.toLowerCase().trim();
+      const isYes = /^(yes|yeah|yep|yup|sure|ok|okay|satisfied|thanks|thank you|great|good|perfect|that'?s? all|done|resolved|helpful|got it|understood|appreciate)/.test(lower);
+      const isNo  = /^(no|nope|nah|not |unsatisfied|not helpful|need more|more help|still|another|can you|could you|what about|how about)/.test(lower);
+
+      if (isYes) {
+        messages.push({ role: 'assistant', content: "That's great! I'm glad I could help. Feel free to start a new chat any time you need assistance.", ts: Date.now() });
+        await supabase.from('conversations').update({ messages, stage: 'resolved', updated_at: new Date().toISOString() }).eq('id', conv.id);
+        sendChunk({ done: true, stage: 'resolved', lead, suggestions: [], adminsOnline });
+        return res.end();
+      }
+
+      if (isNo) {
+        const watNow2 = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+        const inHours2 = watNow2.getDay() >= 1 && watNow2.getDay() <= 5 && watNow2.getHours() >= 8 && watNow2.getHours() < 18;
+        if (inHours2 && conv.stage !== 'escalated') {
+          await supabase.from('escalations').insert({ conversation_id: conv.id, school_id: school.id, lead_id: lead.id, reason: 'user_request' });
+          conv.stage = 'escalated';
+          email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason: 'user_request' }).catch(console.error);
+          messages.push({ role: 'assistant', content: "No problem! Let me connect you with a support agent who can help further.", ts: Date.now() });
+          await supabase.from('conversations').update({ messages, stage: 'escalated', updated_at: new Date().toISOString() }).eq('id', conv.id);
+          sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], adminsOnline, messages });
+        } else {
+          messages.push({ role: 'assistant', content: "No problem! Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Please open a ticket and we'll follow up by email.", ts: Date.now() });
+          await supabase.from('conversations').update({ messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
+          sendChunk({ done: true, stage: conv.stage, lead, suggestions: [], adminsOnline, offHoursTicketPrompt: true });
+        }
+        return res.end();
+      }
+      // Not a clear yes/no — fall through to normal AI handling
+    }
+
     // ── ACTIVE STAGE ──────────────────────────────────────────
     const chunks = await searchKnowledgeBase(message, school.id);
     const context =
@@ -245,7 +288,9 @@ export default async function handler(req, res) {
     }
     // Outside business hours: stay active, AI keeps working — just show ticket prompt below
 
-    messages.push({ role: 'assistant', content: cleanResponse, ts: Date.now() });
+    // Ask satisfaction check only when AI answered successfully (not failing, not escalating)
+    const askSatisfaction = !shouldEscalate && newStage !== 'escalated';
+    messages.push({ role: 'assistant', content: cleanResponse, satisfactionCheck: askSatisfaction, ts: Date.now() });
 
     // No notification message during business hours — escalation is silent on the user side.
     // The human agent sees the chat in the dashboard and replies directly.
@@ -266,7 +311,7 @@ export default async function handler(req, res) {
     const offHoursTicketPrompt = shouldEscalate && !withinBusinessHours;
 
     // Include full messages when escalating so widget rebuilds immediately without waiting for poll
-    sendChunk({ done: true, stage: newStage, lead, suggestions, adminsOnline, offHoursTicketPrompt, ...(newStage === 'escalated' ? { messages } : {}) });
+    sendChunk({ done: true, stage: newStage, lead, suggestions, adminsOnline, offHoursTicketPrompt, askSatisfaction, ...(newStage === 'escalated' ? { messages } : {}) });
     return res.end();
   } catch (error) {
     console.error('chat error:', error);

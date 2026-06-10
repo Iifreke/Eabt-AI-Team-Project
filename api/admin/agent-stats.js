@@ -92,10 +92,16 @@ export default async function handler(req, res) {
     const convLeadsMap   = Object.fromEntries((convLeads.data  || []).map(l => [l.id, l]));
     const convSchoolsMap = Object.fromEntries((convSchools.data || []).map(s => [s.id, s]));
 
+    const TEN_MIN = 10 * 60 * 1000;
+    const nowMs = Date.now();
+
     const botRows = convs.map(c => {
-      // A conversation counts as resolved if its escalation was resolved by a human
-      const isResolved = resolvedConvIds.has(c.id);
-      const displayStage = isResolved ? 'resolved' : c.stage;
+      let displayStage = c.stage;
+      // Inactive: active/onboarding but no activity in last 10 min
+      if ((displayStage === 'active' || displayStage === 'onboarding') &&
+          (nowMs - new Date(c.updated_at).getTime()) > TEN_MIN) {
+        displayStage = 'inactive';
+      }
       return {
         id:           c.id,
         stage:        displayStage,
@@ -110,6 +116,7 @@ export default async function handler(req, res) {
     const botStats = {
       total:     botRows.length,
       active:    botRows.filter(r => r.stage === 'active' || r.stage === 'onboarding').length,
+      inactive:  botRows.filter(r => r.stage === 'inactive').length,
       escalated: botRows.filter(r => r.stage === 'escalated').length,
       resolved:  botRows.filter(r => r.stage === 'resolved').length,
       conversations: botRows,

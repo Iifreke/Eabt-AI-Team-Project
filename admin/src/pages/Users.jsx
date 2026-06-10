@@ -170,6 +170,7 @@ const STAGE_CONFIG = {
   onboarding: { label: 'Onboarding', bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-400' },
   escalated:  { label: 'Escalated',  bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-400' },
   resolved:   { label: 'Resolved',   bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-400'  },
+  inactive:   { label: 'Inactive',   bg: 'bg-gray-100',  text: 'text-gray-500',   dot: 'bg-gray-400'   },
 };
 
 const ESC_STATUS_CONFIG = {
@@ -240,7 +241,7 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [agentStats, setAgentStats] = useState([]);
-  const [botStats, setBotStats] = useState({ total: 0, active: 0, escalated: 0, resolved: 0, conversations: [] });
+  const [botStats, setBotStats] = useState({ total: 0, active: 0, inactive: 0, escalated: 0, resolved: 0, conversations: [] });
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [botFilter, setBotFilter] = useState('active'); // 'active' | 'all' | 'resolved'
 
@@ -446,22 +447,26 @@ export default function Users() {
           <p className="text-gray-500 text-sm mt-0.5">Users the AI bot is currently attending to or has attended</p>
         </div>
 
-        <div className="grid grid-cols-4 gap-4 mb-5">
-          <div className="bg-white border border-gray-200 rounded-xl p-5 text-center">
+        <div className="grid grid-cols-5 gap-3 mb-5">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
             <div className="text-3xl font-bold text-gray-900">{botStats.total}</div>
             <div className="text-xs text-gray-400 mt-1">Total Users</div>
           </div>
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 text-center">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
             <div className="text-3xl font-bold text-blue-600">{botStats.active}</div>
             <div className="text-xs text-blue-500 mt-1">Currently Active</div>
           </div>
-          <div className="bg-orange-50 border border-orange-100 rounded-xl p-5 text-center">
+          <div className="bg-gray-100 border border-gray-200 rounded-xl p-4 text-center">
+            <div className="text-3xl font-bold text-gray-500">{botStats.inactive}</div>
+            <div className="text-xs text-gray-400 mt-1">Inactive (10m+)</div>
+          </div>
+          <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 text-center">
             <div className="text-3xl font-bold text-orange-600">{botStats.escalated}</div>
             <div className="text-xs text-orange-500 mt-1">Escalated to Human</div>
           </div>
-          <div className="bg-green-50 border border-green-100 rounded-xl p-5 text-center">
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 text-center">
             <div className="text-3xl font-bold text-green-600">{botStats.resolved}</div>
-            <div className="text-xs text-green-500 mt-1">Resolved</div>
+            <div className="text-xs text-green-500 mt-1">Resolved by AI</div>
           </div>
         </div>
 
@@ -470,6 +475,7 @@ export default function Users() {
             <div className="flex gap-1">
               {[
                 { key: 'active',   label: 'Active' },
+                { key: 'inactive', label: 'Inactive' },
                 { key: 'resolved', label: 'Resolved' },
                 { key: 'all',      label: 'All' },
               ].map(f => (
@@ -492,13 +498,16 @@ export default function Users() {
               ? botStats.conversations
               : botFilter === 'resolved'
               ? botStats.conversations.filter(c => c.stage === 'resolved')
+              : botFilter === 'inactive'
+              ? botStats.conversations.filter(c => c.stage === 'inactive')
               : botStats.conversations.filter(c => c.stage === 'active' || c.stage === 'onboarding');
-            if (!rows.length) return <p className="text-sm text-gray-400 text-center py-8">No conversations to show.</p>;
+            if (!rows || !rows.length) return <p className="text-sm text-gray-400 text-center py-8">No conversations to show.</p>;
             return (
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50">
                   <tr>
                     <th className="px-5 py-3 text-left font-medium">User</th>
+                    <th className="px-5 py-3 text-left font-medium">Phone</th>
                     <th className="px-5 py-3 text-left font-medium">School</th>
                     <th className="px-5 py-3 text-left font-medium">Stage</th>
                     <th className="px-5 py-3 text-left font-medium">Messages</th>
@@ -514,6 +523,7 @@ export default function Users() {
                           <div className="font-medium text-gray-900">{c.lead?.name || '—'}</div>
                           <div className="text-xs text-gray-400">{c.lead?.email || ''}</div>
                         </td>
+                        <td className="px-5 py-3 text-xs text-gray-500">{c.lead?.phone || '—'}</td>
                         <td className="px-5 py-3 text-xs text-gray-500">{c.school}</td>
                         <td className="px-5 py-3">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${stageCfg.bg} ${stageCfg.text}`}>
