@@ -4,867 +4,1721 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Technical Report — School AI Chatbot Platform</title>
+  
+  <!-- Premium Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Reset & Modern Defaults */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f4f6fb;
-      color: #1a1a2e;
-      line-height: 1.6;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      line-height: 1.7;
+      letter-spacing: -0.01em;
     }
+
+    /* Selection Color */
+    ::selection {
+      background: rgba(79, 70, 229, 0.15);
+      color: #4f46e5;
+    }
+
+    /* Premium Header with Mesh Gradient */
     header {
-      background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+      background: radial-gradient(circle at 0% 0%, rgba(79, 70, 229, 0.9) 0%, rgba(59, 130, 246, 0.9) 50%, rgba(6, 182, 212, 0.9) 100%), 
+                  linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
       color: white;
-      padding: 36px 48px;
+      padding: 60px 48px 80px;
+      position: relative;
+      overflow: hidden;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
-    header h1 { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
-    header .subtitle { font-size: 14px; opacity: 0.85; margin-top: 4px; }
-    .meta { display: flex; gap: 24px; margin-top: 14px; font-size: 12px; opacity: 0.85; flex-wrap: wrap; }
-    .meta span { background: rgba(255,255,255,0.15); padding: 3px 10px; border-radius: 20px; }
 
-    .container { max-width: 900px; margin: 32px auto; padding: 0 20px 60px; }
-
-    .section {
-      background: white;
-      border-radius: 12px;
-      padding: 28px 32px;
-      margin-bottom: 24px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    /* Soft animated shapes inside header */
+    header::before {
+      content: '';
+      position: absolute;
+      top: -20%;
+      right: -10%;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+      filter: blur(20px);
+      animation: float-bubble 15s infinite alternate ease-in-out;
     }
-    .section-title {
-      font-size: 17px;
+
+    @keyframes float-bubble {
+      0% { transform: translateY(0) scale(1); }
+      100% { transform: translateY(40px) scale(1.15); }
+    }
+
+    header .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 10;
+    }
+
+    header h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 36px;
       font-weight: 800;
-      margin-bottom: 18px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid #f0f2f8;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    header .subtitle {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 500;
+      opacity: 0.95;
+      margin-top: 4px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-    .card {
-      border: 1px solid #e8eaf2;
-      border-radius: 10px;
-      padding: 16px 18px;
-    }
-    .card .icon { font-size: 22px; margin-bottom: 8px; }
-    .card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-    .card p { font-size: 12px; color: #666; line-height: 1.5; }
-
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { background: #f4f6fb; text-align: left; padding: 10px 14px; font-weight: 600; color: #444; border-bottom: 2px solid #e8eaf2; }
-    td { padding: 10px 14px; border-bottom: 1px solid #f0f2f8; vertical-align: top; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #fafbff; }
-
-    .tag { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-    .green  { background: #d1fae5; color: #065f46; }
-    .red    { background: #fee2e2; color: #991b1b; }
-    .amber  { background: #fef3c7; color: #92400e; }
-    .blue   { background: #dbeafe; color: #1e40af; }
-    .purple { background: #ede9fe; color: #5b21b6; }
-    .gray   { background: #f3f4f6; color: #374151; }
-
-    .url {
-      font-family: monospace;
-      font-size: 12px;
-      background: #f4f6fb;
-      border: 1px solid #e0e4f0;
+    header .subtitle span {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 8px;
       border-radius: 6px;
-      padding: 8px 12px;
-      color: #1a73e8;
-      margin-top: 6px;
-      display: block;
-      word-break: break-all;
+      font-size: 12px;
+      font-weight: 600;
+      backdrop-filter: blur(4px);
     }
 
-    .steps { counter-reset: step; }
-    .step { display: flex; gap: 14px; margin-bottom: 16px; align-items: flex-start; }
-    .step-num {
-      counter-increment: step;
-      min-width: 30px; height: 30px;
-      border-radius: 50%;
-      background: #1a73e8; color: white;
-      font-size: 13px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .step-body h4 { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
-    .step-body p { font-size: 12px; color: #555; }
-    .step-body code {
-      background: #f0f2f8; padding: 1px 6px; border-radius: 4px;
-      font-family: monospace; font-size: 12px;
+    .meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 28px;
+      font-size: 13px;
+      font-weight: 500;
+      flex-wrap: wrap;
     }
 
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
-
-    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    @media (max-width: 700px) { .three-col { grid-template-columns: 1fr; } }
-
-    .note {
-      background: #e8f0fe; border-left: 3px solid #1a73e8;
-      border-radius: 6px; padding: 10px 14px;
-      font-size: 12px; color: #1557b0; margin-top: 12px;
-    }
-    .warn {
-      background: #fff7ed; border-left: 3px solid #f97316;
-      border-radius: 6px; padding: 10px 14px;
-      font-size: 12px; color: #9a3412; margin-top: 12px;
-    }
-    .danger {
-      background: #fef2f2; border-left: 3px solid #dc2626;
-      border-radius: 6px; padding: 10px 14px;
-      font-size: 12px; color: #991b1b; margin-top: 12px;
+    .meta span {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      border-radius: 50px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
     }
 
-    .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-    .stat-box {
-      flex: 1; min-width: 120px;
-      border: 1px solid #e8eaf2; border-radius: 10px;
-      padding: 14px 16px; text-align: center;
+    .meta span:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
     }
-    .stat-box .num { font-size: 28px; font-weight: 800; color: #1a73e8; }
-    .stat-box .lbl { font-size: 11px; color: #888; margin-top: 2px; }
 
-    h3 { font-size: 14px; font-weight: 700; color: #1a1a2e; margin: 18px 0 10px; }
-    p { font-size: 13px; color: #444; margin-bottom: 10px; }
-    ul { padding-left: 18px; font-size: 13px; color: #444; }
-    li { margin-bottom: 5px; }
-
-    .arch-box {
-      background: #0f172a; color: #e2e8f0;
-      border-radius: 10px; padding: 20px 24px;
-      font-family: monospace; font-size: 12px; line-height: 1.8;
-      margin-top: 12px;
+    /* Layout structure with sidebar navigation */
+    .app-layout {
+      max-width: 1200px;
+      margin: -40px auto 80px;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 32px;
+      position: relative;
+      z-index: 20;
     }
-    .arch-box .c-blue   { color: #60a5fa; }
-    .arch-box .c-green  { color: #4ade80; }
-    .arch-box .c-yellow { color: #fbbf24; }
-    .arch-box .c-gray   { color: #94a3b8; }
 
-    .cost-total {
-      background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
-      color: white; border-radius: 10px; padding: 20px 24px;
+    @media (max-width: 992px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+        margin-top: 24px;
+      }
+    }
+
+    /* Sticky Modern Sidebar Navigation */
+    .sidebar {
+      position: sticky;
+      top: 24px;
+      height: fit-content;
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 8px -1px rgba(15, 23, 42, 0.02);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+
+    @media (max-width: 992px) {
+      .sidebar {
+        position: relative;
+        top: 0;
+      }
+    }
+
+    .sidebar h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+
+    .sidebar nav ul {
+      list-style: none;
+      padding-left: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sidebar nav a {
+      color: #475569;
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar nav a:hover {
+      background: #f1f5f9;
+      color: #1e1b4b;
+      transform: translateX(4px);
+    }
+
+    .sidebar nav a.active {
+      background: #e0e7ff;
+      color: #4f46e5;
+    }
+
+    /* Main Content Containers */
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .section {
+      background: white;
+      border-radius: 18px;
+      padding: 36px 40px;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 16px -6px rgba(15, 23, 42, 0.02);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      scroll-margin-top: 24px;
+    }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 24px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Grid layout for features and cards */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
       margin-top: 16px;
     }
-    .cost-total .big { font-size: 36px; font-weight: 800; }
-    .cost-total .sub { font-size: 13px; opacity: 0.85; margin-top: 4px; }
 
+    /* Premium interactive cards */
+    .card {
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 20px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      border-color: #cbd5e1;
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px -10px rgba(79, 70, 229, 0.1), 0 4px 12px -5px rgba(79, 70, 229, 0.05);
+    }
+
+    .card .icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+      background: #f1f5f9;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+
+    .card:hover .icon {
+      background: #e0e7ff;
+      transform: scale(1.05);
+    }
+
+    .card h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+
+    .card p {
+      font-size: 12.5px;
+      color: #475569;
+      line-height: 1.6;
+    }
+
+    /* Modern Table Design */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: white;
+      margin: 16px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    th {
+      background: #f8fafc;
+      padding: 14px 16px;
+      font-weight: 700;
+      color: #475569;
+      border-bottom: 2px solid #e2e8f0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+      color: #334155;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: #f8fafc;
+    }
+
+    /* Customized beautiful status badges */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .green {
+      background: #ecfdf5;
+      color: #047857;
+      border-color: #a7f3d0;
+    }
+    .red {
+      background: #fef2f2;
+      color: #be123c;
+      border-color: #fecaca;
+    }
+    .amber {
+      background: #fffbeb;
+      color: #b45309;
+      border-color: #fde68a;
+    }
+    .blue {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+    .purple {
+      background: #faf5ff;
+      color: #7e22ce;
+      border-color: #e9d5ff;
+    }
+    .gray {
+      background: #f8fafc;
+      color: #475569;
+      border-color: #cbd5e1;
+    }
+
+    /* Glowing code and links block */
+    .url {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #3b82f6;
+      margin-top: 8px;
+      display: block;
+      word-break: break-all;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    a.url:hover {
+      background: #eff6ff;
+      border-color: #3b82f6;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.05);
+    }
+
+    code.url {
+      color: #0f172a;
+      background: #fafafa;
+    }
+
+    /* Process Flow/Steps layout */
+    .steps {
+      counter-reset: step;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .step::before {
+      content: '';
+      position: absolute;
+      top: 36px;
+      left: 17px;
+      width: 2px;
+      height: calc(100% - 16px);
+      background: #e2e8f0;
+      z-index: 1;
+    }
+
+    .step:last-child::before {
+      display: none;
+    }
+
+    .step-num {
+      counter-increment: step;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2);
+    }
+
+    .step-body {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 16px 20px;
+      width: 100%;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+    }
+
+    .step-body:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+
+    .step-body h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    .step-body p {
+      font-size: 12px;
+      color: #475569;
+    }
+
+    .step-body code {
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #0f172a;
+    }
+
+    /* Multi-columns helper classes */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 600px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+
+    .three-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .three-col { grid-template-columns: 1fr; }
+    }
+
+    /* Advanced Callout Alerts */
+    .note, .warn, .danger {
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 12.5px;
+      margin-top: 16px;
+      border: 1px solid;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    
+    .note {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #1e3a8a;
+    }
+    .warn {
+      background: #fffbeb;
+      border-color: #fde68a;
+      color: #78350f;
+    }
+    .danger {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #7f1d1d;
+    }
+
+    .callout-icon {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    /* Statistical widgets */
+    .stat-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .stat-box {
+      flex: 1;
+      min-width: 140px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .stat-box:hover {
+      border-color: #4f46e5;
+      transform: scale(1.02);
+    }
+    .stat-box .num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      color: #4f46e5;
+      line-height: 1;
+    }
+    .stat-box .lbl {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 28px 0 12px;
+    }
+    
+    p {
+      font-size: 13.5px;
+      color: #334155;
+      margin-bottom: 12px;
+    }
+    
+    ul {
+      padding-left: 20px;
+      font-size: 13.5px;
+      color: #334155;
+      margin-bottom: 12px;
+    }
+    
+    li {
+      margin-bottom: 6px;
+    }
+
+    /* Technical CLI/Architecture Shell styling */
+    .arch-box {
+      background: #0f172a;
+      color: #f1f5f9;
+      border-radius: 14px;
+      padding: 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.8;
+      margin-top: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+      position: relative;
+    }
+
+    .arch-box::before {
+      content: '•••';
+      position: absolute;
+      top: 8px;
+      left: 12px;
+      font-size: 20px;
+      color: #334155;
+      line-height: 1;
+      letter-spacing: -2px;
+    }
+
+    .arch-box .c-blue   { color: #60a5fa; font-weight: 600; }
+    .arch-box .c-green  { color: #4ade80; font-weight: 600; }
+    .arch-box .c-yellow { color: #f59e0b; font-weight: 600; }
+    .arch-box .c-gray   { color: #94a3b8; }
+
+    /* Highlights */
+    .cost-total {
+      background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+      color: white;
+      border-radius: 14px;
+      padding: 24px;
+      margin-top: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 20px rgba(79, 70, 229, 0.15);
+    }
+
+    .cost-total::after {
+      content: '';
+      position: absolute;
+      bottom: -40px;
+      right: -40px;
+      width: 120px;
+      height: 120px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+    }
+
+    .cost-total .big {
+      font-family: 'Outfit', sans-serif;
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1.1;
+      margin: 4px 0;
+    }
+    .cost-total .sub {
+      font-size: 12.5px;
+      opacity: 0.9;
+    }
+
+    /* Verdict Card Panels */
     .verdict-card {
-      border-radius: 10px; padding: 16px 20px; margin-bottom: 10px;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 12px;
       border: 1px solid;
     }
-    .verdict-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-    .verdict-card p { font-size: 12px; margin: 0; }
+    .verdict-card h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 14.5px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .verdict-card p {
+      font-size: 12.5px;
+      margin: 0;
+      opacity: 0.9;
+    }
     .vc-green { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
     .vc-amber { background: #fffbeb; border-color: #fde68a; color: #78350f; }
     .vc-red   { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
 
-    .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    /* Footer Design */
+    footer {
+      text-align: center;
+      padding: 48px 32px;
+      font-size: 12px;
+      color: #94a3b8;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      margin-top: 80px;
+    }
 
-    footer { text-align: center; padding: 32px; font-size: 12px; color: #aaa; }
+    /* Floating Back-to-Top */
+    .back-to-top {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #4f46e5;
+      color: white;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      z-index: 100;
+      font-size: 18px;
+    }
+
+    .back-to-top:hover {
+      background: #3b82f6;
+      transform: translateY(-4px);
+    }
+
+    /* Professional Print Stylesheet */
+    @media print {
+      body {
+        background: white !important;
+        color: #000000 !important;
+        font-size: 12px;
+      }
+      
+      header {
+        background: none !important;
+        color: #000000 !important;
+        padding: 20px 0 !important;
+        border-bottom: 2px solid #334155 !important;
+      }
+
+      header h1 {
+        color: #000000 !important;
+        text-shadow: none !important;
+        font-size: 28px !important;
+      }
+
+      header .subtitle {
+        color: #334155 !important;
+      }
+
+      header .subtitle span {
+        background: none !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #334155 !important;
+      }
+
+      .meta span {
+        background: none !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #334155 !important;
+      }
+
+      .app-layout {
+        grid-template-columns: 1fr !important;
+        margin-top: 10px !important;
+        gap: 0 !important;
+        padding: 0 !important;
+      }
+
+      .sidebar, .back-to-top {
+        display: none !important; /* Hide interactive navigation when printing */
+      }
+
+      .main-content {
+        gap: 20px !important;
+      }
+
+      .section {
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        padding: 20px 0 !important;
+        border-radius: 0 !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      .section-title {
+        border-bottom: 2px solid #334155 !important;
+        color: #000000 !important;
+        font-size: 16px !important;
+        margin-bottom: 15px !important;
+        padding-bottom: 8px !important;
+      }
+
+      .card {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+        background: white !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      .card .icon {
+        background: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+      }
+
+      .table-container {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+      }
+
+      th {
+        background: #f8fafc !important;
+        border-bottom: 2px solid #cbd5e1 !important;
+        color: #000000 !important;
+      }
+
+      td {
+        border-bottom: 1px solid #e2e8f0 !important;
+        color: #334155 !important;
+      }
+
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      .arch-box {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+      }
+
+      .arch-box .c-blue, .arch-box .c-green, .arch-box .c-yellow, .arch-box .c-gray {
+        color: #0f172a !important;
+        font-weight: bold !important;
+      }
+
+      .cost-total {
+        background: #f1f5f9 !important;
+        color: #000000 !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+      }
+
+      .cost-total .big {
+        color: #000000 !important;
+      }
+
+      .tag {
+        background: none !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #000000 !important;
+      }
+
+      .verdict-card {
+        background: white !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #000000 !important;
+      }
+
+      .step-body {
+        background: white !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+
+      .step::before {
+        background: #cbd5e1 !important;
+      }
+
+      .step-num {
+        background: #000000 !important;
+        color: white !important;
+        box-shadow: none !important;
+      }
+
+      .note, .warn, .danger {
+        background: #fafafa !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #000000 !important;
+      }
+
+      .no-print {
+        display: none !important; /* Hide elements in printed PDFs */
+      }
+
+      .two-col, .three-col, .grid {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+      }
+
+      footer {
+        border-top: 1px solid #cbd5e1 !important;
+        color: #64748b !important;
+        margin-top: 40px !important;
+        padding: 20px 0 !important;
+      }
+    }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>Technical Report — School AI Chatbot Platform</h1>
-  <p class="subtitle">Babcock University &amp; ABU (Ahmadu Bello University) · Powered by Antigravity</p>
-  <div class="meta">
-    <span>📅 30 May 2026</span>
-    <span>🔗 edutechbabcockabu.vercel.app</span>
-    <span>👤 For: Internal Team &amp; Leadership</span>
-    <span>🔄 Version 2.0</span>
+  <div class="header-content">
+    <h1>Technical Report — School AI Chatbot Platform</h1>
+    <div class="subtitle">
+      Babcock University &amp; ABU (Ahmadu Bello University) 
+      <span>Powered by Antigravity</span>
+    </div>
+    <div class="meta">
+      <span>📅 30 May 2026</span>
+      <span>🔗 <a href="https://eabt-ai-team-project.vercel.app" target="_blank" style="color: white; text-decoration: none;">eabt-ai-team-project.vercel.app</a></span>
+      <span>👤 For: Internal Team &amp; Leadership</span>
+      <span>🔄 Version 2.0</span>
+    </div>
   </div>
 </header>
 
-<div class="container">
+<div class="app-layout">
+  
+  <!-- STICKY SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <h2>Report Sections</h2>
+    <nav>
+      <ul>
+        <li><a href="#summary" class="active">📋 Summary</a></li>
+        <li><a href="#urls">🔗 Live Links</a></li>
+        <li><a href="#features">✅ Features Built</a></li>
+        <li><a href="#stack">🏗️ Tech Stack</a></li>
+        <li><a href="#schema">🗄️ DB Schema</a></li>
+        <li><a href="#issues">🐛 Issues Log</a></li>
+        <li><a href="#pending">⏳ File Uploads</a></li>
+        <li><a href="#testing">🧪 Test Guide</a></li>
+        <li><a href="#verdict">⚖️ Architecture</a></li>
+        <li><a href="#scaling">📈 Scaling Plan</a></li>
+        <li><a href="#env">🔑 Config (Env)</a></li>
+        <li><a href="#checklist">✔️ Supabase Setup</a></li>
+        <li><a href="#steps">🗓️ Next Steps</a></li>
+        <li><a href="#agents">👤 Team Profiles</a></li>
+      </ul>
+    </nav>
+  </aside>
 
-  <!-- ── EXECUTIVE SUMMARY ── -->
-  <div class="section">
-    <div class="section-title">📋 Executive Summary</div>
-    <p>
-      This report documents the full technical development, issues encountered, fixes applied, and architectural decisions
-      made for the School AI Chatbot Platform serving Babcock University and Ahmadu Bello University (ABU).
-      The platform provides AI-powered student support, live human agent escalation, file sharing, speech-to-text,
-      and a comprehensive admin dashboard — all accessible via an embeddable widget on any school website.
-    </p>
-    <div class="stat-row" style="margin-top:16px;">
-      <div class="stat-box"><div class="num">31</div><div class="lbl">Commits This Month</div></div>
-      <div class="stat-box"><div class="num">12</div><div class="lbl">API Endpoints</div></div>
-      <div class="stat-box"><div class="num">2</div><div class="lbl">Schools Live</div></div>
-      <div class="stat-box"><div class="num">31</div><div class="lbl">Real Leads in DB</div></div>
-      <div class="stat-box"><div class="num">5</div><div class="lbl">Admin Agents</div></div>
-    </div>
-  </div>
+  <!-- MAIN REPORT CONTENT -->
+  <main class="main-content">
+    
+    <!-- EXECUTIVE SUMMARY -->
+    <section id="summary" class="section">
+      <div class="section-title">📋 Executive Summary</div>
+      <p>
+        This report documents the full technical development, issues encountered, fixes applied, and architectural decisions
+        made for the School AI Chatbot Platform serving Babcock University and Ahmadu Bello University (ABU).
+        The platform provides AI-powered student support, live human agent escalation, file sharing, speech-to-text,
+        and a comprehensive admin dashboard — all accessible via an embeddable widget on any school website.
+      </p>
+      <div class="stat-row">
+        <div class="stat-box"><div class="num">31</div><div class="lbl">Commits This Month</div></div>
+        <div class="stat-box"><div class="num">12</div><div class="lbl">API Endpoints</div></div>
+        <div class="stat-box"><div class="num">2</div><div class="lbl">Schools Live</div></div>
+        <div class="stat-box"><div class="num">31</div><div class="lbl">Real Leads in DB</div></div>
+        <div class="stat-box"><div class="num">5</div><div class="lbl">Admin Agents</div></div>
+      </div>
+    </section>
 
-  <!-- ── LIVE URLS ── -->
-  <div class="section">
-    <div class="section-title">🔗 Live URLs</div>
-    <div class="two-col">
-      <div>
-        <div style="font-size:13px; font-weight:700;">Admin Dashboard</div>
-        <a class="url" href="https://edutechbabcockabu.vercel.app" target="_blank">https://edutechbabcockabu.vercel.app</a>
-      </div>
-      <div>
-        <div style="font-size:13px; font-weight:700;">Widget Test Page</div>
-        <a class="url" href="https://edutechbabcockabu.vercel.app/test-widget.html" target="_blank">https://edutechbabcockabu.vercel.app/test-widget.html</a>
-      </div>
-    </div>
-    <div class="two-col" style="margin-top:12px;">
-      <div>
-        <div style="font-size:13px; font-weight:700;">GitHub Repository</div>
-        <a class="url" href="https://github.com/Phemmy09/Edutechbabcock-Abu-chatbot" target="_blank">github.com/Phemmy09/Edutechbabcock-Abu-chatbot</a>
-      </div>
-      <div>
-        <div style="font-size:13px; font-weight:700;">Widget Embed Code (paste on any school site)</div>
-        <code class="url">&lt;script src="https://edutechbabcockabu.vercel.app/widget.js"&gt;&lt;/script&gt;</code>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── WHAT WAS BUILT ── -->
-  <div class="section">
-    <div class="section-title">✅ What Was Built — Full Feature List</div>
-
-    <h3>Visitor-Facing Widget</h3>
-    <div class="grid">
-      <div class="card">
-        <div class="icon">💬</div>
-        <h4>AI Chat (Maverick)</h4>
-        <p>RAG-powered chatbot answers questions about admissions, fees, programmes, campus life from uploaded documents.</p>
-      </div>
-      <div class="card">
-        <div class="icon">📋</div>
-        <h4>Lead Capture Form</h4>
-        <p>Name, email, phone collected before chat starts. Data synced to Supabase and Zoho CRM automatically.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🔄</div>
-        <h4>Session Resume</h4>
-        <p>Returning visitors with the same email+phone pick up their previous conversation exactly where they left off.</p>
-      </div>
-      <div class="card">
-        <div class="icon">📎</div>
-        <h4>File Attachments</h4>
-        <p>Send images, PDFs, audio, video in chat. Files stored in Supabase Storage and shown inline.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🎤</div>
-        <h4>Speech-to-Text</h4>
-        <p>Mic button records voice, sends to OpenAI Whisper, transcription fills the message box automatically.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🧑‍💼</div>
-        <h4>Human Escalation</h4>
-        <p>Visitor can request a human agent. Admin is notified instantly. Agent can reply live from the dashboard.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🎫</div>
-        <h4>Offline Tickets</h4>
-        <p>When agents are offline, visitor submits a ticket. Email confirmation sent to visitor, notification sent to staff.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🌟</div>
-        <h4>CSAT Rating</h4>
-        <p>5-emoji rating after live chat. Scores tracked per agent and visible in the Overview dashboard.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🏫</div>
-        <h4>Multi-School Picker</h4>
-        <p>One widget serves both Babcock and ABU. Visitor selects their school first, then chats with school-specific AI.</p>
-      </div>
-    </div>
-
-    <h3 style="margin-top:22px;">Admin Dashboard</h3>
-    <div class="grid">
-      <div class="card">
-        <div class="icon">📊</div>
-        <h4>Overview Analytics</h4>
-        <p>Today / Week / Month / All Time stats: total contacts, chats served, AI resolved, CSAT, open tickets, pending chats.</p>
-      </div>
-      <div class="card">
-        <div class="icon">💬</div>
-        <h4>Live Chats (Escalations)</h4>
-        <p>Pending / In Progress / Ended filters. Serve button, tag editor, notes, shortcuts autocomplete (type /).</p>
-      </div>
-      <div class="card">
-        <div class="icon">🎫</div>
-        <h4>Tickets Management</h4>
-        <p>View all offline tickets. Reply sends email to visitor. Assign to agent, add tags, mark closed.</p>
-      </div>
-      <div class="card">
-        <div class="icon">📁</div>
-        <h4>History</h4>
-        <p>All conversations with full transcripts. Filter by stage (active/escalated/resolved). By-User view groups sessions per lead.</p>
-      </div>
-      <div class="card">
-        <div class="icon">👥</div>
-        <h4>Contacts</h4>
-        <p>All leads with name, email, phone, school, date. Drill down to see all their conversations.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🤖</div>
-        <h4>Agent Dashboard</h4>
-        <p>Per-agent metrics: leads attended today/week/month/all time, avg response time, chats resolved, activity trend chart.</p>
-      </div>
-      <div class="card">
-        <div class="icon">⚡</div>
-        <h4>Shortcuts (Canned Replies)</h4>
-        <p>Create pre-written replies. Type / in the reply box to search and insert them instantly during live chat.</p>
-      </div>
-      <div class="card">
-        <div class="icon">👁️</div>
-        <h4>Monitoring</h4>
-        <p>Live view of all active AI conversations in real time, updated every 30 seconds.</p>
-      </div>
-      <div class="card">
-        <div class="icon">👤</div>
-        <h4>Agents / RBAC</h4>
-        <p>Invite agents by email with roles (Admin or Super Admin). Super Admins can manage team members.</p>
-      </div>
-      <div class="card">
-        <div class="icon">📚</div>
-        <h4>Knowledge Base</h4>
-        <p>Upload PDF/Word documents per school. System converts them to vector embeddings for AI retrieval (RAG).</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── TECH STACK ── -->
-  <div class="section">
-    <div class="section-title">🏗️ Technology Stack</div>
-    <div class="arch-box">
-      <span class="c-blue">VISITOR WIDGET</span>  →  React (IIFE bundle) · Vite · Inline styles · MediaRecorder API<br>
-      <span class="c-blue">ADMIN DASHBOARD</span> →  React 18 · Vite · Tailwind CSS · Supabase Auth<br>
-      <br>
-      <span class="c-yellow">API LAYER</span>      →  12× Vercel Serverless Functions (Node.js ESM)<br>
-      <span class="c-yellow">AI / LLM</span>       →  OpenRouter (Claude / GPT routing) · OpenAI Whisper (STT)<br>
-      <span class="c-yellow">RAG / EMBEDDINGS</span>→  OpenAI text-embedding-3-small · pgvector (Supabase)<br>
-      <br>
-      <span class="c-green">DATABASE</span>        →  Supabase PostgreSQL (leads, conversations, escalations, tickets)<br>
-      <span class="c-green">FILE STORAGE</span>    →  Supabase Storage (chat-attachments bucket, documents bucket)<br>
-      <span class="c-green">AUTH</span>            →  Supabase Auth (email + password · invite flow)<br>
-      <br>
-      <span class="c-gray">EMAIL</span>           →  Gmail SMTP via Nodemailer (izzy.marketing.hub@gmail.com)<br>
-      <span class="c-gray">CRM</span>             →  Zoho CRM (lead sync on form submit)<br>
-      <span class="c-gray">DEPLOY</span>          →  GitHub → Vercel (auto-deploy on push to main)<br>
-      <span class="c-gray">PLAN</span>            →  Vercel Hobby (free) · Supabase Free · OpenRouter pay-per-token
-    </div>
-  </div>
-
-  <!-- ── DATABASE SCHEMA ── -->
-  <div class="section">
-    <div class="section-title">🗄️ Database Schema — Key Tables</div>
-    <table>
-      <tr>
-        <th>Table</th>
-        <th>Purpose</th>
-        <th>Key Columns</th>
-      </tr>
-      <tr>
-        <td><strong>schools</strong></td>
-        <td>School config (Babcock, ABU)</td>
-        <td>id, name, slug, staff_email, system_prompt</td>
-      </tr>
-      <tr>
-        <td><strong>leads</strong></td>
-        <td>Visitor contact info</td>
-        <td>id, school_id, name, email, phone, zoho_contact_id</td>
-      </tr>
-      <tr>
-        <td><strong>conversations</strong></td>
-        <td>Full chat history (JSONB messages array)</td>
-        <td>id, lead_id, school_id, session_id, stage, messages[], rating</td>
-      </tr>
-      <tr>
-        <td><strong>escalations</strong></td>
-        <td>Live chat handoffs to agents</td>
-        <td>id, conversation_id, reason, status, attended_by, resolved_by, first_response_at</td>
-      </tr>
-      <tr>
-        <td><strong>tickets</strong></td>
-        <td>Offline support requests</td>
-        <td>id, school_id, lead_id, name, email, subject, message, status, staff_reply</td>
-      </tr>
-      <tr>
-        <td><strong>admin_profiles</strong></td>
-        <td>Agent accounts and status</td>
-        <td>id, full_name, role, status (online/away/invisible)</td>
-      </tr>
-      <tr>
-        <td><strong>shortcuts</strong></td>
-        <td>Canned reply templates</td>
-        <td>id, school_id, trigger, content</td>
-      </tr>
-      <tr>
-        <td><strong>documents</strong></td>
-        <td>Uploaded knowledge base files</td>
-        <td>id, school_id, filename, chunk_count, status</td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- ── ISSUES LOG ── -->
-  <div class="section">
-    <div class="section-title">🐛 Issues Encountered — Full Log</div>
-    <p style="margin-bottom:16px;">The following table documents every bug discovered during development and testing, the root cause, and resolution status.</p>
-    <table>
-      <tr>
-        <th>#</th>
-        <th>Issue</th>
-        <th>Root Cause</th>
-        <th>Fix Applied</th>
-        <th>Status</th>
-      </tr>
-      <tr>
-        <td>1</td>
-        <td><strong>Vercel build failure</strong><br><small>13 serverless functions exceeded the Hobby plan's limit of 12</small></td>
-        <td>Adding <code>upload.js</code> and <code>transcribe.js</code> pushed count from 11 to 13</td>
-        <td>Merged <code>upload.js</code> + <code>transcribe.js</code> → <code>media.js</code>; merged <code>escalation.js</code> + <code>escalations.js</code> → one file. Now 12 functions exactly.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td><strong>History modal showed "No messages"</strong><br><small>Opening any conversation in History showed empty chat panel despite messages existing in DB</small></td>
-        <td>Escalation sub-query used <code>.single()</code> which throws error (PGRST116) when no escalation exists; this silently corrupted the response. ConversationViewer also overwrote <code>initialConv</code> on API refresh.</td>
-        <td>Changed to <code>.maybeSingle()</code>. Rewrote ConversationViewer merge logic to always fall back to <code>prev.messages</code> if API returns empty. Added "resolved" filter tab for ended chats.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>3</td>
-        <td><strong>Returning leads got fresh greeting instead of history</strong><br><small>A visitor who already chatted before had to start over every time</small></td>
-        <td><code>submitLead()</code> in <code>useChat.js</code> ignored <code>data.messages</code> and <code>data.sessionId</code> returned by the server. New session ID was used, sending future messages to a new conversation.</td>
-        <td>Updated <code>submitLead()</code> to restore messages from <code>data.messages</code>, set stage from <code>data.stage</code>, and update <code>sessionId</code> to the existing conversation's ID via callback.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>4</td>
-        <td><strong>Tickets table did not exist in Supabase</strong><br><small>Widget ticket form returned 500 error; tickets never appeared in admin</small></td>
-        <td><code>api/admin/tickets.js</code> referenced a <code>tickets</code> table but it was never created in any migration. The table was missing entirely.</td>
-        <td>Created <code>src/db/migrations/003_tickets.sql</code>. User ran it in Supabase SQL editor. Table now exists with all required columns and indexes.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>5</td>
-        <td><strong>Email sending not working</strong><br><small>Ticket confirmations and escalation alerts not delivered to any address</small></td>
-        <td>System used Resend API with a placeholder <code>onboarding@resend.dev</code> from-address. <code>RESEND_FROM_EMAIL</code> env var was never set in Vercel. Resend sandbox only delivers to verified addresses.</td>
-        <td>Replaced Resend with Nodemailer + Gmail SMTP. All 4 email functions (escalation alert, ticket notification, ticket confirmation, ticket reply) now use <code>izzy.marketing.hub@gmail.com</code> via SMTP env vars in Vercel.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>6</td>
-        <td><strong>File upload endpoint crashed (FUNCTION_INVOCATION_FAILED)</strong><br><small>Every upload attempt returned Vercel's raw crash page, not our error response</small></td>
-        <td>Two separate issues: (a) <code>import { toFile } from 'openai'</code> caused module-load failure if not exported in the installed SDK version. (b) <code>req.pipe(bb)</code> is unreliable in Vercel's serverless runtime, causing the function to crash before it could respond.</td>
-        <td>Removed <code>toFile</code> import; replaced with native <code>File</code> constructor. Rewrote <code>parseMultipart</code> to collect full body Buffer first, then parse synchronously with Busboy.</td>
-        <td><span class="tag amber">In Testing</span></td>
-      </tr>
-      <tr>
-        <td>7</td>
-        <td><strong>chat-attachments bucket had 0 policies</strong><br><small>Supabase storage bucket existed but uploads were silently rejected</small></td>
-        <td>Supabase Storage requires explicit RLS (Row Level Security) policies even for public buckets before anyone can write. Bucket was created but never had INSERT policy added.</td>
-        <td>User ran SQL to add INSERT, SELECT, and DELETE policies for <code>anon</code> and <code>authenticated</code> roles on the <code>chat-attachments</code> bucket.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>8</td>
-        <td><strong>Video files blocked at upload</strong><br><small>Widget could select video files but backend rejected them</small></td>
-        <td><code>ALLOWED_TYPES</code> in <code>media.js</code> only included images, PDFs, and audio. Video MIME types were missing. Size cap was also only 10MB.</td>
-        <td>Added <code>video/mp4</code>, <code>video/webm</code>, <code>video/ogg</code>, <code>video/quicktime</code> to allowed types. Added <code>MAX_VIDEO = 50MB</code> cap. Updated <code>EXT_MAP</code> with video extensions.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>9</td>
-        <td><strong>SMTP vars added to GitHub instead of Vercel</strong><br><small>Emails still not sending after nodemailer migration</small></td>
-        <td>User added <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> as GitHub repo secrets. Vercel does not read from GitHub secrets — it has its own environment variable store.</td>
-        <td>User added the 4 SMTP env vars directly in Vercel dashboard → Settings → Environment Variables. Triggered redeploy.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-      <tr>
-        <td>10</td>
-        <td><strong>Agent metrics recentLeads capped at 10</strong><br><small>Agent Dashboard only showed 10 most recent leads; older ones invisible</small></td>
-        <td><code>stats.js</code> used <code>.slice(0, 10)</code> on the leads map when building per-agent data.</td>
-        <td>Increased to <code>.slice(0, 50)</code>. Agent name rows in the Overview performance table made clickable to jump to Agent Dashboard tab.</td>
-        <td><span class="tag green">Fixed</span></td>
-      </tr>
-    </table>
-
-    <div class="warn">⚠️ Issue #6 (file upload crash) is still being investigated. The latest fix (commit <code>ccc1988</code>) is deployed but testing is ongoing. Do not rely on file attachments in production until confirmed working.</div>
-  </div>
-
-  <!-- ── PENDING ITEM ── -->
-  <div class="section">
-    <div class="section-title">⏳ Outstanding Item — File Upload Architecture</div>
-    <p>
-      The core issue with file uploads is that Vercel serverless functions have a <strong>4.5MB maximum request body limit</strong>.
-      This means even the multipart parsing fix has a hard ceiling — any file over ~3MB will fail.
-    </p>
-    <p>
-      The correct production solution (currently being implemented) is <strong>Presigned Upload URLs</strong>:
-      the browser asks the server for a temporary upload URL, then uploads the file <em>directly to Supabase Storage</em>,
-      bypassing Vercel entirely. This removes the 4.5MB limit and is the industry-standard pattern used by Slack, Notion, and Dropbox.
-    </p>
-    <div class="arch-box">
-      <span class="c-gray">CURRENT (broken):</span>  Browser → Vercel Function (4.5MB limit) → Supabase Storage<br><br>
-      <span class="c-green">CORRECT (to implement):</span><br>
-      Step 1: Browser → POST /api/chat/media {action: presign} → Vercel → returns {uploadUrl, publicUrl}<br>
-      Step 2: Browser → PUT directly to Supabase Storage (no Vercel involved, no size limit)<br>
-      Step 3: Browser sends message with publicUrl as attachment
-    </div>
-    <div class="note">This fix is a 2–3 hour implementation. It resolves uploads permanently and supports files of any size.</div>
-  </div>
-
-  <!-- ── HOW TO TEST ── -->
-  <div class="section">
-    <div class="section-title">🧪 How to Test — Full Walkthrough</div>
-    <p style="margin-bottom:16px;">You need <strong>two browser windows</strong> simultaneously: one as the <strong>visitor</strong>, one as the <strong>admin</strong>. Use an incognito window for the visitor side.</p>
-
-    <h3>Part A — Visitor Experience</h3>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-body">
-          <h4>Open the test widget page</h4>
-          <p>Go to <code>edutechbabcockabu.vercel.app/test-widget.html</code>. Click the blue chat bubble (bottom-right).</p>
+    <!-- LIVE URLS -->
+    <section id="urls" class="section">
+      <div class="section-title">🔗 Live URLs</div>
+      <div class="two-col">
+        <div>
+          <div style="font-size:13px; font-weight:700; color: #334155;">Admin Dashboard</div>
+          <a class="url" href="https://eabt-ai-team-project.vercel.app" target="_blank">https://eabt-ai-team-project.vercel.app</a>
+        </div>
+        <div>
+          <div style="font-size:13px; font-weight:700; color: #334155;">Widget Test Page</div>
+          <a class="url" href="https://eabt-ai-team-project.vercel.app/test-widget.html" target="_blank">https://eabt-ai-team-project.vercel.app/test-widget.html</a>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-body">
-          <h4>Select a school</h4>
-          <p>Choose Babcock University or ABU from the school picker.</p>
+      <div class="two-col" style="margin-top:16px;">
+        <div class="no-print">
+          <div style="font-size:13px; font-weight:700; color: #334155;">GitHub Repository</div>
+          <a class="url" href="https://github.com/Phemmy09/Edutechbabcock-Abu-chatbot" target="_blank">github.com/Phemmy09/Edutechbabcock-Abu-chatbot</a>
+        </div>
+        <div>
+          <div style="font-size:13px; font-weight:700; color: #334155;">Widget Embed Code (paste on any school site)</div>
+          <code class="url">&lt;script src="https://eabt-ai-team-project.vercel.app/widget.js"&gt;&lt;/script&gt;</code>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-body">
-          <h4>Fill in the lead form</h4>
-          <p>Enter your name, email, and phone number. Click <strong>Start Chat →</strong>. Maverick (the AI) will greet you.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-body">
-          <h4>Test AI chat</h4>
-          <p>Ask: <code>What are the admission requirements?</code> or <code>How much is the school fees?</code> The bot should answer from the knowledge base.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">5</div>
-        <div class="step-body">
-          <h4>Test session resume</h4>
-          <p>Close and reopen the chat. Enter the <em>same email and phone</em>. Your previous conversation should reload automatically.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">6</div>
-        <div class="step-body">
-          <h4>Request a human agent</h4>
-          <p>Type <code>I want to speak to a human agent</code>. The bot escalates and notifies admins. You'll see a "support team notified" message.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">7</div>
-        <div class="step-body">
-          <h4>Test offline ticket</h4>
-          <p>Click <strong>📋 Open a Ticket</strong> in the chat footer. Fill Subject and Message. Submit. You should receive a confirmation email.</p>
-        </div>
-      </div>
-    </div>
+    </section>
 
-    <h3 style="margin-top:20px;">Part B — Admin Experience</h3>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">8</div>
-        <div class="step-body">
-          <h4>Log in</h4>
-          <p>Go to <code>edutechbabcockabu.vercel.app</code> and sign in with your agent credentials.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">9</div>
-        <div class="step-body">
-          <h4>Check Chats for escalation</h4>
-          <p>If a visitor escalated (step 6), a red badge appears on <strong>Chats</strong>. A desktop notification fires if browser permissions are granted. Click <strong>Chats</strong> → <strong>Pending</strong> tab.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">10</div>
-        <div class="step-body">
-          <h4>Serve the chat and reply</h4>
-          <p>Click the visitor row to expand. Click <strong>Serve</strong>. Type a reply in the Live Chat panel and press Enter. The visitor sees your message within 3 seconds.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">11</div>
-        <div class="step-body">
-          <h4>Check Tickets page</h4>
-          <p>Go to <strong>Tickets</strong>. The ticket submitted in step 7 should appear. Click the row to expand. Write a reply and click <strong>Send Reply</strong> — an email goes to the visitor automatically.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">12</div>
-        <div class="step-body">
-          <h4>Check History</h4>
-          <p>Go to <strong>History</strong>. Click any conversation. The full transcript should appear in the modal with the visitor's name, email, and school on the right panel.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">13</div>
-        <div class="step-body">
-          <h4>Check Agent Dashboard</h4>
-          <p>Go to <strong>Overview</strong> → <strong>Agent Dashboard</strong> tab. Select your name from the dropdown. Verify leads attended count is correct. Click an agent name in the Performance table to jump to their profile.</p>
-        </div>
-      </div>
-    </div>
-  </div>
+    <!-- WHAT WAS BUILT -->
+    <section id="features" class="section">
+      <div class="section-title">✅ What Was Built — Full Feature List</div>
 
-  <!-- ── ARCHITECTURE DECISION ── VERCEL VS DEDICATED ── -->
-  <div class="section">
-    <div class="section-title">⚖️ Architecture Decision — Vercel vs Dedicated Backend</div>
-    <p>This was a key architectural question raised by the team. Here is the full analysis.</p>
+      <h3>Visitor-Facing Widget</h3>
+      <div class="grid">
+        <div class="card">
+          <div class="icon">💬</div>
+          <h4>AI Chat (Maverick)</h4>
+          <p>RAG-powered chatbot answers questions about admissions, fees, programmes, campus life from uploaded documents.</p>
+        </div>
+        <div class="card">
+          <div class="icon">📋</div>
+          <h4>Lead Capture Form</h4>
+          <p>Name, email, phone collected before chat starts. Data synced to Supabase and Zoho CRM automatically.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🔄</div>
+          <h4>Session Resume</h4>
+          <p>Returning visitors with the same email+phone pick up their previous conversation exactly where they left off.</p>
+        </div>
+        <div class="card">
+          <div class="icon">📎</div>
+          <h4>File Attachments</h4>
+          <p>Send images, PDFs, audio, video in chat. Files stored in Supabase Storage and shown inline.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🎤</div>
+          <h4>Speech-to-Text</h4>
+          <p>Mic button records voice, sends to OpenAI Whisper, transcription fills the message box automatically.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🧑‍💼</div>
+          <h4>Human Escalation</h4>
+          <p>Visitor can request a human agent. Admin is notified instantly. Agent can reply live from the dashboard.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🎫</div>
+          <h4>Offline Tickets</h4>
+          <p>When agents are offline, visitor submits a ticket. Email confirmation sent to visitor, notification sent to staff.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🌟</div>
+          <h4>CSAT Rating</h4>
+          <p>5-emoji rating after live chat. Scores tracked per agent and visible in the Overview dashboard.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🏫</div>
+          <h4>Multi-School Picker</h4>
+          <p>One widget serves both Babcock and ABU. Visitor selects their school first, then chats with school-specific AI.</p>
+        </div>
+      </div>
 
-    <div class="two-col" style="margin-top:16px;">
-      <div>
-        <h3>Vercel Serverless (Current)</h3>
+      <h3 style="margin-top:32px;">Admin Dashboard</h3>
+      <div class="grid">
+        <div class="card">
+          <div class="icon">📊</div>
+          <h4>Overview Analytics</h4>
+          <p>Today / Week / Month / All Time stats: total contacts, chats served, AI resolved, CSAT, open tickets, pending chats.</p>
+        </div>
+        <div class="card">
+          <div class="icon">💬</div>
+          <h4>Live Chats (Escalations)</h4>
+          <p>Pending / In Progress / Ended filters. Serve button, tag editor, notes, shortcuts autocomplete (type /).</p>
+        </div>
+        <div class="card">
+          <div class="icon">🎫</div>
+          <h4>Tickets Management</h4>
+          <p>View all offline tickets. Reply sends email to visitor. Assign to agent, add tags, mark closed.</p>
+        </div>
+        <div class="card">
+          <div class="icon">📁</div>
+          <h4>History</h4>
+          <p>All conversations with full transcripts. Filter by stage (active/escalated/resolved). By-User view groups sessions per lead.</p>
+        </div>
+        <div class="card">
+          <div class="icon">👥</div>
+          <h4>Contacts</h4>
+          <p>All leads with name, email, phone, school, date. Drill down to see all their conversations.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🤖</div>
+          <h4>Agent Dashboard</h4>
+          <p>Per-agent metrics: leads attended today/week/month/all time, avg response time, chats resolved, activity trend chart.</p>
+        </div>
+        <div class="card">
+          <div class="icon">⚡</div>
+          <h4>Shortcuts (Canned Replies)</h4>
+          <p>Create pre-written replies. Type / in the reply box to search and insert them instantly during live chat.</p>
+        </div>
+        <div class="card">
+          <div class="icon">👁️</div>
+          <h4>Monitoring</h4>
+          <p>Live view of all active AI conversations in real time, updated every 30 seconds.</p>
+        </div>
+        <div class="card">
+          <div class="icon">👤</div>
+          <h4>Agents / RBAC</h4>
+          <p>Invite agents by email with roles (Admin or Super Admin). Super Admins can manage team members.</p>
+        </div>
+        <div class="card">
+          <div class="icon">📚</div>
+          <h4>Knowledge Base</h4>
+          <p>Upload PDF/Word documents per school. System converts them to vector embeddings for AI retrieval (RAG).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TECH STACK -->
+    <section id="stack" class="section">
+      <div class="section-title">🏗️ Technology Stack</div>
+      <div class="arch-box">
+        <span class="c-blue">VISITOR WIDGET</span>  →  React (IIFE bundle) · Vite · Inline styles · MediaRecorder API<br>
+        <span class="c-blue">ADMIN DASHBOARD</span> →  React 18 · Vite · Tailwind CSS · Supabase Auth<br>
+        <br>
+        <span class="c-yellow">API LAYER</span>      →  12× Vercel Serverless Functions (Node.js ESM)<br>
+        <span class="c-yellow">AI / LLM</span>       →  OpenRouter (Claude / GPT routing) · OpenAI Whisper (STT)<br>
+        <span class="c-yellow">RAG / EMBEDDINGS</span>→  OpenAI text-embedding-3-small · pgvector (Supabase)<br>
+        <br>
+        <span class="c-green">DATABASE</span>        →  Supabase PostgreSQL (leads, conversations, escalations, tickets)<br>
+        <span class="c-green">FILE STORAGE</span>    →  Supabase Storage (chat-attachments bucket, documents bucket)<br>
+        <span class="c-green">AUTH</span>            →  Supabase Auth (email + password · invite flow)<br>
+        <br>
+        <span class="c-gray">EMAIL</span>           →  Gmail SMTP via Nodemailer (eabtconnect@gmail.com)<br>
+        <span class="c-gray">CRM</span>             →  Zoho CRM (lead sync on form submit)<br>
+        <span class="c-gray">DEPLOY</span>          →  GitHub → Vercel (auto-deploy on push to main)<br>
+        <span class="c-gray">PLAN</span>            →  Vercel Hobby (free) · Supabase Free · OpenRouter pay-per-token
+      </div>
+    </section>
+
+    <!-- DATABASE SCHEMA -->
+    <section id="schema" class="section">
+      <div class="section-title">🗄️ Database Schema — Key Tables</div>
+      <div class="table-container">
         <table>
-          <tr><th>Factor</th><th>Assessment</th></tr>
-          <tr><td>Setup speed</td><td><span class="tag green">Fastest</span></td></tr>
-          <tr><td>Auto-scaling</td><td><span class="tag green">Automatic</span></td></tr>
-          <tr><td>Cold starts</td><td><span class="tag amber">1–3s delay</span></td></tr>
-          <tr><td>Request timeout</td><td><span class="tag amber">10s (60s on Pro)</span></td></tr>
-          <tr><td>File upload limit</td><td><span class="tag red">4.5MB hard cap</span></td></tr>
-          <tr><td>WebSockets</td><td><span class="tag red">Not supported</span></td></tr>
-          <tr><td>Real-time chat</td><td><span class="tag amber">Polling workaround</span></td></tr>
-          <tr><td>Monthly cost (500 users)</td><td><span class="tag green">$20/mo (Pro)</span></td></tr>
+          <tr>
+            <th>Table</th>
+            <th>Purpose</th>
+            <th>Key Columns</th>
+          </tr>
+          <tr>
+            <td><strong>schools</strong></td>
+            <td>School config (Babcock, ABU)</td>
+            <td><code>id</code>, <code>name</code>, <code>slug</code>, <code>staff_email</code>, <code>system_prompt</code></td>
+          </tr>
+          <tr>
+            <td><strong>leads</strong></td>
+            <td>Visitor contact info</td>
+            <td><code>id</code>, <code>school_id</code>, <code>name</code>, <code>email</code>, <code>phone</code>, <code>zoho_contact_id</code></td>
+          </tr>
+          <tr>
+            <td><strong>conversations</strong></td>
+            <td>Full chat history (JSONB messages array)</td>
+            <td><code>id</code>, <code>lead_id</code>, <code>school_id</code>, <code>session_id</code>, <code>stage</code>, <code>messages[]</code>, <code>rating</code></td>
+          </tr>
+          <tr>
+            <td><strong>escalations</strong></td>
+            <td>Live chat handoffs to agents</td>
+            <td><code>id</code>, <code>conversation_id</code>, <code>reason</code>, <code>status</code>, <code>attended_by</code>, <code>resolved_by</code>, <code>first_response_at</code></td>
+          </tr>
+          <tr>
+            <td><strong>tickets</strong></td>
+            <td>Offline support requests</td>
+            <td><code>id</code>, <code>school_id</code>, <code>lead_id</code>, <code>name</code>, <code>email</code>, <code>subject</code>, <code>message</code>, <code>status</code>, <code>staff_reply</code></td>
+          </tr>
+          <tr>
+            <td><strong>admin_profiles</strong></td>
+            <td>Agent accounts and status</td>
+            <td><code>id</code>, <code>full_name</code>, <code>role</code>, <code>status</code> (online/away/invisible)</td>
+          </tr>
+          <tr>
+            <td><strong>shortcuts</strong></td>
+            <td>Canned reply templates</td>
+            <td><code>id</code>, <code>school_id</code>, <code>trigger</code>, <code>content</code></td>
+          </tr>
+          <tr>
+            <td><strong>documents</strong></td>
+            <td>Uploaded knowledge base files</td>
+            <td><code>id</code>, <code>school_id</code>, <code>filename</code>, <code>chunk_count</code>, <code>status</code></td>
+          </tr>
         </table>
       </div>
-      <div>
-        <h3>Railway / Render (Dedicated)</h3>
+    </section>
+
+    <!-- ISSUES LOG -->
+    <section id="issues" class="section">
+      <div class="section-title">🐛 Issues Encountered — Full Log</div>
+      <p style="margin-bottom:16px;">The following table documents every bug discovered during development and testing, the root cause, and resolution status.</p>
+      <div class="table-container">
         <table>
-          <tr><th>Factor</th><th>Assessment</th></tr>
-          <tr><td>Setup speed</td><td><span class="tag amber">Moderate — need Express server</span></td></tr>
-          <tr><td>Auto-scaling</td><td><span class="tag amber">Manual scaling</span></td></tr>
-          <tr><td>Cold starts</td><td><span class="tag green">None — always on</span></td></tr>
-          <tr><td>Request timeout</td><td><span class="tag green">No limit</span></td></tr>
-          <tr><td>File upload limit</td><td><span class="tag green">Configurable (any size)</span></td></tr>
-          <tr><td>WebSockets</td><td><span class="tag green">Full Socket.io support</span></td></tr>
-          <tr><td>Real-time chat</td><td><span class="tag green">True push, no polling</span></td></tr>
-          <tr><td>Monthly cost (500 users)</td><td><span class="tag green">$15–25/mo flat</span></td></tr>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th style="width: 200px;">Issue</th>
+            <th>Root Cause</th>
+            <th>Fix Applied</th>
+            <th style="width: 100px;">Status</th>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td><strong>Vercel build failure</strong><br><small style="color: #64748b;">13 serverless functions exceeded the Hobby plan's limit of 12</small></td>
+            <td>Adding <code>upload.js</code> and <code>transcribe.js</code> pushed count from 11 to 13</td>
+            <td>Merged <code>upload.js</code> + <code>transcribe.js</code> → <code>media.js</code>; merged <code>escalation.js</code> + <code>escalations.js</code> → one file. Now 12 functions exactly.</td>
+            <td><span class="tag green">Fixed</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>History modal showed "No messages"</strong><br><small style="color: #64748b;">Opening any conversation in History showed empty chat panel despite messages existing in DB</small></td>
+            <td>Escalation sub-query used <code>.single()</code> which throws error (PGRST116) when no escalation exists; this silently corrupted the response. ConversationViewer also overwrote <code>initialConv</code> on API refresh.</td>
+            <td>Changed to <code>.maybeSingle()</code>. Rewrote ConversationViewer merge logic to fall back to <code>prev.messages</code>. <strong>Status update: Still not loading messages correctly. Under active troubleshooting.</strong></td>
+            <td><span class="tag red">Not Working</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>Returning leads got fresh greeting instead of history</strong><br><small style="color: #64748b;">A visitor who already chatted before had to start over every time</small></td>
+            <td><code>submitLead()</code> in <code>useChat.js</code> ignored <code>data.messages</code> and <code>data.sessionId</code> returned by the server. New session ID was used, sending future messages to a new conversation.</td>
+            <td>Updated <code>submitLead()</code> to restore messages from <code>data.messages</code>, set stage from <code>data.stage</code>, and update <code>sessionId</code>. <strong>Status update: Session resume still fails to load history. Under active investigation.</strong></td>
+            <td><span class="tag red">Not Working</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><strong>Tickets table did not exist in Supabase</strong><br><small style="color: #64748b;">Widget ticket form returned 500 error; tickets never appeared in admin</small></td>
+            <td><code>api/admin/tickets.js</code> referenced a <code>tickets</code> table but it was never created in any migration. The table was missing entirely.</td>
+            <td>Created the <code>tickets</code> table in Supabase. <strong>Status update: Tickets flow is still not working. Currently verifying frontend API submission payloads, DB RLS policies, and SMTP relays.</strong></td>
+            <td><span class="tag red">Not Working</span></td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><strong>Email sending not working</strong><br><small style="color: #64748b;">Ticket confirmations and escalation alerts not delivered to any address</small></td>
+            <td>System used Resend API with a placeholder <code>onboarding@resend.dev</code> from-address. <code>RESEND_FROM_EMAIL</code> env var was never set in Vercel. Resend sandbox only delivers to verified addresses.</td>
+            <td>Replaced Resend with Nodemailer + Gmail SMTP. All 4 email functions (escalation alert, ticket notification, ticket confirmation, ticket reply) now use <code>eabtconnect@gmail.com</code> via SMTP env vars in Vercel.</td>
+            <td><span class="tag green">Fixed</span></td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><strong>File upload endpoint crashed (FUNCTION_INVOCATION_FAILED)</strong><br><small style="color: #64748b;">Every upload attempt returned Vercel's raw crash page, not our error response</small></td>
+            <td>Two separate issues: (a) <code>import { toFile } from 'openai'</code> caused module-load failure if not exported in the installed SDK version. (b) <code>req.pipe(bb)</code> is unreliable in Vercel's serverless runtime.</td>
+            <td>Removed <code>toFile</code> import; replaced with native <code>File</code> constructor. Rewrote <code>parseMultipart</code> to collect full body Buffer first, then parse synchronously with Busboy. <strong>Status update: Uploads are still failing. Vercel's 4.5MB request limit restricts uploads; transitioning to presigned direct-to-Supabase URLs.</strong></td>
+            <td><span class="tag red">Not Working</span></td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td><strong>chat-attachments bucket had 0 policies</strong><br><small style="color: #64748b;">Supabase storage bucket existed but uploads were silently rejected</small></td>
+            <td>Supabase Storage requires explicit RLS (Row Level Security) policies even for public buckets before anyone can write. Bucket was created but never had INSERT policy added.</td>
+            <td>User ran SQL to add INSERT, SELECT, and DELETE policies for <code>anon</code> and <code>authenticated</code> roles on the <code>chat-attachments</code> bucket.</td>
+            <td><span class="tag green">Fixed</span></td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td><strong>Video files blocked at upload</strong><br><small style="color: #64748b;">Widget could select video files but backend rejected them</small></td>
+            <td><code>ALLOWED_TYPES</code> in <code>media.js</code> only included images, PDFs, and audio. Video MIME types were missing. Size cap was also only 10MB.</td>
+            <td>Added <code>video/mp4</code>, <code>video/webm</code>, <code>video/ogg</code>, <code>video/quicktime</code> to allowed types. Added <code>MAX_VIDEO = 50MB</code> cap. Updated <code>EXT_MAP</code> with video extensions.</td>
+            <td><span class="tag green">Fixed</span></td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td><strong>SMTP vars added to GitHub instead of Vercel</strong><br><small style="color: #64748b;">Emails still not sending after nodemailer migration</small></td>
+            <td>User added <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> as GitHub repo secrets. Vercel does not read from GitHub secrets — it has its own environment variable store.</td>
+            <td>User added the 4 SMTP env vars directly in Vercel dashboard → Settings → Environment Variables. Triggered redeploy.</td>
+            <td><span class="tag green">Fixed</span></td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td><strong>Agent metrics recentLeads capped at 10</strong><br><small style="color: #64748b;">Agent Dashboard only showed 10 most recent leads; older ones invisible</small></td>
+            <td><code>stats.js</code> used <code>.slice(0, 10)</code> on the leads map when building per-agent data.</td>
+            <td>Increased to <code>.slice(0, 50)</code>. Agent name rows in the Overview performance table made clickable to jump to Agent Dashboard tab.</td>
+            <td><span class="tag green">Fixed</span></td>
+          </tr>
         </table>
       </div>
-    </div>
 
-    <h3 style="margin-top:20px;">When to use each</h3>
-    <div class="verdict-card vc-green">
-      <h4>✅ Stay on Vercel if:</h4>
-      <p>You want minimal maintenance, deploy by just pushing to GitHub, don't need true WebSockets, and are okay with presigned URL workaround for large files. Good for current stage (1–2 schools, &lt;1,000 users).</p>
-    </div>
-    <div class="verdict-card vc-amber">
-      <h4>⚠️ Switch to Railway/Render when:</h4>
-      <p>You have 3+ schools, 500+ concurrent users, need proper WebSocket live chat (no polling), or large file uploads without browser-to-Supabase workarounds. Migration takes about 2 days of work.</p>
-    </div>
-    <div class="verdict-card vc-red">
-      <h4>🏢 Use AWS/GCP for Enterprise when:</h4>
-      <p>10,000+ users, SLA requirements, multi-region deployment, compliance requirements (GDPR, NDPR), or dedicated database clusters are needed.</p>
-    </div>
+      <div class="danger">
+        <span class="callout-icon">🚨</span>
+        <div>
+          <strong>Critical Path Failures Warning:</strong> File Uploads, Ticketing, and Chat History / Session Resume are currently <strong>NOT working</strong> in testing. The development team is actively troubleshooting these critical features. Do not deploy or rely on these workflows until verified and fixed.
+        </div>
+      </div>
+    </section>
 
-    <div class="note">
-      <strong>Team recommendation:</strong> Stay on Vercel Pro ($20/mo) for now. Implement presigned uploads (removes 4.5MB limit).
-      When you sign on a 3rd school, migrate the API to Railway with Express + Socket.io for proper real-time without polling.
-    </div>
-  </div>
+    <!-- PENDING ITEM -->
+    <section id="pending" class="section">
+      <div class="section-title">⏳ Outstanding Item — File Upload Architecture</div>
+      <p>
+        The core issue with file uploads is that Vercel serverless functions have a <strong>4.5MB maximum request body limit</strong>.
+        This means even the multipart parsing fix has a hard ceiling — any file over ~3MB will fail.
+      </p>
+      <p>
+        The correct production solution (currently being implemented) is <strong>Presigned Upload URLs</strong>:
+        the browser asks the server for a temporary upload URL, then uploads the file <em>directly to Supabase Storage</em>,
+        bypassing Vercel entirely. This removes the 4.5MB limit and is the industry-standard pattern used by Slack, Notion, and Dropbox.
+      </p>
+      <div class="arch-box">
+        <span class="c-gray">CURRENT (broken):</span>  Browser → Vercel Function (4.5MB limit) → Supabase Storage<br><br>
+        <span class="c-green">CORRECT (to implement):</span><br>
+        Step 1: Browser → POST /api/chat/media {action: presign} → Vercel → returns {uploadUrl, publicUrl}<br>
+        Step 2: Browser → PUT directly to Supabase Storage (no Vercel involved, no size limit)<br>
+        Step 3: Browser sends message with publicUrl as attachment
+      </div>
+      <div class="note">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Development Estimate:</strong> This fix is a 2–3 hour implementation. It resolves uploads permanently and supports files of any size.
+        </div>
+      </div>
+    </section>
 
-  <!-- ── SCALING PLAN ── -->
-  <div class="section">
-    <div class="section-title">📈 Scaling Plan — 5,000 Users / 500 Concurrent</div>
+    <!-- HOW TO TEST -->
+    <section id="testing" class="section">
+      <div class="section-title">🧪 How to Test — Full Walkthrough</div>
+      <p style="margin-bottom:20px;">You need <strong>two browser windows</strong> simultaneously: one as the <strong>visitor</strong>, one as the <strong>admin</strong>. Use an incognito window for the visitor side.</p>
 
-    <h3>Current Bottlenecks at Scale</h3>
-    <table>
-      <tr><th>Bottleneck</th><th>Impact at 500 Concurrent</th><th>Solution</th></tr>
-      <tr>
-        <td>AI streaming holds serverless slot open 10–20s</td>
-        <td>500 open function connections simultaneously</td>
-        <td>Vercel Pro auto-scales; consider streaming via Supabase Edge Functions</td>
-      </tr>
-      <tr>
-        <td>Live chat polls every 3 seconds per escalated chat</td>
-        <td>Hundreds of DB reads/minute under load</td>
-        <td>Replace with Supabase Realtime (WebSocket push) — included in Pro plan</td>
-      </tr>
-      <tr>
-        <td>File uploads route through Vercel (4.5MB cap)</td>
-        <td>Most media files fail or get cut off</td>
-        <td>Presigned URL direct upload to Supabase (in progress)</td>
-      </tr>
-      <tr>
-        <td>Supabase Free: 500MB DB, 50MB storage</td>
-        <td>Fills up with ~5,000 leads and their attachments</td>
-        <td>Upgrade to Supabase Pro ($25/mo) — 8GB DB, 100GB storage</td>
-      </tr>
-      <tr>
-        <td>Gmail SMTP: 500 emails/day</td>
-        <td>Not enough for escalations + tickets across 5,000 users</td>
-        <td>Move to Resend Pro ($20/mo) — 50,000 emails/month</td>
-      </tr>
-    </table>
+      <h3 style="margin-top: 10px;">Part A — Visitor Experience</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Open the test widget page</h4>
+            <p>Go to <code>eabt-ai-team-project.vercel.app/test-widget.html</code>. Click the blue chat bubble (bottom-right).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Select a school</h4>
+            <p>Choose Babcock University or ABU from the school picker.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Fill in the lead form</h4>
+            <p>Enter your name, email, and phone number. Click <strong>Start Chat →</strong>. Maverick (the AI) will greet you.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Test AI chat</h4>
+            <p>Ask: <code>What are the admission requirements?</code> or <code>How much is the school fees?</code> The bot should answer from the knowledge base.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h4>Test session resume</h4>
+            <p>Close and reopen the chat. Enter the <em>same email and phone</em>. Your previous conversation should reload automatically.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <h4>Request a human agent</h4>
+            <p>Type <code>I want to speak to a human agent</code>. The bot escalates and notifies admins. You'll see a "support team notified" message.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">7</div>
+          <div class="step-body">
+            <h4>Test offline ticket</h4>
+            <p>Click <strong>📋 Open a Ticket</strong> in the chat footer. Fill Subject and Message. Submit. You should receive a confirmation email.</p>
+          </div>
+        </div>
+      </div>
 
-    <h3 style="margin-top:20px;">Recommended Production Stack at Scale</h3>
-    <div class="arch-box">
-Browser Widget (React IIFE)
-    ↓ Chat / AI requests
-Vercel Pro ($20/mo)  ←→  OpenRouter ($80–200/mo, pay per token)
-    ↓                         OpenAI Whisper ($10–30/mo, pay per minute)
-Supabase Pro ($25/mo)
-    ├── PostgreSQL (conversations, leads, tickets, agents)
-    ├── Storage (chat-attachments, documents — 100GB)
-    ├── Auth (agent login + invite flow)
-    └── Realtime (live chat push — replaces polling)
-    ↓ transactional email
-Resend Pro ($20/mo) — 50k emails/month
-    </div>
+      <h3 style="margin-top:36px;">Part B — Admin Experience</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">8</div>
+          <div class="step-body">
+            <h4>Log in</h4>
+            <p>Go to <code>eabt-ai-team-project.vercel.app</code> and sign in with your agent credentials.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">9</div>
+          <div class="step-body">
+            <h4>Check Chats for escalation</h4>
+            <p>If a visitor escalated (step 6), a red badge appears on <strong>Chats</strong>. A desktop notification fires if browser permissions are granted. Click <strong>Chats</strong> → <strong>Pending</strong> tab.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">10</div>
+          <div class="step-body">
+            <h4>Serve the chat and reply</h4>
+            <p>Click the visitor row to expand. Click <strong>Serve</strong>. Type a reply in the Live Chat panel and press Enter. The visitor sees your message within 3 seconds.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">11</div>
+          <div class="step-body">
+            <h4>Check Tickets page</h4>
+            <p>Go to <strong>Tickets</strong>. The ticket submitted in step 7 should appear. Click the row to expand. Write a reply and click <strong>Send Reply</strong> — an email goes to the visitor automatically.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">12</div>
+          <div class="step-body">
+            <h4>Check History</h4>
+            <p>Go to <strong>History</strong>. Click any conversation. The full transcript should appear in the modal with the visitor's name, email, and school on the right panel.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">13</div>
+          <div class="step-body">
+            <h4>Check Agent Dashboard</h4>
+            <p>Go to <strong>Overview</strong> → <strong>Agent Dashboard</strong> tab. Select your name from the dropdown. Verify leads attended count is correct. Click an agent name in the Performance table to jump to their profile.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <div class="cost-total">
-      <div>Monthly Running Cost at 5,000 Users / 500 Concurrent</div>
-      <div class="big">$155 – $265 / month</div>
-      <div class="sub">Vercel Pro $20 + Supabase Pro $25 + Resend $20 + OpenRouter $80–200 + Whisper $10–30 · All usage-based except hosting</div>
-    </div>
+    <!-- ARCHITECTURE DECISION -->
+    <section id="verdict" class="section">
+      <div class="section-title">⚖️ Architecture Decision — Vercel vs Dedicated Backend</div>
+      <p>This was a key architectural question raised by the team. Here is the full analysis.</p>
 
-    <h3 style="margin-top:20px;">One-Time Build Cost Estimate (If Starting Fresh)</h3>
-    <table>
-      <tr><th>Component</th><th>Time</th><th>At $50/hr (Freelance)</th><th>At ₦5k/hr (Nigerian Rate)</th></tr>
-      <tr><td>Backend API (Node.js / Express)</td><td>3–4 weeks</td><td>$6,000–8,000</td><td>₦3–4M</td></tr>
-      <tr><td>Chat Widget (React IIFE)</td><td>1 week</td><td>$2,000</td><td>₦800k</td></tr>
-      <tr><td>Admin Dashboard (React)</td><td>2–3 weeks</td><td>$4,000–6,000</td><td>₦1.6–2.4M</td></tr>
-      <tr><td>AI / RAG Integration</td><td>1–2 weeks</td><td>$2,000–4,000</td><td>₦800k–1.6M</td></tr>
-      <tr><td>Testing, QA, Deployment</td><td>1 week</td><td>$2,000</td><td>₦800k</td></tr>
-      <tr><td><strong>TOTAL</strong></td><td><strong>8–11 weeks</strong></td><td><strong>$16,000–22,000</strong></td><td><strong>₦7–9.6M</strong></td></tr>
-    </table>
-  </div>
+      <div class="two-col" style="margin-top:16px; margin-bottom: 20px;">
+        <div>
+          <h3 style="margin-top: 0;">Vercel Serverless (Current)</h3>
+          <div class="table-container" style="margin-top: 8px;">
+            <table>
+              <tr><th>Factor</th><th>Assessment</th></tr>
+              <tr><td>Setup speed</td><td><span class="tag green">Fastest</span></td></tr>
+              <tr><td>Auto-scaling</td><td><span class="tag green">Automatic</span></td></tr>
+              <tr><td>Cold starts</td><td><span class="tag amber">1–3s delay</span></td></tr>
+              <tr><td>Request timeout</td><td><span class="tag amber">10s (60s on Pro)</span></td></tr>
+              <tr><td>File upload limit</td><td><span class="tag red">4.5MB hard cap</span></td></tr>
+              <tr><td>WebSockets</td><td><span class="tag red">Not supported</span></td></tr>
+              <tr><td>Real-time chat</td><td><span class="tag amber">Polling workaround</span></td></tr>
+              <tr><td>Monthly cost (500 users)</td><td><span class="tag green">$20/mo (Pro)</span></td></tr>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-top: 0;">Railway / Render (Dedicated)</h3>
+          <div class="table-container" style="margin-top: 8px;">
+            <table>
+              <tr><th>Factor</th><th>Assessment</th></tr>
+              <tr><td>Setup speed</td><td><span class="tag amber">Moderate — need Express server</span></td></tr>
+              <tr><td>Auto-scaling</td><td><span class="tag amber">Manual scaling</span></td></tr>
+              <tr><td>Cold starts</td><td><span class="tag green">None — always on</span></td></tr>
+              <tr><td>Request timeout</td><td><span class="tag green">No limit</span></td></tr>
+              <tr><td>File upload limit</td><td><span class="tag green">Configurable (any size)</span></td></tr>
+              <tr><td>WebSockets</td><td><span class="tag green">Full Socket.io support</span></td></tr>
+              <tr><td>Real-time chat</td><td><span class="tag green">True push, no polling</span></td></tr>
+              <tr><td>Monthly cost (500 users)</td><td><span class="tag green">$15–25/mo flat</span></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
 
-  <!-- ── ENVIRONMENT VARIABLES ── -->
-  <div class="section">
-    <div class="section-title">🔑 Required Environment Variables (Vercel)</div>
-    <p style="margin-bottom:12px;">All variables must be set in <strong>Vercel → Project → Settings → Environment Variables</strong>. Never commit these to GitHub.</p>
-    <table>
-      <tr><th>Variable</th><th>Value / Description</th><th>Status</th></tr>
-      <tr><td><code>SUPABASE_URL</code></td><td>Your Supabase project URL</td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Supabase service role key (bypasses RLS)</td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>SUPABASE_ANON_KEY</code></td><td>Supabase anon key (public client)</td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>OPENAI_API_KEY</code></td><td>OpenAI key for Whisper STT + embeddings</td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>OPENROUTER_API_KEY</code></td><td>OpenRouter key for LLM chat</td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>SMTP_HOST</code></td><td><code>smtp.gmail.com</code></td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>SMTP_PORT</code></td><td><code>465</code></td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>SMTP_USER</code></td><td><code>izzy.marketing.hub@gmail.com</code></td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>SMTP_PASS</code></td><td>Gmail App Password (16 chars)</td><td><span class="tag green">Set</span></td></tr>
-      <tr><td><code>ZOHO_CLIENT_ID</code></td><td>Zoho CRM OAuth client ID</td><td><span class="tag amber">Check</span></td></tr>
-      <tr><td><code>ZOHO_CLIENT_SECRET</code></td><td>Zoho CRM OAuth secret</td><td><span class="tag amber">Check</span></td></tr>
-      <tr><td><code>ZOHO_REFRESH_TOKEN</code></td><td>Zoho CRM refresh token</td><td><span class="tag amber">Check</span></td></tr>
-      <tr><td><code>SITE_URL</code></td><td><code>https://edutechbabcockabu.vercel.app</code></td><td><span class="tag green">Set</span></td></tr>
-    </table>
-    <div class="danger">🔐 Security reminder: The Gmail app password is sensitive. Never share it in Slack or email. If it leaks, revoke it in Google Account → Security → App passwords.</div>
-  </div>
+      <h3 style="margin-top:24px;">When to use each</h3>
+      <div class="verdict-card vc-green">
+        <h4>✅ Stay on Vercel if:</h4>
+        <p>You want minimal maintenance, deploy by just pushing to GitHub, don't need true WebSockets, and are okay with presigned URL workaround for large files. Good for current stage (1–2 schools, &lt;1,000 users).</p>
+      </div>
+      <div class="verdict-card vc-amber">
+        <h4>⚠️ Switch to Railway/Render when:</h4>
+        <p>You have 3+ schools, 500+ concurrent users, need proper WebSocket live chat (no polling), or large file uploads without browser-to-Supabase workarounds. Migration takes about 2 days of work.</p>
+      </div>
+      <div class="verdict-card vc-red">
+        <h4>🏢 Use AWS/GCP for Enterprise when:</h4>
+        <p>10,000+ users, SLA requirements, multi-region deployment, compliance requirements (GDPR, NDPR), or dedicated database clusters are needed.</p>
+      </div>
 
-  <!-- ── SUPABASE CHECKLIST ── -->
-  <div class="section">
-    <div class="section-title">✔️ Supabase Setup Checklist</div>
-    <table>
-      <tr><th>Item</th><th>How to verify</th><th>Status</th></tr>
-      <tr><td>Tables: schools, leads, conversations, escalations, admin_profiles, shortcuts, documents</td><td>Supabase → Table Editor</td><td><span class="tag green">Done</span></td></tr>
-      <tr><td>Table: tickets (migration 003)</td><td>Supabase → Table Editor → tickets</td><td><span class="tag green">Done</span></td></tr>
-      <tr><td>escalations columns: attended_by, resolved_by, first_response_at, tags</td><td>Supabase → Table Editor → escalations → columns</td><td><span class="tag green">Done</span></td></tr>
-      <tr><td>Storage bucket: chat-attachments (PUBLIC)</td><td>Supabase → Storage → Buckets</td><td><span class="tag green">Done</span></td></tr>
-      <tr><td>Storage policies: INSERT + SELECT + DELETE on chat-attachments</td><td>Supabase → Storage → chat-attachments → Policies (should show 3)</td><td><span class="tag green">Done</span></td></tr>
-      <tr><td>Storage bucket: documents (for knowledge base PDFs)</td><td>Supabase → Storage → Buckets</td><td><span class="tag green">Done</span></td></tr>
-      <tr><td>pgvector extension enabled</td><td>Supabase → Database → Extensions → vector</td><td><span class="tag amber">Verify</span></td></tr>
-      <tr><td>auth.users linked to admin_profiles via trigger</td><td>Supabase → Database → Functions</td><td><span class="tag amber">Verify</span></td></tr>
-    </table>
-  </div>
+      <div class="note" style="border-left: 3px solid #0d9488; background: #f0fdfa; border-color: #99f6e4; color: #0f766e;">
+        <span class="callout-icon">🚀</span>
+        <div>
+          <strong>Strong Subscription & Upgrade Recommendation:</strong> To guarantee high availability, support concurrent student traffic, and resolve persistent backend limitations, the project leadership should immediately subscribe to the following core hosting tiers:
+          <ul style="margin-top: 8px; padding-left: 20px; color: #115e59; font-size: 12.5px;">
+            <li><strong>Vercel Pro ($20/mo):</strong> Essential for production compliance. Extends Vercel's serverless function timeout limit from a strict 10 seconds to 60 seconds (preventing raw cutoffs on complex AI/RAG streaming responses) and increases concurrency bandwidth limits.</li>
+            <li><strong>Supabase Pro ($25/mo):</strong> Critical to prevent database/storage lockouts. Expands database size from 500MB to 8GB, storage space from 50MB to 100GB (allowing seamless student PDF & media uploads), lifts strict query rate-limits, and unlocks native Realtime WebSockets.</li>
+            <li><strong>Railway Developer/Pro ($5+/mo pay-as-you-go):</strong> Recommended dedicated backend environment. Migrating the Express.js API to Railway provides an always-on dedicated server, enabling true WebSocket communication for live chat (zero HTTP polling), eliminating Vercel's 4.5MB request body size limit, and avoiding cold starts.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
 
-  <!-- ── NEXT STEPS ── -->
-  <div class="section">
-    <div class="section-title">🗓️ Next Steps — Priority Order</div>
-    <table>
-      <tr><th>#</th><th>Task</th><th>Priority</th><th>Effort</th><th>Owner</th></tr>
-      <tr>
-        <td>1</td>
-        <td><strong>Implement presigned URL upload</strong><br><small>Replaces direct multipart upload through Vercel. Permanently fixes file attachments and STT audio for any file size.</small></td>
-        <td><span class="tag red">Critical</span></td>
-        <td>3–4 hrs</td>
-        <td>Dev</td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td><strong>Upgrade to Vercel Pro</strong><br><small>Commercial use requires Pro. Also extends function timeout from 10s → 60s, reducing AI response cutoffs on long queries.</small></td>
-        <td><span class="tag red">High</span></td>
-        <td>5 min</td>
-        <td>Admin</td>
-      </tr>
-      <tr>
-        <td>3</td>
-        <td><strong>Upgrade to Supabase Pro</strong><br><small>Free tier's 50MB storage will fill fast with file attachments. Pro gives 100GB and removes DB row limits.</small></td>
-        <td><span class="tag amber">Medium</span></td>
-        <td>5 min</td>
-        <td>Admin</td>
-      </tr>
-      <tr>
-        <td>4</td>
-        <td><strong>Replace polling with Supabase Realtime</strong><br><small>Current live chat polls every 3 seconds. Realtime WebSockets reduce latency to &lt;200ms and cut database load by 90%.</small></td>
-        <td><span class="tag amber">Medium</span></td>
-        <td>1–2 days</td>
-        <td>Dev</td>
-      </tr>
-      <tr>
-        <td>5</td>
-        <td><strong>Upload school knowledge base documents</strong><br><small>Babcock and ABU PDFs (prospectus, fee schedule, programmes list) need to be uploaded to the Knowledge Base page per school.</small></td>
-        <td><span class="tag amber">Medium</span></td>
-        <td>1–2 hrs</td>
-        <td>Content Team</td>
-      </tr>
-      <tr>
-        <td>6</td>
-        <td><strong>Configure school staff_email in Supabase</strong><br><small>The escalation and ticket notification emails go to <code>schools.staff_email</code>. Verify correct email is set for each school in the schools table.</small></td>
-        <td><span class="tag amber">Medium</span></td>
-        <td>10 min</td>
-        <td>Admin</td>
-      </tr>
-      <tr>
-        <td>7</td>
-        <td><strong>Set up email for Resend Pro (long term)</strong><br><small>Gmail SMTP allows 500 emails/day. At scale with 5,000 users this will run out. Resend Pro ($20/mo) handles 50,000/month reliably.</small></td>
-        <td><span class="tag gray">Low</span></td>
-        <td>30 min</td>
-        <td>Admin</td>
-      </tr>
-      <tr>
-        <td>8</td>
-        <td><strong>Mobile responsiveness audit</strong><br><small>Admin dashboard and widget should be tested on mobile browsers (Safari iOS, Chrome Android) for any layout issues.</small></td>
-        <td><span class="tag gray">Low</span></td>
-        <td>1 day</td>
-        <td>Dev + QA</td>
-      </tr>
-    </table>
-  </div>
+    <!-- SCALING PLAN -->
+    <section id="scaling" class="section">
+      <div class="section-title">📈 Scaling Plan — 5,000 Users / 500 Concurrent</div>
 
-  <!-- ── AGENT CREDENTIALS ── -->
-  <div class="section">
-    <div class="section-title">👤 Current Agent Accounts</div>
-    <table>
-      <tr><th>Name</th><th>Email</th><th>Role</th><th>Added</th></tr>
-      <tr><td>Team Leader</td><td>eabtconnect@gmail.com</td><td><span class="tag purple">Super Admin</span></td><td>7 May 2026</td></tr>
-      <tr><td>Mr Joseph</td><td>abasiifreke.udoabasi@edutechbusiness.net</td><td><span class="tag purple">Super Admin</span></td><td>8 May 2026</td></tr>
-      <tr><td>Temilade</td><td>temilade.owoeye@edutechbusiness.net</td><td><span class="tag purple">Super Admin</span></td><td>15 May 2026</td></tr>
-      <tr><td>Phemmy</td><td>phemmy09israel@gmail.com</td><td><span class="tag blue">Admin</span></td><td>16 May 2026</td></tr>
-      <tr><td>olanrewaju</td><td>lanrez.ade@gmail.com</td><td><span class="tag blue">Admin</span></td><td>18 May 2026</td></tr>
-    </table>
-    <div class="note">To invite a new agent: go to Admin dashboard → Agents → + Invite Member. Enter their email and select a role. They receive an email with a link to set their password.</div>
-  </div>
+      <h3>Current Bottlenecks at Scale</h3>
+      <div class="table-container">
+        <table>
+          <tr><th>Bottleneck</th><th>Impact at 500 Concurrent</th><th>Solution</th></tr>
+          <tr>
+            <td>AI streaming holds serverless slot open 10–20s</td>
+            <td>500 open function connections simultaneously</td>
+            <td>Vercel Pro auto-scales; consider streaming via Supabase Edge Functions</td>
+          </tr>
+          <tr>
+            <td>Live chat polls every 3 seconds per escalated chat</td>
+            <td>Hundreds of DB reads/minute under load</td>
+            <td>Replace with Supabase Realtime (WebSocket push) — included in Pro plan</td>
+          </tr>
+          <tr>
+            <td>File uploads route through Vercel (4.5MB cap)</td>
+            <td>Most media files fail or get cut off</td>
+            <td>Presigned URL direct upload to Supabase (in progress)</td>
+          </tr>
+          <tr>
+            <td>Supabase Free: 500MB DB, 50MB storage</td>
+            <td>Fills up with ~5,000 leads and their attachments</td>
+            <td>Upgrade to Supabase Pro ($25/mo) — 8GB DB, 100GB storage</td>
+          </tr>
+          <tr>
+            <td>Gmail SMTP: 500 emails/day</td>
+            <td>Not enough for escalations + tickets across 5,000 users</td>
+            <td>Move to Resend Pro ($20/mo) — 50,000 emails/month</td>
+          </tr>
+        </table>
+      </div>
 
+      <h3 style="margin-top:24px;">Recommended Production Stack at Scale</h3>
+      <div class="arch-box">
+  Browser Widget (React IIFE)
+      ↓ Chat / AI requests
+  Vercel Pro ($20/mo)  ←→  OpenRouter ($80–200/mo, pay per token)
+      ↓                         OpenAI Whisper ($10–30/mo, pay per minute)
+  Supabase Pro ($25/mo)
+      ├── PostgreSQL (conversations, leads, tickets, agents)
+      ├── Storage (chat-attachments, documents — 100GB)
+      ├── Auth (agent login + invite flow)
+      └── Realtime (live chat push — replaces polling)
+      ↓ transactional email
+  Resend Pro ($20/mo) — 50k emails/month
+      </div>
+
+      <div class="cost-total">
+        <div>Monthly Running Cost at 5,000 Users / 500 Concurrent</div>
+        <div class="big">$155 – $265 / month</div>
+        <div class="sub">Vercel Pro $20 + Supabase Pro $25 + Resend $20 + OpenRouter $80–200 + Whisper $10–30 · All usage-based except hosting</div>
+      </div>
+
+
+    </section>
+
+    <!-- ENVIRONMENT VARIABLES -->
+    <section id="env" class="section">
+      <div class="section-title">🔑 Required Environment Variables (Vercel)</div>
+      <p style="margin-bottom:16px;">All variables must be set in <strong>Vercel → Project → Settings → Environment Variables</strong>. Never commit these to GitHub.</p>
+      <div class="table-container">
+        <table>
+          <tr><th>Variable</th><th>Value / Description</th><th>Status</th></tr>
+          <tr><td><code>SUPABASE_URL</code></td><td>Your Supabase project URL</td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Supabase service role key (bypasses RLS)</td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>SUPABASE_ANON_KEY</code></td><td>Supabase anon key (public client)</td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>OPENAI_API_KEY</code></td><td>OpenAI key for Whisper STT + embeddings</td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>OPENROUTER_API_KEY</code></td><td>OpenRouter key for LLM chat</td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>SMTP_HOST</code></td><td><code>smtp.gmail.com</code></td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>SMTP_PORT</code></td><td><code>465</code></td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>SMTP_USER</code></td><td><code>eabtconnect@gmail.com</code></td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>SMTP_PASS</code></td><td>Gmail App Password (16 chars)</td><td><span class="tag green">Set</span></td></tr>
+          <tr><td><code>ZOHO_CLIENT_ID</code></td><td>Zoho CRM OAuth client ID</td><td><span class="tag amber">Check</span></td></tr>
+          <tr><td><code>ZOHO_CLIENT_SECRET</code></td><td>Zoho CRM OAuth secret</td><td><span class="tag amber">Check</span></td></tr>
+          <tr><td><code>ZOHO_REFRESH_TOKEN</code></td><td>Zoho CRM refresh token</td><td><span class="tag amber">Check</span></td></tr>
+          <tr><td><code>SITE_URL</code></td><td><code>https://eabt-ai-team-project.vercel.app</code></td><td><span class="tag green">Set</span></td></tr>
+        </table>
+      </div>
+      <div class="danger">
+        <span class="callout-icon">🔐</span>
+        <div>
+          <strong>Security Warning:</strong> The Gmail app password is extremely sensitive. Never share it in Slack or email. If it leaks, immediately revoke it in Google Account → Security → App passwords.
+        </div>
+      </div>
+    </section>
+
+    <!-- SUPABASE CHECKLIST -->
+    <section id="checklist" class="section">
+      <div class="section-title">✔️ Supabase Setup Checklist</div>
+      <div class="table-container">
+        <table>
+          <tr><th>Item</th><th>How to verify</th><th>Status</th></tr>
+          <tr><td>Tables: schools, leads, conversations, escalations, admin_profiles, shortcuts, documents</td><td>Supabase → Table Editor</td><td><span class="tag green">Done</span></td></tr>
+          <tr><td>Table: tickets (migration 003)</td><td>Supabase → Table Editor → tickets</td><td><span class="tag green">Done</span></td></tr>
+          <tr><td>escalations columns: attended_by, resolved_by, first_response_at, tags</td><td>Supabase → Table Editor → escalations → columns</td><td><span class="tag green">Done</span></td></tr>
+          <tr><td>Storage bucket: chat-attachments (PUBLIC)</td><td>Supabase → Storage → Buckets</td><td><span class="tag green">Done</span></td></tr>
+          <tr><td>Storage policies: INSERT + SELECT + DELETE on chat-attachments</td><td>Supabase → Storage → chat-attachments → Policies (should show 3)</td><td><span class="tag green">Done</span></td></tr>
+          <tr><td>Storage bucket: documents (for knowledge base PDFs)</td><td>Supabase → Storage → Buckets</td><td><span class="tag green">Done</span></td></tr>
+          <tr><td>pgvector extension enabled</td><td>Supabase → Database → Extensions → vector</td><td><span class="tag amber">Verify</span></td></tr>
+          <tr><td>auth.users linked to admin_profiles via trigger</td><td>Supabase → Database → Functions</td><td><span class="tag amber">Verify</span></td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- NEXT STEPS -->
+    <section id="steps" class="section">
+      <div class="section-title">🗓️ Next Steps — Priority Order</div>
+      <div class="table-container">
+        <table>
+          <tr><th>#</th><th>Task</th><th>Priority</th><th>Effort</th><th>Owner</th></tr>
+          <tr>
+            <td>1</td>
+            <td><strong>Implement presigned URL upload</strong><br><small style="color: #64748b;">Replaces direct multipart upload through Vercel. Permanently fixes file attachments and STT audio for any file size.</small></td>
+            <td><span class="tag red">Critical</span></td>
+            <td>3–4 hrs</td>
+            <td>Dev</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>Troubleshoot & fix Ticketing System outage</strong><br><small style="color: #64748b;">Debug why widget ticket submissions are failing. Verify Supabase `tickets` RLS policies, payload structures, and Nodemailer SMTP delivery functions.</small></td>
+            <td><span class="tag red">Critical</span></td>
+            <td>1–2 hrs</td>
+            <td>Dev</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>Fix Chat History & Session Resume</strong><br><small style="color: #64748b;">Investigate why returning users are greeting with fresh chats instead of previous conversations. Verify session queries and local state persistence in useChat.js.</small></td>
+            <td><span class="tag red">Critical</span></td>
+            <td>2–3 hrs</td>
+            <td>Dev</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><strong>Upgrade to Vercel Pro</strong><br><small style="color: #64748b;">Commercial use requires Pro. Also extends function timeout from 10s → 60s, reducing AI response cutoffs on long queries.</small></td>
+            <td><span class="tag red">High</span></td>
+            <td>5 min</td>
+            <td>Admin</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><strong>Upgrade to Supabase Pro</strong><br><small style="color: #64748b;">Free tier's 50MB storage will fill fast with file attachments. Pro gives 100GB and removes DB row limits.</small></td>
+            <td><span class="tag amber">Medium</span></td>
+            <td>5 min</td>
+            <td>Admin</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><strong>Replace polling with Supabase Realtime</strong><br><small style="color: #64748b;">Current live chat polls every 3 seconds. Realtime WebSockets reduce latency to &lt;200ms and cut database load by 90%.</small></td>
+            <td><span class="tag amber">Medium</span></td>
+            <td>1–2 days</td>
+            <td>Dev</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td><strong>Upload school knowledge base documents</strong><br><small style="color: #64748b;">Babcock and ABU PDFs (prospectus, fee schedule, programmes list) need to be uploaded to the Knowledge Base page per school.</small></td>
+            <td><span class="tag amber">Medium</span></td>
+            <td>1–2 hrs</td>
+            <td>Content Team</td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td><strong>Configure school staff_email in Supabase</strong><br><small style="color: #64748b;">The escalation and ticket notification emails go to <code>schools.staff_email</code>. Verify correct email is set for each school in the schools table.</small></td>
+            <td><span class="tag amber">Medium</span></td>
+            <td>10 min</td>
+            <td>Admin</td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td><strong>Set up email for Resend Pro (long term)</strong><br><small style="color: #64748b;">Gmail SMTP allows 500 emails/day. At scale with 5,000 users this will run out. Resend Pro ($20/mo) handles 50,000/month reliably.</small></td>
+            <td><span class="tag gray">Low</span></td>
+            <td>30 min</td>
+            <td>Admin</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td><strong>Mobile responsiveness audit</strong><br><small style="color: #64748b;">Admin dashboard and widget should be tested on mobile browsers (Safari iOS, Chrome Android) for any layout issues.</small></td>
+            <td><span class="tag gray">Low</span></td>
+            <td>1 day</td>
+            <td>Dev + QA</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- AGENT CREDENTIALS -->
+    <section id="agents" class="section">
+      <div class="section-title">👤 Current Agent Accounts</div>
+      <div class="table-container">
+        <table>
+          <tr><th>Name</th><th>Email</th><th>Role</th><th>Added</th></tr>
+          <tr><td>Team Leader</td><td>eabtconnect@gmail.com</td><td><span class="tag purple">Super Admin</span></td><td>7 May 2026</td></tr>
+          <tr><td>Mr Joseph</td><td>abasiifreke.udoabasi@edutechbusiness.net</td><td><span class="tag purple">Super Admin</span></td><td>8 May 2026</td></tr>
+          <tr><td>Temilade</td><td>temilade.owoeye@edutechbusiness.net</td><td><span class="tag purple">Super Admin</span></td><td>15 May 2026</td></tr>
+          <tr><td>Phemmy</td><td>phemmy09israel@gmail.com</td><td><span class="tag blue">Admin</span></td><td>16 May 2026</td></tr>
+          <tr><td>olanrewaju</td><td>lanrez.ade@gmail.com</td><td><span class="tag blue">Admin</span></td><td>18 May 2026</td></tr>
+        </table>
+      </div>
+      <div class="note">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Inviting Team Members:</strong> To invite a new agent, go to the Admin dashboard → Agents → + Invite Member. Enter their email address and select a role. They will receive an email with a secure link to set their account password.
+        </div>
+      </div>
+    </section>
+
+  </main>
 </div>
 
+<!-- BACK TO TOP BUTTON -->
+<a href="#" class="back-to-top" title="Back to Top">▲</a>
+
+<!-- Active navigation highlights based on scroll -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const sections = document.querySelectorAll('.section');
+    const navLinks = document.querySelectorAll('.sidebar nav a');
+
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        const sectionHeight = section.clientHeight;
+        if (pageYOffset >= (sectionTop - 120)) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${current}`) {
+          link.classList.add('active');
+        }
+      });
+    });
+  });
+</script>
+
 <footer>
-  School AI Chatbot Platform &nbsp;·&nbsp; Antigravity &nbsp;·&nbsp; Report generated 30 May 2026 &nbsp;·&nbsp; edutechbabcockabu.vercel.app
+  School AI Chatbot Platform &nbsp;·&nbsp; Antigravity &nbsp;·&nbsp; Report generated 30 May 2026 &nbsp;·&nbsp; eabt-ai-team-project.vercel.app
 </footer>
 
 </body>

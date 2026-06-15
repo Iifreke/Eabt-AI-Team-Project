@@ -90,9 +90,9 @@ After deployment your URLs are:
 
 | Resource | URL |
 |----------|-----|
-| Admin dashboard | `https://your-project.vercel.app` |
-| API | `https://your-project.vercel.app/api/*` |
-| Widget file | `https://your-project.vercel.app/widget.js` |
+| Admin dashboard | `https://eabt-ai-team-project.vercel.app` |
+| API | `https://eabt-ai-team-project.vercel.app/api/*` |
+| Widget file | `https://eabt-ai-team-project.vercel.app/widget.js` |
 
 ---
 
@@ -106,14 +106,14 @@ Paste the appropriate snippet before `</body>` on each school's website:
 <script>
   window.SchoolBotConfig = {
     schoolId: 'backock',
-    apiUrl: 'https://your-project.vercel.app',
+    apiUrl: 'https://eabt-ai-team-project.vercel.app',
     theme: {
       primaryColor: '#1a73e8',
       name: 'Backock School'
     }
   };
 </script>
-<script src="https://your-project.vercel.app/widget.js" async></script>
+<script src="https://eabt-ai-team-project.vercel.app/widget.js" async></script>
 ```
 
 ### ABU
@@ -122,14 +122,14 @@ Paste the appropriate snippet before `</body>` on each school's website:
 <script>
   window.SchoolBotConfig = {
     schoolId: 'abu',
-    apiUrl: 'https://your-project.vercel.app',
+    apiUrl: 'https://eabt-ai-team-project.vercel.app',
     theme: {
       primaryColor: '#e84118',
       name: 'ABU'
     }
   };
 </script>
-<script src="https://your-project.vercel.app/widget.js" async></script>
+<script src="https://eabt-ai-team-project.vercel.app/widget.js" async></script>
 ```
 
 ---
@@ -140,7 +140,7 @@ To get a `ZOHO_REFRESH_TOKEN`:
 
 1. Go to [https://api-console.zoho.com](https://api-console.zoho.com)
 2. Click **Add Client** → **Server-based Applications**
-3. Set **Authorized Redirect URI** to `https://your-project.vercel.app`
+3. Set **Authorized Redirect URI** to `https://eabt-ai-team-project.vercel.app`
 4. Note your **Client ID** and **Client Secret**
 5. Generate an authorization URL:
    ```
@@ -148,7 +148,7 @@ To get a `ZOHO_REFRESH_TOKEN`:
      ?response_type=code
      &client_id=YOUR_CLIENT_ID
      &scope=ZohoCRM.modules.leads.ALL
-     &redirect_uri=https://your-project.vercel.app
+     &redirect_uri=https://eabt-ai-team-project.vercel.app
      &access_type=offline
    ```
 6. Visit the URL in your browser, approve the permissions, copy the `code` from the redirect URL
@@ -158,7 +158,7 @@ To get a `ZOHO_REFRESH_TOKEN`:
      -d "code=YOUR_CODE" \
      -d "client_id=YOUR_CLIENT_ID" \
      -d "client_secret=YOUR_CLIENT_SECRET" \
-     -d "redirect_uri=https://your-project.vercel.app" \
+     -d "redirect_uri=https://eabt-ai-team-project.vercel.app" \
      -d "grant_type=authorization_code"
    ```
 8. Copy `refresh_token` from the response → set as `ZOHO_REFRESH_TOKEN`

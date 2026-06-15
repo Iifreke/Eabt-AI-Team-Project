@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         || (req.headers['x-forwarded-proto'] && req.headers.host
             ? `${req.headers['x-forwarded-proto']}://${req.headers.host}`
             : req.headers.origin)
-        || 'https://edutechbabcockabu.vercel.app';
+        || 'https://eabt-ai-team-project.vercel.app';
       const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
         redirectTo: `${siteUrl}/set-password`,
         data: { full_name: fullName },

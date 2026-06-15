@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM = `"School Bot Support" <${process.env.SMTP_USER}>`;
+const FROM = process.env.SMTP_FROM || `"School Bot Support" <${process.env.SMTP_USER}>`;
 
 const reasonLabels = {
   user_request: 'Visitor requested a human agent',
