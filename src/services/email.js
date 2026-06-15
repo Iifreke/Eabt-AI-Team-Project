@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import supabase from '../db/supabase.js';
 
-// Trigger deployment for Vercel SMTP environment variables update
+// Trigger deployment for Vercel SMTP environment variables update - V2
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
