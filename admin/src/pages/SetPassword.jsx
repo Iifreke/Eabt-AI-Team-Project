@@ -10,6 +10,7 @@ export default function SetPassword() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [linkError, setLinkError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -18,8 +19,9 @@ export default function SetPassword() {
       if (!mounted) return;
       if (session) {
         setReady(true);
+        setLinkError('');
       } else if (event === 'SIGNED_OUT') {
-        setError('This invite link is invalid or has expired. Please ask a Super Admin to resend the invite.');
+        setLinkError('This invite link is invalid or has expired. Please ask a Super Admin to resend the invite.');
         setReady(true);
       } else if (event === 'PASSWORD_RECOVERY' || event === 'USER_UPDATED') {
         setReady(true);
@@ -30,9 +32,18 @@ export default function SetPassword() {
       if (!mounted) return;
       if (session) {
         setReady(true);
-      } else if (!window.location.hash) {
-        setError('No invite token found in the URL. Please click the exact link from your email.');
-        setReady(true);
+        setLinkError('');
+      } else {
+        const hash = window.location.hash;
+        if (hash.includes('error=')) {
+          const params = new URLSearchParams(hash.substring(1));
+          const errorDesc = params.get('error_description') || 'The invite link is invalid or has expired.';
+          setLinkError(errorDesc.replace(/\+/g, ' '));
+          setReady(true);
+        } else if (!hash) {
+          setLinkError('No invite token found in the URL. Please click the exact link from your email.');
+          setReady(true);
+        }
       }
     });
 
@@ -96,6 +107,18 @@ export default function SetPassword() {
           <div className="flex items-center justify-center gap-2 text-gray-400 py-6">
             <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm">Verifying your invite link…</span>
+          </div>
+        ) : linkError ? (
+          <div className="space-y-4 text-center">
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600 text-left">
+              {linkError}
+            </div>
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              Go to Login
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

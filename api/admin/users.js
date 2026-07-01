@@ -39,10 +39,10 @@ export default async function handler(req, res) {
 
     try {
       // Invite user via Supabase (sends magic-link / invite email)
-      const siteUrl = process.env.SITE_URL
-        || (req.headers['x-forwarded-proto'] && req.headers.host
+      const siteUrl = (req.headers['x-forwarded-proto'] && req.headers.host
             ? `${req.headers['x-forwarded-proto']}://${req.headers.host}`
             : req.headers.origin)
+        || process.env.SITE_URL
         || 'https://eabt-ai-team-project.vercel.app';
       const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
         redirectTo: `${siteUrl}/set-password`,
