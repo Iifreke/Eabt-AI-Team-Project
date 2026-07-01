@@ -42,10 +42,25 @@ export default function SetPassword() {
     };
   }, []);
 
+  const criteria = [
+    { id: 'length', label: 'Minimum 8 characters', met: password.length >= 8 },
+    { id: 'uppercase', label: 'At least one capital letter', met: /[A-Z]/.test(password) },
+    { id: 'lowercase', label: 'At least one lowercase letter', met: /[a-z]/.test(password) },
+    { id: 'number', label: 'At least one number', met: /[0-9]/.test(password) },
+    { id: 'special', label: 'At least one special character', met: /[^A-Za-z0-9]/.test(password) },
+  ];
+
+  const allMet = criteria.every(c => c.met);
+  const metCount = criteria.filter(c => c.met).length;
+  
+  const strengthText = metCount === 0 ? 'Empty' : metCount <= 2 ? 'Weak' : metCount <= 4 ? 'Medium' : 'Strong';
+  const strengthColor = metCount === 0 ? 'bg-gray-200' : metCount <= 2 ? 'bg-red-500' : metCount <= 4 ? 'bg-amber-500' : 'bg-green-500';
+  const strengthPercent = (metCount / criteria.length) * 100;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    if (!allMet) {
+      setError('Please ensure your password meets all the security requirements.');
       return;
     }
     if (password !== confirm) {
@@ -91,11 +106,64 @@ export default function SetPassword() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                minLength={8}
-                placeholder="At least 8 characters"
+                placeholder="Enter new password"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              
+              {/* Strength Meter and Criteria Checklist */}
+              <div className="mt-3 space-y-3">
+                {password && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-500">Password Strength:</span>
+                      <span className={`font-semibold ${
+                        metCount <= 2 ? 'text-red-500' : metCount <= 4 ? 'text-amber-500' : 'text-green-500'
+                      }`}>
+                        {strengthText}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${strengthColor}`} 
+                        style={{ width: `${strengthPercent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                <ul className="space-y-1.5">
+                  {criteria.map((c) => (
+                    <li key={c.id} className="flex items-center gap-2 text-xs">
+                      <span className={`flex items-center justify-center w-4 h-4 rounded-full border transition-colors ${
+                        c.met 
+                          ? 'bg-green-50 border-green-200 text-green-600' 
+                          : password 
+                            ? 'bg-red-50 border-red-100 text-red-400' 
+                            : 'bg-gray-50 border-gray-200 text-gray-400'
+                      }`}>
+                        {c.met ? (
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <span className="w-1 h-1 rounded-full bg-current" />
+                        )}
+                      </span>
+                      <span className={`transition-colors ${
+                        c.met 
+                          ? 'text-green-600' 
+                          : password 
+                            ? 'text-red-400' 
+                            : 'text-gray-400'
+                      }`}>
+                        {c.label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
               <input
