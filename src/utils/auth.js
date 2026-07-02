@@ -18,6 +18,7 @@ export async function requireAuth(req, res) {
   const { data: { user }, error } = await anonClient.auth.getUser(token);
 
   if (error || !user) {
+    console.error('requireAuth: token validation failed:', error?.message || error, '| status:', error?.status);
     res.status(401).json({ error: 'Invalid token' });
     return null;
   }

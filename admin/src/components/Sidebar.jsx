@@ -5,6 +5,7 @@ import { api } from '../lib/api.js';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
+import ChangePasswordModal from './ChangePasswordModal.jsx';
 
 const baseNav = [
   { to: '/chats',      label: 'Chats',      icon: '💬' },
@@ -37,6 +38,7 @@ export default function Sidebar() {
   const { pendingCount } = useEscalation();
   const [statusOpen, setStatusOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   // Heartbeat — keeps updated_at fresh so auto-status doesn't demote an active agent
   React.useEffect(() => {
@@ -157,12 +159,23 @@ export default function Sidebar() {
         )}
 
         <button
+          onClick={() => setShowChangePassword(true)}
+          className="w-full text-sm text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg px-3 py-2 transition-colors text-left"
+        >
+          Change Password
+        </button>
+
+        <button
           onClick={handleLogout}
           className="w-full text-sm text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg px-3 py-2 transition-colors text-left"
         >
           Sign out
         </button>
       </div>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 }
