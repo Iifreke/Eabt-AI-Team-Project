@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOP — Edutech School AI Chatbot (Skylar) Admin System</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #fff;
+    }
+    .cover {
+      background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+      color: white;
+      padding: 80px 60px;
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .cover .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.75;
+      margin-bottom: 12px;
+    }
+    .cover h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+    .cover h2 { font-size: 17px; font-weight: 400; opacity: 0.85; margin-bottom: 28px; }
+    .cover .meta { font-size: 12px; opacity: 0.7; line-height: 2; }
+    .content { max-width: 820px; margin: 0 auto; padding: 48px 48px 80px; }
+    h2.section {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1a73e8;
+      margin: 48px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e8f0fe;
+    }
+    h3.sub {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin: 28px 0 10px;
+    }
+    h4.step {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a73e8;
+      margin: 18px 0 6px;
+    }
+    p { margin-bottom: 10px; color: #333; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    li { margin-bottom: 5px; color: #333; }
+    .toc { background: #f8faff; border: 1px solid #dbe8ff; border-radius: 10px; padding: 24px 32px; margin-bottom: 40px; }
+    .toc h3 { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: #1a73e8; }
+    .toc ol { counter-reset: toc; padding-left: 0; list-style: none; }
+    .toc li { counter-increment: toc; padding: 3px 0; }
+    .toc li::before { content: counter(toc) ". "; font-weight: 700; color: #1a73e8; }
+    .note {
+      background: #e8f0fe;
+      border-left: 4px solid #1a73e8;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 12.5px;
+    }
+    .warning {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 12.5px;
+    }
+    .danger {
+      background: #fce4ec;
+      border-left: 4px solid #e53935;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 12.5px;
+    }
+    code {
+      background: #f1f3f4;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px;
+      color: #c62828;
+    }
+    pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      border-radius: 8px;
+      padding: 18px 20px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 14px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 12.5px;
+    }
+    th {
+      background: #1a73e8;
+      color: white;
+      padding: 9px 14px;
+      text-align: left;
+      font-weight: 600;
+    }
+    td { padding: 8px 14px; border-bottom: 1px solid #e8eaed; }
+    tr:nth-child(even) td { background: #f8faff; }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-super { background: #ede7f6; color: #6a1b9a; }
+    .badge-admin { background: #e3f2fd; color: #1565c0; }
+    .badge-green { background: #e8f5e9; color: #2e7d32; }
+    .badge-orange { background: #fff3e0; color: #e65100; }
+    .step-block {
+      background: #f8faff;
+      border: 1px solid #dbe8ff;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 12px 0;
+    }
+    .step-num {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      background: #1a73e8;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 24px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    .divider { border: none; border-top: 1px solid #e8eaed; margin: 40px 0; }
+    @media print {
+      body { font-size: 12px; }
+      .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.section { page-break-before: always; }
+      h2.section:first-of-type { page-break-before: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="label">Standard Operating Procedure</div>
+  <h1>Edutech School AI Chatbot (Skylar)</h1>
+  <h2>Admin Dashboard — Operations Manual</h2>
+  <div class="meta">
+    <div>Prepared by: Edutech AI Team</div>
+    <div>Version: 1.0</div>
+    <div>Date: May 2026</div>
+    <div>Applies to: Babcock University &amp; ABU (Ahmadu Bello University)</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ol>
+      <li>System Overview</li>
+      <li>Access &amp; Login</li>
+      <li>Role Definitions &amp; Permissions</li>
+      <li>Managing Team Members</li>
+      <li>Dashboard &amp; School Filtering</li>
+      <li>Managing Leads</li>
+      <li>Managing Conversations</li>
+      <li>Handling Escalations (Live Chat)</li>
+      <li>Managing the Knowledge Base</li>
+      <li>Embedding the Widget</li>
+      <li>Troubleshooting</li>
+      <li>Security &amp; Compliance</li>
+    </ol>
+  </div>
+
+  <!-- SECTION 1 -->
+  <h2 class="section">1. System Overview</h2>
+  <p>
+    The Edutech School AI Chatbot is an AI-powered admissions assistant embedded on school websites. It allows prospective students from Babcock University and ABU (Ahmadu Bello University) to ask questions 24/7, get instant answers from a curated knowledge base, and connect with a live human support agent when needed.
+  </p>
+  <p>
+    The admin dashboard gives authorised staff full visibility into student leads, conversation histories, escalated support requests, and the ability to respond live to visitors in real time.
+  </p>
+
+  <h3 class="sub">System Components</h3>
+  <table>
+    <tr><th>Component</th><th>URL</th><th>Purpose</th></tr>
+    <tr><td>Admin Dashboard</td><td><code>https://eabt-ai-team-project.vercel.app</code></td><td>Staff management portal</td></tr>
+    <tr><td>Chat Widget (script)</td><td><code>https://eabt-ai-team-project.vercel.app/widget.js</code></td><td>Embeddable chat bubble</td></tr>
+    <tr><td>Demo Page</td><td><code>https://eabt-ai-team-project.vercel.app/test-widget.html</code></td><td>Live widget preview</td></tr>
+  </table>
+
+  <!-- SECTION 2 -->
+  <h2 class="section">2. Access &amp; Login</h2>
+  <h3 class="sub">2.1 Logging In</h3>
+  <ol>
+    <li>Navigate to <code>https://eabt-ai-team-project.vercel.app</code></li>
+    <li>Enter your official email address and password</li>
+    <li>Click <strong>Sign in</strong></li>
+    <li>You will be redirected to the Dashboard</li>
+  </ol>
+  <div class="note"><strong>Note:</strong> If you were invited by a Super Admin, you must first click the link in your invitation email and set a password before you can log in normally.</div>
+
+  <h3 class="sub">2.2 First-Time Login (Invited Users)</h3>
+  <ol>
+    <li>Check your email inbox for a message with subject: <em>"You have been invited"</em></li>
+    <li>Click <strong>Accept the invite</strong></li>
+    <li>You will be taken to the Set Password page</li>
+    <li>Enter a password (minimum 8 characters) and confirm it</li>
+    <li>Click <strong>Set Password &amp; Continue</strong></li>
+    <li>You are now logged in and will be taken to the Dashboard</li>
+  </ol>
+  <div class="warning"><strong>Important:</strong> Invite links expire after 24 hours. If your link has expired, ask a Super Admin to remove and re-invite you.</div>
+
+  <h3 class="sub">2.3 Signing Out</h3>
+  <p>Click <strong>Sign out</strong> at the bottom of the left sidebar. Always sign out on shared computers.</p>
+
+  <!-- SECTION 3 -->
+  <h2 class="section">3. Role Definitions &amp; Permissions</h2>
+  <p>The system uses two access tiers:</p>
+  <table>
+    <tr><th>Capability</th><th><span class="badge badge-admin">Admin</span></th><th><span class="badge badge-super">Super Admin</span></th></tr>
+    <tr><td>View Dashboard &amp; Stats</td><td>✅</td><td>✅</td></tr>
+    <tr><td>View Leads</td><td>✅</td><td>✅</td></tr>
+    <tr><td>View Conversations</td><td>✅</td><td>✅</td></tr>
+    <tr><td>View Escalations</td><td>✅</td><td>✅</td></tr>
+    <tr><td>Reply to Escalated Chats</td><td>✅</td><td>✅</td></tr>
+    <tr><td>Upload Knowledge Base Documents</td><td>✅</td><td>✅</td></tr>
+    <tr><td>Delete Knowledge Base Documents</td><td>✅</td><td>✅</td></tr>
+    <tr><td>Invite Team Members</td><td>❌</td><td>✅</td></tr>
+    <tr><td>Remove Team Members</td><td>❌</td><td>✅</td></tr>
+    <tr><td>Change Team Member Roles</td><td>❌</td><td>✅</td></tr>
+  </table>
+  <div class="danger"><strong>Rule:</strong> Only one or two trusted individuals should hold the Super Admin role. Super Admins can remove other Super Admins — assign the role with care.</div>
+
+  <!-- SECTION 4 -->
+  <h2 class="section">4. Managing Team Members</h2>
+  <p><em>This section applies to Super Admins only.</em></p>
+
+  <h3 class="sub">4.1 Inviting a New Team Member</h3>
+  <div class="step-block">
+    <p><span class="step-num">1</span> Click <strong>Team Members</strong> in the left sidebar</p>
+    <p><span class="step-num">2</span> Click the <strong>+ Invite Member</strong> button (top right)</p>
+    <p><span class="step-num">3</span> Fill in the form: Full Name, Email Address, and Role</p>
+    <p><span class="step-num">4</span> Click <strong>Send Invite</strong></p>
+    <p><span class="step-num">5</span> The invitee will receive an email. They click the link and set their password.</p>
+  </div>
+  <div class="note"><strong>Tip:</strong> Use the <strong>Admin</strong> role for most staff. Only give Super Admin to team leaders or system administrators.</div>
+
+  <h3 class="sub">4.2 Changing a Team Member's Role</h3>
+  <ol>
+    <li>Go to <strong>Team Members</strong></li>
+    <li>Find the team member in the table</li>
+    <li>In the <strong>Actions</strong> column, use the dropdown to select the new role</li>
+    <li>The change takes effect immediately — no confirmation required</li>
+  </ol>
+
+  <h3 class="sub">4.3 Removing a Team Member</h3>
+  <ol>
+    <li>Go to <strong>Team Members</strong></li>
+    <li>Find the team member and click <strong>Remove</strong></li>
+    <li>Confirm the action in the dialog</li>
+    <li>The user is immediately removed and loses all access</li>
+  </ol>
+  <div class="danger"><strong>Caution:</strong> Removal is immediate and permanent. The removed user cannot log in again. To restore access, you must send a new invite.</div>
+
+  <!-- SECTION 5 -->
+  <h2 class="section">5. Dashboard &amp; School Filtering</h2>
+
+  <h3 class="sub">5.1 Reading the Dashboard</h3>
+  <p>The Dashboard displays real-time statistics for the chatbot system:</p>
+  <table>
+    <tr><th>Metric</th><th>Description</th></tr>
+    <tr><td>Total Leads</td><td>All prospective students who submitted their contact info</td></tr>
+    <tr><td>Total Conversations</td><td>Chat sessions started</td></tr>
+    <tr><td>Escalated</td><td>Conversations where the visitor requested a human agent</td></tr>
+    <tr><td>Open Escalations</td><td>Escalations that have not yet been resolved</td></tr>
+  </table>
+
+  <h3 class="sub">5.2 Filtering by School</h3>
+  <p>The <strong>School</strong> dropdown at the bottom of the sidebar allows you to filter all data to a specific school:</p>
+  <ul>
+    <li><strong>All Schools</strong> — shows combined stats for both universities</li>
+    <li><strong>Babcock University</strong> — shows only Babcock data</li>
+    <li><strong>ABU (Ahmadu Bello University)</strong> — shows only ABU data</li>
+  </ul>
+  <div class="note">This filter applies across Dashboard, Leads, Conversations, and Escalations pages.</div>
+
+  <!-- SECTION 6 -->
+  <h2 class="section">6. Managing Leads</h2>
+  <p>A <strong>Lead</strong> is a prospective student who has submitted their name, email, and phone number through the chat widget.</p>
+
+  <h3 class="sub">6.1 Viewing Leads</h3>
+  <ol>
+    <li>Click <strong>Leads</strong> in the sidebar</li>
+    <li>The table shows: Name, Email, Phone, School, and Date Added</li>
+    <li>Use the school filter to narrow results</li>
+  </ol>
+
+  <h3 class="sub">6.2 What to Do With a Lead</h3>
+  <ul>
+    <li>Follow up by email or phone for admissions enquiries</li>
+    <li>Check the lead's conversation history via the <strong>Conversations</strong> page</li>
+    <li>If the lead escalated a chat, handle it in the <strong>Escalations</strong> section</li>
+  </ul>
+
+  <!-- SECTION 7 -->
+  <h2 class="section">7. Managing Conversations</h2>
+  <p>The Conversations page shows every chat session between a visitor and the AI bot.</p>
+
+  <h3 class="sub">7.1 Reading a Conversation</h3>
+  <ol>
+    <li>Click <strong>Conversations</strong> in the sidebar</li>
+    <li>Click any row to open the full conversation transcript</li>
+    <li>Messages are colour-coded: visitor messages (right), bot messages (left), admin messages (purple)</li>
+  </ol>
+
+  <h3 class="sub">7.2 Conversation Stages</h3>
+  <table>
+    <tr><th>Stage</th><th>Meaning</th></tr>
+    <tr><td><span class="badge badge-orange">onboarding</span></td><td>Visitor is filling in their contact form</td></tr>
+    <tr><td><span class="badge badge-green">active</span></td><td>Visitor is chatting with the AI bot</td></tr>
+    <tr><td><span class="badge" style="background:#fce4ec;color:#c62828;">escalated</span></td><td>Visitor has requested a human agent — needs attention</td></tr>
+  </table>
+
+  <!-- SECTION 8 -->
+  <h2 class="section">8. Handling Escalations (Live Chat)</h2>
+  <p>When a visitor asks to speak to a human (e.g., "I want to talk to someone"), the bot escalates the conversation and notifies the visitor that a support agent will respond. The conversation moves to the Escalations queue.</p>
+
+  <h3 class="sub">8.1 Responding to an Escalation</h3>
+  <div class="step-block">
+    <p><span class="step-num">1</span> Click <strong>Escalations</strong> in the sidebar</p>
+    <p><span class="step-num">2</span> Open escalations are shown at the top. Click the row to open the live chat panel</p>
+    <p><span class="step-num">3</span> Read the conversation history to understand the visitor's issue</p>
+    <p><span class="step-num">4</span> Type your reply in the text box at the bottom and click <strong>Send</strong></p>
+    <p><span class="step-num">5</span> The visitor receives your message in real time (within 3–4 seconds)</p>
+    <p><span class="step-num">6</span> Your name (as stored in your profile) will appear next to each reply</p>
+    <p><span class="step-num">7</span> When the issue is resolved, click <strong>Mark Resolved</strong></p>
+  </div>
+
+  <div class="note"><strong>Note:</strong> The visitor can see who is responding — your full name is shown alongside each admin message. Ensure your profile name is set correctly.</div>
+
+  <h3 class="sub">8.2 Best Practice for Escalation Responses</h3>
+  <ul>
+    <li>Respond within 10 minutes during office hours</li>
+    <li>Greet the visitor by name if available</li>
+    <li>Keep messages clear and professional</li>
+    <li>If you need more time, send an acknowledgement: <em>"Thanks for reaching out. Let me check this for you."</em></li>
+    <li>Always mark the conversation as <strong>Resolved</strong> when done — this clears it from the open queue</li>
+  </ul>
+
+  <h3 class="sub">8.3 Out-of-Hours Escalations</h3>
+  <p>If a visitor escalates outside office hours, the bot informs them that the support team will respond shortly. Ensure the first available admin reviews the Escalations queue at the start of each working day.</p>
+
+  <!-- SECTION 9 -->
+  <h2 class="section">9. Managing the Knowledge Base</h2>
+  <p>The Knowledge Base is the source of truth for the AI chatbot. It contains documents (PDFs, text files) that the bot searches when answering questions. Keeping it accurate and up to date is critical to the quality of bot responses.</p>
+
+  <h3 class="sub">9.1 Uploading a Document</h3>
+  <div class="step-block">
+    <p><span class="step-num">1</span> Click <strong>Knowledge Base</strong> in the sidebar</p>
+    <p><span class="step-num">2</span> Select the school this document belongs to (Babcock or ABU)</p>
+    <p><span class="step-num">3</span> Click <strong>Upload Document</strong> or paste document text</p>
+    <p><span class="step-num">4</span> Wait for processing — the system extracts and indexes the content</p>
+    <p><span class="step-num">5</span> Once processed, the bot will use this document to answer questions</p>
+  </div>
+
+  <h3 class="sub">9.2 Deleting a Document</h3>
+  <ol>
+    <li>Find the document in the Knowledge Base list</li>
+    <li>Click <strong>Delete</strong> next to it</li>
+    <li>Confirm the deletion</li>
+  </ol>
+  <div class="warning"><strong>Warning:</strong> Deleting a document removes it from the AI's knowledge immediately. Only delete outdated or incorrect content.</div>
+
+  <h3 class="sub">9.3 What to Upload</h3>
+  <ul>
+    <li>Admissions brochures and prospectuses</li>
+    <li>Programme outlines and course descriptions</li>
+    <li>Fee schedules and scholarship information</li>
+    <li>Campus life guides</li>
+    <li>Frequently Asked Questions (FAQ) documents</li>
+    <li>Contact directories</li>
+  </ul>
+
+  <h3 class="sub">9.4 Keeping the Knowledge Base Current</h3>
+  <p>Review and update the knowledge base at the start of each academic year and whenever:</p>
+  <ul>
+    <li>Fee structures change</li>
+    <li>New programmes are introduced or discontinued</li>
+    <li>Admission requirements are updated</li>
+    <li>Campus facilities or services change</li>
+  </ul>
+
+  <!-- SECTION 10 -->
+  <h2 class="section">10. Embedding the Widget</h2>
+  <p>The chat widget can be embedded on any school website by adding two script tags to the page's HTML. The widget loads as a floating chat bubble at the bottom-right of the screen.</p>
+
+  <h3 class="sub">10.1 Embed Code — Both Schools (Recommended)</h3>
+  <p>Use this on a shared admissions or prospective students page that serves both universities:</p>
+  <pre>&lt;script&gt;
+  window.SchoolBotConfig = {
+    schools: [
+      { id: 'backock', name: 'Babcock University' },
+      { id: 'abu',     name: 'ABU (Ahmadu Bello University)' }
+    ],
+    apiUrl: 'https://eabt-ai-team-project.vercel.app',
+    theme: { primaryColor: '#1a73e8' }
+  };
+&lt;/script&gt;
+&lt;script src="https://eabt-ai-team-project.vercel.app/widget.js"&gt;&lt;/script&gt;</pre>
+
+  <h3 class="sub">10.2 Embed Code — Single School</h3>
+  <p>Use this when embedding on a school-specific website:</p>
+  <pre>&lt;!-- Babcock University only --&gt;
+&lt;script&gt;
+  window.SchoolBotConfig = {
+    schoolId: 'backock',
+    apiUrl: 'https://eabt-ai-team-project.vercel.app'
+  };
+&lt;/script&gt;
+&lt;script src="https://eabt-ai-team-project.vercel.app/widget.js"&gt;&lt;/script&gt;
+
+&lt;!-- ABU only --&gt;
+&lt;script&gt;
+  window.SchoolBotConfig = {
+    schoolId: 'abu',
+    apiUrl: 'https://eabt-ai-team-project.vercel.app'
+  };
+&lt;/script&gt;
+&lt;script src="https://eabt-ai-team-project.vercel.app/widget.js"&gt;&lt;/script&gt;</pre>
+
+  <h3 class="sub">10.3 Placement</h3>
+  <p>Paste the embed code just before the closing <code>&lt;/body&gt;</code> tag of the webpage. It works on any HTML page regardless of the platform (WordPress, Webflow, Wix, plain HTML).</p>
+
+  <h3 class="sub">10.4 Customising the Theme Color</h3>
+  <p>Add the <code>theme</code> property to match your school's brand color:</p>
+  <pre>theme: { primaryColor: '#006633' }  // Babcock green example</pre>
+
+  <!-- SECTION 11 -->
+  <h2 class="section">11. Troubleshooting</h2>
+
+  <table>
+    <tr><th>Issue</th><th>Cause</th><th>Resolution</th></tr>
+    <tr>
+      <td>Widget not appearing on website</td>
+      <td>Config missing or incorrect <code>schoolId</code></td>
+      <td>Check that <code>window.SchoolBotConfig</code> is set before the <code>&lt;script src&gt;</code> tag. Verify <code>schoolId</code> is <code>'backock'</code> or <code>'abu'</code>.</td>
+    </tr>
+    <tr>
+      <td>Bot gives wrong or outdated answers</td>
+      <td>Knowledge base is stale</td>
+      <td>Upload updated documents in the Knowledge Base section. Delete the old ones.</td>
+    </tr>
+    <tr>
+      <td>Invite link expired</td>
+      <td>Links expire after 24 hours</td>
+      <td>Super Admin removes the user and sends a fresh invite.</td>
+    </tr>
+    <tr>
+      <td>Admin cannot see Team Members page</td>
+      <td>User is Admin role, not Super Admin</td>
+      <td>A Super Admin must upgrade the user's role to Super Admin if required.</td>
+    </tr>
+    <tr>
+      <td>Visitor messages not appearing in Escalations</td>
+      <td>Polling delay</td>
+      <td>The panel refreshes every 4 seconds. Wait a moment or reload the page.</td>
+    </tr>
+    <tr>
+      <td>Admin reply not delivered to visitor</td>
+      <td>Visitor closed the widget</td>
+      <td>Replies are delivered live. If the visitor reopens the widget, they will see all messages.</td>
+    </tr>
+    <tr>
+      <td>Cannot log in after password reset</td>
+      <td>Browser caching issue</td>
+      <td>Clear browser cache and cookies, then try again. Use a private/incognito window to test.</td>
+    </tr>
+  </table>
+
+  <!-- SECTION 12 -->
+  <h2 class="section">12. Security &amp; Compliance</h2>
+
+  <h3 class="sub">12.1 Password Policy</h3>
+  <ul>
+    <li>Minimum 8 characters</li>
+    <li>Use a unique password not shared with other services</li>
+    <li>Change password if you suspect a breach</li>
+  </ul>
+
+  <h3 class="sub">12.2 Access Control</h3>
+  <ul>
+    <li>Do not share your login credentials with anyone</li>
+    <li>Always sign out after each session, especially on shared devices</li>
+    <li>Remove team members immediately upon resignation or role change</li>
+    <li>Conduct a quarterly review of team members and their roles</li>
+  </ul>
+
+  <h3 class="sub">12.3 Data Handling</h3>
+  <ul>
+    <li>Student contact data (names, emails, phones) collected via the widget is stored securely in Supabase</li>
+    <li>Do not export or share lead data outside authorised channels</li>
+    <li>Conversation histories are stored for support and quality purposes only</li>
+  </ul>
+
+  <h3 class="sub">12.4 Incident Response</h3>
+  <p>If you suspect a security incident (unauthorised access, data breach, suspicious admin activity):</p>
+  <ol>
+    <li>Immediately notify the Super Admin and system administrator</li>
+    <li>Super Admin should remove any suspected compromised accounts</li>
+    <li>Contact Edutech AI Team for system-level investigation</li>
+  </ol>
+
+  <hr class="divider" />
+  <p style="text-align:center; color:#999; font-size:11px;">
+    Edutech School AI Chatbot — SOP v1.0 &nbsp;|&nbsp; Prepared by Edutech AI Team &nbsp;|&nbsp; May 2026
+  </p>
+
+</div>
+</body>
+</html>

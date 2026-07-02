@@ -1,0 +1,2740 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School RAG Agent (Skylar) — Interactive Portal & Docs</title>
+  
+  <!-- Premium Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Design Tokens & CSS Variables */
+    :root {
+      --font-heading: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      /* Light Theme Colors */
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f1f5f9;
+      --border-color: #e2e8f0;
+      
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-light: #e0e7ff;
+      
+      --accent: #3b82f6;
+      --accent-light: #eff6ff;
+      
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-light: #fffbeb;
+      --danger: #ef4444;
+      --danger-light: #fef2f2;
+      
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.15);
+
+      --header-gradient: radial-gradient(circle at 0% 0%, rgba(79, 70, 229, 0.9) 0%, rgba(59, 130, 246, 0.9) 50%, rgba(6, 182, 212, 0.9) 100%), 
+                          linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%);
+    }
+
+    [data-theme="dark"] {
+      /* Dark Theme Colors */
+      --bg-primary: #0b0f19;
+      --bg-secondary: #111827;
+      --bg-tertiary: #1f2937;
+      --border-color: #374151;
+      
+      --text-primary: #f9fafb;
+      --text-secondary: #d1d5db;
+      --text-muted: #6b7280;
+      
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-light: rgba(99, 102, 241, 0.15);
+      
+      --accent: #60a5fa;
+      --accent-light: rgba(96, 165, 250, 0.15);
+      
+      --success: #34d399;
+      --success-light: rgba(52, 211, 153, 0.15);
+      --warning: #fbbf24;
+      --warning-light: rgba(251, 191, 36, 0.15);
+      --danger: #f87171;
+      --danger-light: rgba(248, 113, 113, 0.15);
+      
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+      --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.25);
+
+      --header-gradient: radial-gradient(circle at 0% 0%, rgba(31, 41, 55, 0.9) 0%, rgba(17, 24, 39, 0.9) 50%, rgba(15, 23, 42, 0.95) 100%), 
+                          linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    }
+
+    /* CSS Reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 15px;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text-primary);
+    }
+
+    h1 { font-size: 2.25rem; }
+    h2 { font-size: 1.75rem; }
+    h3 { font-size: 1.35rem; }
+    h4 { font-size: 1.1rem; }
+
+    p {
+      margin-bottom: 1.25rem;
+      color: var(--text-secondary);
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+      background-color: var(--bg-tertiary);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      color: var(--danger);
+      font-weight: 500;
+    }
+
+    pre {
+      background-color: #0b0f19;
+      color: #f1f5f9;
+      padding: 1.25rem;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      line-height: 1.6;
+      border: 1px solid var(--border-color);
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    pre code {
+      background-color: transparent;
+      padding: 0;
+      border-radius: 0;
+      color: inherit;
+    }
+
+    /* Layout structure with sidebar navigation */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    @media (max-width: 1024px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      padding: 2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar {
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        display: none; /* Toggled on mobile */
+      }
+      .sidebar.active {
+        display: flex;
+      }
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 1.25rem;
+      font-family: var(--font-heading);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .brand-text h2 {
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Search Bar */
+    .search-container {
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.65rem 1rem 0.65rem 2.25rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      fill: var(--text-muted);
+      width: 16px;
+      height: 16px;
+      pointer-events: none;
+    }
+
+    /* Navigation Links */
+    .nav-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      flex-grow: 1;
+    }
+
+    .nav-group h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      padding-left: 0.5rem;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .nav-link:hover {
+      background-color: var(--bg-tertiary);
+      color: var(--text-primary);
+      transform: translateX(4px);
+    }
+
+    .nav-link.active {
+      background-color: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Sidebar Footer / Theme switcher */
+    .sidebar-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .theme-toggle-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .theme-toggle-btn:hover {
+      background-color: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .theme-toggle-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .theme-toggle-btn .moon-icon { display: block; }
+    .theme-toggle-btn .sun-icon { display: none; }
+    
+    [data-theme="dark"] .theme-toggle-btn .moon-icon { display: none; }
+    [data-theme="dark"] .theme-toggle-btn .sun-icon { display: block; }
+
+    /* Main Content Area */
+    .main {
+      padding: 0;
+      overflow-y: auto;
+      max-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    @media (max-width: 1024px) {
+      .main {
+        max-height: none;
+      }
+    }
+
+    /* Header Panel */
+    .header {
+      background: var(--header-gradient);
+      color: white;
+      padding: 4.5rem 3rem 4rem;
+      position: relative;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .header-pattern {
+      position: absolute;
+      top: -20%;
+      right: -10%;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%);
+      filter: blur(40px);
+      animation: float-bubble 15s infinite alternate ease-in-out;
+      pointer-events: none;
+    }
+
+    @keyframes float-bubble {
+      0% { transform: translateY(0) scale(1); }
+      100% { transform: translateY(40px) scale(1.15); }
+    }
+
+    .header-content {
+      position: relative;
+      z-index: 10;
+      max-width: 900px;
+    }
+
+    .header h1 {
+      color: white;
+      font-size: 2.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+    }
+
+    .header-subtitle {
+      font-size: 1.15rem;
+      font-weight: 500;
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .school-badges {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .school-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 0.4rem 1rem;
+      border-radius: 50px;
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: white;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+    }
+
+    .school-badge:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: translateY(-2px);
+    }
+
+    .school-badge.babcock::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #4ade80;
+    }
+
+    .school-badge.abu::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #f87171;
+    }
+
+    /* Content Body & Sections */
+    .content-body {
+      padding: 3rem;
+      max-width: 1000px;
+      display: flex;
+      flex-direction: column;
+      gap: 4rem;
+    }
+
+    @media (max-width: 768px) {
+      .content-body {
+        padding: 1.5rem;
+        gap: 3rem;
+      }
+    }
+
+    .doc-section {
+      scroll-margin-top: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    /* Grid layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    /* Cards */
+    .card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--primary);
+    }
+
+    .card-icon {
+      font-size: 1.75rem;
+      margin-bottom: 1rem;
+      background-color: var(--bg-tertiary);
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      color: var(--primary);
+      transition: background-color 0.2s;
+    }
+
+    .card:hover .card-icon {
+      background-color: var(--primary-light);
+    }
+
+    .card h4 {
+      margin-bottom: 0.5rem;
+    }
+
+    .card p {
+      margin-bottom: 0;
+      font-size: 0.875rem;
+    }
+
+    /* Alert Banners */
+    .alert {
+      display: flex;
+      gap: 1rem;
+      padding: 1.25rem;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .alert svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .alert-note {
+      background-color: var(--accent-light);
+      border-color: rgba(59, 130, 246, 0.2);
+      color: var(--text-primary);
+    }
+    .alert-note svg { fill: var(--accent); }
+
+    .alert-warning {
+      background-color: var(--warning-light);
+      border-color: rgba(245, 158, 11, 0.2);
+      color: var(--text-primary);
+    }
+    .alert-warning svg { fill: var(--warning); }
+
+    .alert-danger {
+      background-color: var(--danger-light);
+      border-color: rgba(239, 68, 68, 0.2);
+      color: var(--text-primary);
+    }
+    .alert-danger svg { fill: var(--danger); }
+
+    /* Interactive Setup Checklist */
+    .checklist-progress-bar {
+      width: 100%;
+      height: 8px;
+      background-color: var(--bg-tertiary);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .checklist-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+      transition: width 0.3s ease;
+    }
+
+    .checklist-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.825rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .checklist-items {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 1rem;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .checklist-item:hover {
+      border-color: var(--primary);
+      background-color: var(--bg-primary);
+    }
+
+    .checklist-checkbox {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-color);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0.1rem;
+      flex-shrink: 0;
+      background-color: var(--bg-secondary);
+      transition: all 0.2s;
+    }
+
+    .checklist-item.checked .checklist-checkbox {
+      background-color: var(--success);
+      border-color: var(--success);
+      color: white;
+    }
+
+    .checklist-checkbox::after {
+      content: '✓';
+      font-size: 12px;
+      font-weight: bold;
+      display: none;
+    }
+
+    .checklist-item.checked .checklist-checkbox::after {
+      display: block;
+    }
+
+    .checklist-body h4 {
+      font-size: 0.95rem;
+      margin-bottom: 0.25rem;
+      transition: color 0.2s;
+    }
+
+    .checklist-item.checked .checklist-body h4 {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    .checklist-body p {
+      font-size: 0.825rem;
+      margin-bottom: 0;
+      color: var(--text-secondary);
+    }
+
+    .checklist-item.checked .checklist-body p {
+      color: var(--text-muted);
+    }
+
+    /* Database Schema Visualizer */
+    .db-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .db-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .db-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .db-table-btn {
+      width: 100%;
+      text-align: left;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .db-table-btn:hover {
+      border-color: var(--primary);
+      color: var(--text-primary);
+      background-color: var(--bg-tertiary);
+    }
+
+    .db-table-btn.active {
+      background-color: var(--primary);
+      color: white;
+      border-color: var(--primary);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .db-table-btn .relation-count {
+      font-size: 0.7rem;
+      background-color: var(--bg-tertiary);
+      color: var(--text-secondary);
+      padding: 2px 6px;
+      border-radius: 20px;
+    }
+
+    .db-table-btn.active .relation-count {
+      background-color: rgba(255,255,255,0.25);
+      color: white;
+    }
+
+    .db-detail-panel {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.75rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .db-table-title {
+      font-size: 1.25rem;
+      font-family: var(--font-heading);
+      margin-bottom: 0.25rem;
+      color: var(--text-primary);
+    }
+
+    .db-table-desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .db-fields-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .db-fields-table th {
+      background-color: var(--bg-primary);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 700;
+      color: var(--text-secondary);
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .db-fields-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    .db-fields-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .key-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .key-pk {
+      background-color: #fef3c7;
+      color: #d97706;
+      border: 1px solid #fcd34d;
+    }
+
+    .key-generic {
+      background-color: #e2e8f0;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+    }
+
+    .key-fk {
+      background-color: #dbeafe;
+      color: #2563eb;
+      border: 1px solid #bfdbfe;
+    }
+
+    .db-relation-tag {
+      display: inline-block;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 0.5rem;
+      margin-top: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .db-relation-tag:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Interactive API Reference Explorer */
+    .api-explorer {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .api-filters {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .api-filter-btn {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .api-filter-btn:hover {
+      border-color: var(--primary);
+      color: var(--text-primary);
+    }
+
+    .api-filter-btn.active {
+      background-color: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .api-endpoints-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .api-item {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .api-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s;
+    }
+
+    .api-header:hover {
+      background-color: var(--bg-primary);
+    }
+
+    .api-endpoint-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .method-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      min-width: 65px;
+    }
+
+    .method-get { background-color: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .method-post { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .method-patch { background-color: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .method-delete { background-color: #fef2f2; color: #be123c; border: 1px solid #fecaca; }
+
+    .api-path {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .api-summary {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .api-header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .api-role-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+    }
+
+    .role-public { background-color: var(--bg-tertiary); color: var(--text-secondary); }
+    .role-admin { background-color: var(--primary-light); color: var(--primary); }
+    .role-super { background-color: #fce4ec; color: #c62828; }
+
+    .expand-icon {
+      transition: transform 0.3s ease;
+      fill: var(--text-muted);
+      width: 14px;
+      height: 14px;
+    }
+
+    .api-item.expanded .expand-icon {
+      transform: rotate(180deg);
+    }
+
+    .api-details {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s cubic-bezier(0, 1, 0, 1);
+      border-top: 1px solid transparent;
+    }
+
+    .api-item.expanded .api-details {
+      max-height: 1000px;
+      transition: max-height 0.3s cubic-bezier(1, 0, 1, 0);
+      border-top-color: var(--border-color);
+    }
+
+    .api-content {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .tab-container {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 0.75rem;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 0.5rem 1rem;
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      border-bottom-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      background-color: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.8);
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      z-index: 5;
+    }
+
+    .copy-btn:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+      color: white;
+    }
+
+    /* Standard Operating Procedure (SOP) Wizard */
+    .sop-wizard {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .sop-wizard-header {
+      background-color: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .sop-wizard-selector {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 600;
+      outline: none;
+    }
+
+    .sop-wizard-steps-indicator {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .sop-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: var(--border-color);
+      transition: background-color 0.2s;
+    }
+
+    .sop-dot.active {
+      background-color: var(--primary);
+    }
+
+    .sop-dot.completed {
+      background-color: var(--success);
+    }
+
+    .sop-wizard-content {
+      padding: 2rem;
+      min-height: 250px;
+    }
+
+    .sop-step-title {
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .sop-step-number {
+      background-color: var(--primary-light);
+      color: var(--primary);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .sop-wizard-footer {
+      background-color: var(--bg-primary);
+      border-top: 1px solid var(--border-color);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .sop-btn {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sop-btn:hover {
+      background-color: var(--bg-tertiary);
+    }
+
+    .sop-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .sop-btn-primary {
+      background-color: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .sop-btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    /* Widget Embed Builder */
+    .widget-builder {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 868px) {
+      .widget-builder {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .builder-form {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-group label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .form-select, .form-input {
+      width: 100%;
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      outline: none;
+      font-size: 0.9rem;
+    }
+
+    .form-select:focus, .form-input:focus {
+      border-color: var(--primary);
+    }
+
+    .color-presets {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .color-preset {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .color-preset:hover {
+      transform: scale(1.1);
+    }
+
+    .color-preset.active {
+      border-color: var(--text-primary);
+    }
+
+    .builder-output {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* FAQ accordion */
+    .faq-accordion {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .faq-item {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .faq-question {
+      padding: 1.25rem 1.5rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      font-weight: 600;
+    }
+
+    .faq-question:hover {
+      background-color: var(--bg-primary);
+    }
+
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.2s ease-out;
+      border-top: 1px solid transparent;
+    }
+
+    .faq-item.active .faq-answer {
+      max-height: 200px;
+      border-top-color: var(--border-color);
+    }
+
+    .faq-answer-content {
+      padding: 1.25rem 1.5rem;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    /* Search highlight styling */
+    mark.search-highlight {
+      background-color: rgba(245, 158, 11, 0.3);
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--warning);
+      padding: 0 2px;
+      border-radius: 2px;
+    }
+
+    /* Footer styling */
+    footer {
+      background-color: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      padding: 2.5rem;
+      text-align: center;
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      margin-top: auto;
+    }
+
+    /* Sticky Back-to-Top Button */
+    .back-to-top {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background-color: var(--primary);
+      color: white;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-glow);
+      text-decoration: none;
+      z-index: 99;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .back-to-top.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .back-to-top:hover {
+      background-color: var(--primary-hover);
+      transform: translateY(-4px);
+    }
+
+    .back-to-top svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* Mobile hamburger menu toggle */
+    .menu-toggle {
+      display: none;
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 101;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-glow);
+    }
+
+    @media (max-width: 1024px) {
+      .menu-toggle {
+        display: flex;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Mobile Menu Button -->
+  <button class="menu-toggle" id="menuToggle" aria-label="Toggle Navigation">
+    <svg class="hamburger" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </button>
+
+  <div class="container">
+    
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-logo">S</div>
+        <div class="brand-text">
+          <h2>School RAG Agent</h2>
+          <span>Developer Hub</span>
+        </div>
+      </div>
+      
+      <div class="search-container">
+        <svg class="search-icon" viewBox="0 0 24 24">
+          <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+        </svg>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search documentation...">
+      </div>
+      
+      <nav class="nav-menu">
+        <div class="nav-group">
+          <h3>Getting Started</h3>
+          <ul class="nav-list">
+            <li><a href="#overview" class="nav-link active">Overview</a></li>
+            <li><a href="#setup" class="nav-link">Setup Checklist</a></li>
+            <li><a href="#architecture" class="nav-link">Architecture</a></li>
+          </ul>
+        </div>
+        
+        <div class="nav-group">
+          <h3>Reference</h3>
+          <ul class="nav-list">
+            <li><a href="#database" class="nav-link">Database Schema</a></li>
+            <li><a href="#api" class="nav-link">API Endpoints</a></li>
+            <li><a href="#widget" class="nav-link">Widget Embedder</a></li>
+          </ul>
+        </div>
+        
+        <div class="nav-group">
+          <h3>Operations</h3>
+          <ul class="nav-list">
+            <li><a href="#sop" class="nav-link">SOP Manual</a></li>
+            <li><a href="#troubleshooting" class="nav-link">Troubleshooting</a></li>
+            <li><a href="#security" class="nav-link">Security Policies</a></li>
+          </ul>
+        </div>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <span style="font-size: 0.825rem; font-weight: 500; color: var(--text-secondary);">Theme</span>
+        <button class="theme-toggle-btn" id="themeToggle" title="Toggle theme">
+          <svg class="moon-icon" viewBox="0 0 24 24"><path d="M12.1 22c-1.4 0-2.8-.3-4.1-.9-3.4-1.7-5.5-5.2-5.5-9.1 0-5.3 4.2-9.6 9.5-9.8.4 0 .7.3.7.7v.1c-.2.9-.1 1.8.2 2.6.4.9 1.1 1.7 2 2.2.9.5 1.9.8 2.9.8.7 0 1.5-.1 2.2-.4.4-.1.8.2.9.6.1.4-.1.8-.4.9-1.2.6-2.5 1-3.9 1-3.6 0-6.6-2.9-6.6-6.4 0-1.4.5-2.8 1.3-3.9-.2 0-.4-.1-.6-.1C5.6 6.3 2 10.3 2 15.2c0 4.5 3.3 8.3 7.8 8.9 4.5.6 8.7-2.1 9.9-6.4.1-.4.5-.6.9-.5.4.1.6.5.5.9-1.1 3.9-4.7 6.4-8.8 6.4v.1c-.1-.1-.1-.1-.2-.1z"/></svg>
+          <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 7c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3zm0-10c.6 0 1-.4 1-1V3c0-.6-.4-1-1-1s-1 .4-1 1v1c0 .6.4 1 1 1zm0 14c-.6 0-1 .4-1 1v1c0 .6.4 1 1 1s1-.4 1-1v-1c0-.6-.4-1-1-1zm8-8c0-.6-.4-1-1-1h-1c-.6 0-1 .4-1 1s.4 1 1 1h1c.6 0 1-.4 1-1zM6 12c0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1s.4 1 1 1h1c.6 0 1-.4 1-1zm11.1-5.7c-.4-.4-1-.4-1.4 0s-.4 1 0 1.4l.7.7c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4l-.7-.7zm-10.2 10.2c-.4-.4-1-.4-1.4 0s-.4 1 0 1.4l.7.7c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4l-.7-.7zm10.2 0c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-.7.7c-.4.4-.4 1 0 1.4.2.2.5.3.7.3s.5-.1.7-.3l.7-.7zM7.1 6.3c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-.7.7c-.4.4-.4 1 0 1.4.2.2.5.3.7.3s.5-.1.7-.3l.7-.7z"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN PANELS -->
+    <main class="main">
+      
+      <!-- HEADER PORTAL -->
+      <header class="header">
+        <div class="header-pattern"></div>
+        <div class="header-content">
+          <h1>School RAG Agent (Skylar)</h1>
+          <div class="header-subtitle">A production-ready RAG chatbot platform serving Babcock University and Ahmadu Bello University (ABU).</div>
+          <div class="school-badges">
+            <span class="school-badge babcock">Babcock University</span>
+            <span class="school-badge abu">ABU</span>
+            <span class="school-badge" style="background: rgba(79, 70, 229, 0.3);">Vercel Serverless</span>
+            <span class="school-badge" style="background: rgba(16, 185, 129, 0.3);">Supabase Vector</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT BODY -->
+      <div class="content-body" id="contentBody">
+        
+        <!-- SECTION 1: OVERVIEW -->
+        <section id="overview" class="doc-section">
+          <div class="section-title">
+            📋 Project Overview
+          </div>
+          <p>
+            The <strong>School RAG Agent (Skylar)</strong> is a state-of-the-art admissions and student support AI assistant. Deployed as a serverless platform on Vercel, it features a dynamically-themed website widget, an API backend powering Retrieval-Augmented Generation (RAG) using vector search, a Zoho CRM lead synchronization system, and a comprehensive Multi-Admin Dashboard.
+          </p>
+          
+          <div class="grid-3">
+            <div class="card">
+              <div class="card-icon">🤖</div>
+              <h4>RAG AI Pipeline</h4>
+              <p>Generates responses grounded directly in school-specific documents using <code>text-embedding-3-small</code> embeddings and OpenRouter (Claude-3.5-Sonnet).</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">🚨</div>
+              <h4>Human Escalation</h4>
+              <p>Tracks visitor intent and triggers live chat handoffs, allowing staff to intercept and respond to prospective students in real time.</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">🏫</div>
+              <h4>Multi-School Isolation</h4>
+              <p>Supports multiple universities (Babcock and ABU) from a single deployment with complete database and knowledge base indexing isolation.</p>
+            </div>
+          </div>
+
+          <div class="alert alert-note">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h-2v2h2v4h-2v2h6v-2h-2v-4zM12 9c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+            <div>
+              <strong>Quick Architecture Context:</strong> The frontend widget is built in React + Vite, compiled to a single IIFE bundle (<code>widget.js</code>), and served as a static asset. The API utilizes Node.js serverless functions under <code>api/</code>.
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: SETUP CHECKLIST -->
+        <section id="setup" class="doc-section">
+          <div class="section-title">
+            ⚙️ Interactive Local Setup Checklist
+          </div>
+          <p>Tick off the steps as you configure the project. Your progress is saved automatically.</p>
+          
+          <div class="checklist-meta">
+            <span>Progress Tracker</span>
+            <span id="checklistProgressText">0% Completed</span>
+          </div>
+          <div class="checklist-progress-bar">
+            <div class="checklist-progress-fill" id="checklistProgressFill"></div>
+          </div>
+
+          <div class="checklist-items" id="setupChecklist">
+            
+            <div class="checklist-item" data-id="1">
+              <div class="checklist-checkbox"></div>
+              <div class="checklist-body">
+                <h4>1. Clone the Repository & Configure Env</h4>
+                <p>Clone the code: <code>git clone &lt;repo-url&gt;</code>. Copy <code>.env.example</code> to <code>.env</code> in the project root and fill in your API credentials.</p>
+              </div>
+            </div>
+
+            <div class="checklist-item" data-id="2">
+              <div class="checklist-checkbox"></div>
+              <div class="checklist-body">
+                <h4>2. Run Supabase Database Migrations</h4>
+                <p>Copy the contents of <code>src/db/migrations/001_schema.sql</code>, <code>002_agent_metrics.sql</code>, and <code>003_tickets.sql</code> and execute them in your Supabase project's SQL Editor.</p>
+              </div>
+            </div>
+
+            <div class="checklist-item" data-id="3">
+              <div class="checklist-checkbox"></div>
+              <div class="checklist-body">
+                <h4>3. Create Supabase Storage Bucket</h4>
+                <p>Navigate to Storage in Supabase, create a new private bucket named <code>documents</code>. Limit upload size to 10MB, and allow PDF, DOCX, and TXT mime types.</p>
+              </div>
+            </div>
+
+            <div class="checklist-item" data-id="4">
+              <div class="checklist-checkbox"></div>
+              <div class="checklist-body">
+                <h4>4. Install Node Dependencies</h4>
+                <p>Run <code>npm install</code> in the root folder to pull dev tools and core runtime packages (OpenAI, Supabase JS, Resend, mammoth, etc.).</p>
+              </div>
+            </div>
+
+            <div class="checklist-item" data-id="5">
+              <div class="checklist-checkbox"></div>
+              <div class="checklist-body">
+                <h4>5. Build the Web Widget Asset</h4>
+                <p>Compile the widget code into the static script file by running <code>npm run build:widget</code>. This builds `widget/dist/widget.js`.</p>
+              </div>
+            </div>
+
+            <div class="checklist-item" data-id="6">
+              <div class="checklist-checkbox"></div>
+              <div class="checklist-body">
+                <h4>6. Run Local Vercel Server & Test Widget</h4>
+                <p>Start API functions and the Dev server. Run <code>npx vercel dev</code> to launch the server locally. Open <code>test-widget.html</code> in your browser to test conversation flows.</p>
+              </div>
+            </div>
+
+          </div>
+
+          <h3 style="margin-top: 1.5rem;">Environment Configurations (<code>.env</code>)</h3>
+          <p>Provide these keys in your local environment and in Vercel settings:</p>
+          <pre><button class="copy-btn" onclick="copyText('envTemplate')">Copy</button><code id="envTemplate">SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-role-key-never-share
+SUPABASE_ANON_KEY=your-anon-key-safe-for-browser
+OPENROUTER_API_KEY=your-openrouter-key
+OPENAI_API_KEY=your-openai-key-for-embeddings
+ZOHO_CLIENT_ID=your-zoho-client-id
+ZOHO_CLIENT_SECRET=your-zoho-client-secret
+ZOHO_REFRESH_TOKEN=your-zoho-refresh-token
+ZOHO_ACCOUNTS_URL=https://accounts.zoho.com
+RESEND_API_KEY=re_your_resend_api_key
+ESCALATION_EMAIL_BACKOCK=admissions@babcock.edu.ng
+ESCALATION_EMAIL_ABU=support@abu.edu.ng
+APP_URL=https://eabt-ai-team-project.vercel.app
+
+# Browser/Vite Environment Variables
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-safe-for-browser
+VITE_API_URL=https://eabt-ai-team-project.vercel.app</code></pre>
+        </section>
+
+        <!-- SECTION 3: ARCHITECTURE -->
+        <section id="architecture" class="doc-section">
+          <div class="section-title">
+            🏗️ System Architecture & Data Flow
+          </div>
+          <p>
+            The application operates as a decoupled multi-tier system with complete data isolation for Babcock and ABU, utilizing a RAG (Retrieval-Augmented Generation) pipeline for answers, and a WebSocket/Polling backend for human escalation.
+          </p>
+
+          <pre><code>
++-------------------------------------------------------------+
+|                     UNIVERSITY WEBPAGE                      |
+|  (Renders embeddable widget compiled as a self-contained    |
+|   JS script pointing to Vercel CDN static assets)            |
++-------------------------------------------------------------+
+              |                                  ^
+              | REST / JSON                      | Long-polling / SSE
+              v                                  |
++-------------------------------------------------------------+
+|                    VERCEL SERVERLESS API                    |
+|  - RAG completion: api/chat                                  |
+|  - Live escalations: api/admin/reply                        |
+|  - Document chunking & vector indexing: api/documents       |
++-------------------------------------------------------------+
+       |               |                 |                 |
+       | SDK           | API             | OAuth           | API
+       v               v                 v                 v
++------------+   +-----------+     +------------+    +------------+
+|  SUPABASE  |   | OPENROUTER|     |  ZOHO CRM  |    | RESEND API |
+| (DB, RLS,  |   | (Claude   |     | (Lead sync |    | (Email     |
+|  Storage)  |   |  3.5)     |     |  onboarding|    | escalation |
++------------+   +-----------+     +------------+    +------------+
+          </code></pre>
+
+          <h3>RAG & Embedding Pipeline</h3>
+          <p>
+            When a visitor asks a question, the API routes it to <code>api/chat/index.js</code>. The system performs the following sequence:
+          </p>
+          <ol style="margin-left: 1.5rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+            <li>Calls OpenAI Embeddings API (<code>text-embedding-3-small</code>) to transform the query into a 1536-dimensional float vector.</li>
+            <li>Queries Supabase database utilizing the custom PostgreSQL RPC function <code>match_chunks</code> which implements vector cosine distance matching (<code>&lt;=&gt;</code> operator).</li>
+            <li>Filters matches by the specific <code>school_id</code> to ensure institutional data privacy, keeping chunks above a similarity threshold (default: <code>0.4</code>).</li>
+            <li>Injects the matched document text chunks as a context block in the system prompt for OpenRouter's <code>anthropic/claude-3.5-sonnet</code> model.</li>
+            <li>Streams the generated output token-by-token back to the browser using Server-Sent Events (SSE).</li>
+          </ol>
+        </section>
+
+        <!-- SECTION 4: DATABASE SCHEMA -->
+        <section id="database" class="doc-section">
+          <div class="section-title">
+            🗄️ Database Schema & Relational Visualizer
+          </div>
+          <p>Select a table below to explore its columns, data types, constraints, and relational links.</p>
+
+          <div class="db-layout">
+            <div class="db-sidebar" id="dbTableList">
+              <!-- Dynamically populated tables -->
+            </div>
+            
+            <div class="db-detail-panel" id="dbDetailPanel">
+              <h3 class="db-table-title" id="selectedTableName">Select a Table</h3>
+              <p class="db-table-desc" id="selectedTableDesc">Click one of the entities on the left to show attributes.</p>
+              
+              <div id="dbFieldsContainer" style="display:none;">
+                <table class="db-fields-table">
+                  <thead>
+                    <tr>
+                      <th>Column</th>
+                      <th>Type</th>
+                      <th>Constraint</th>
+                      <th>Description</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dbFieldsBody">
+                    <!-- Fields listed dynamically -->
+                  </tbody>
+                </table>
+
+                <h4 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Foreign Key Connections</h4>
+                <div id="dbRelationsContainer">
+                  <!-- Relations listed dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 5: API ENDPOINTS -->
+        <section id="api" class="doc-section">
+          <div class="section-title">
+            ⚡ API Endpoints Explorer
+          </div>
+          <p>Expand the panels below to view request headers, parameters, body payload templates, and expected JSON responses.</p>
+          
+          <div class="api-filters">
+            <button class="api-filter-btn active" data-filter="all">All APIs</button>
+            <button class="api-filter-btn" data-filter="public">Public (Widget)</button>
+            <button class="api-filter-btn" data-filter="admin">Admin Operations</button>
+            <button class="api-filter-btn" data-filter="super">Super Admin</button>
+          </div>
+
+          <div class="api-endpoints-list" id="apiEndpointsList">
+            <!-- Dynamically populated endpoints -->
+          </div>
+        </section>
+
+        <!-- SECTION 6: WIDGET EMBEDDER -->
+        <section id="widget" class="doc-section">
+          <div class="section-title">
+            🔌 Widget Integration & Script Generator
+          </div>
+          <p>Customize parameters below to automatically generate the JavaScript snippet required to embed Skylar onto any target website.</p>
+
+          <div class="widget-builder">
+            <div class="builder-form">
+              <div class="form-group">
+                <label for="widgetSchool">Target School Profile</label>
+                <select class="form-select" id="widgetSchool">
+                  <option value="backock">Babcock University (Single Profile)</option>
+                  <option value="abu">ABU (Single Profile)</option>
+                  <option value="multi">Multi-School (Selectable Dropdown)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="widgetColor">Brand Color</label>
+                <input type="text" class="form-input" id="widgetColor" value="#1a73e8" placeholder="Hex color value">
+                <div class="color-presets">
+                  <div class="color-preset" style="background-color: #107c41;" data-color="#107c41" title="Babcock Green"></div>
+                  <div class="color-preset" style="background-color: #e84118;" data-color="#e84118" title="ABU Red"></div>
+                  <div class="color-preset" style="background-color: #1a73e8;" data-color="#1a73e8" title="Standard Indigo"></div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="widgetApiUrl">Production API Server URL</label>
+                <input type="text" class="form-input" id="widgetApiUrl" value="https://eabt-ai-team-project.vercel.app">
+              </div>
+            </div>
+
+            <div class="builder-output">
+              <div style="position: relative;">
+                <button class="copy-btn" onclick="copyText('widgetCode')">Copy</button>
+                <pre><code id="widgetCode">Loading script configuration...</code></pre>
+              </div>
+              <p style="font-size: 0.825rem; color: var(--text-secondary); margin-top: -0.5rem;">
+                <strong>Instructions:</strong> Copy and paste this snippet just before the closing <code>&lt;/body&gt;</code> tag on the website. The script will render a floating support bubble on the bottom right.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 7: SOP MANUAL -->
+        <section id="sop" class="doc-section">
+          <div class="section-title">
+            📖 Standard Operating Procedure (SOP) Wizard
+          </div>
+          <p>Interactive guide for university administrators on how to execute daily operations via the management dashboard.</p>
+
+          <div class="sop-wizard">
+            <div class="sop-wizard-header">
+              <select class="sop-wizard-selector" id="sopWizardSelect">
+                <option value="liveChat">Handling Support Escalations (Live Chat)</option>
+                <option value="kbUpload">Managing Knowledge Base Documents</option>
+                <option value="teamInvite">Inviting & Modifying Team Members</option>
+              </select>
+              <div class="sop-wizard-steps-indicator" id="sopDotIndicator">
+                <!-- Dots populated dynamically -->
+              </div>
+            </div>
+            
+            <div class="sop-wizard-content" id="sopStepContent">
+              <!-- Step content populated dynamically -->
+            </div>
+
+            <div class="sop-wizard-footer">
+              <button class="sop-btn" id="sopPrevBtn">Previous Step</button>
+              <button class="sop-btn sop-btn-primary" id="sopNextBtn">Next Step</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 8: TROUBLESHOOTING -->
+        <section id="troubleshooting" class="doc-section">
+          <div class="section-title">
+            ❓ Troubleshooting FAQ
+          </div>
+          <p>Review standard issues reported during build, staging testing, and production runtime.</p>
+          
+          <div class="faq-accordion" id="faqAccordion">
+            
+            <div class="faq-item">
+              <div class="faq-question">
+                <span>The Chat Widget is not displaying on the webpage.</span>
+                <span class="faq-toggle">+</span>
+              </div>
+              <div class="faq-answer">
+                <div class="faq-answer-content">
+                  Verify that `window.SchoolBotConfig` is set correctly BEFORE the `widget.js` script tag in the HTML. Ensure `schoolId` matches either `'backock'` or `'abu'` exactly, and `apiUrl` points to your deployed Vercel domain.
+                </div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <div class="faq-question">
+                <span>The AI bot gives incorrect or stale answers.</span>
+                <span class="faq-toggle">+</span>
+              </div>
+              <div class="faq-answer">
+                <div class="faq-answer-content">
+                  This happens when the knowledge base has stale contents. Log into the Admin Dashboard, navigate to the **Knowledge Base** section, select your school, delete the outdated document, and upload the updated PDF or text file.
+                </div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <div class="faq-question">
+                <span>Invitations sent to team members result in expired links.</span>
+                <span class="faq-toggle">+</span>
+              </div>
+              <div class="faq-answer">
+                <div class="faq-answer-content">
+                  Supabase Auth invitation links expire after 24 hours. A Super Admin must navigate to **Team Members**, click "Remove" next to the user, and then issue a new invite with the corrected email address.
+                </div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <div class="faq-question">
+                <span>Vercel build fails with a 12-serverless function limit error.</span>
+                <span class="faq-toggle">+</span>
+              </div>
+              <div class="faq-answer">
+                <div class="faq-answer-content">
+                  Vercel Hobby accounts restrict builds to a maximum of 12 serverless function files. If adding new features, route multiple sub-resources using method switches within a single API endpoint (e.g., how the documents endpoint handles GET, POST, and DELETE inside <code>api/documents/index.js</code>).
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- SECTION 9: SECURITY POLICIES -->
+        <section id="security" class="doc-section">
+          <div class="section-title">
+            🔒 Security, Compliance & Data Isolation
+          </div>
+          <p>
+            The School RAG Agent is built with enterprise security principles in mind. As a multi-tenant platform serving distinct educational institutions, the following policies are strictly implemented:
+          </p>
+          <div class="grid-2">
+            <div class="card" style="border-left: 4px solid var(--danger);">
+              <h4>Role-Based Access Control (RBAC)</h4>
+              <p>Admins can only view chats, leads, and documents. Only accounts explicitly designated as <code>super_admin</code> in the <code>admin_profiles</code> database row can manage user accounts, change roles, or delete administrative credentials.</p>
+            </div>
+            <div class="card" style="border-left: 4px solid var(--accent);">
+              <h4>Supabase Row-Level Security (RLS)</h4>
+              <p>Database queries executed directly from the client utilize the Supabase anon key and are isolated using RLS policy <code>USING (auth.uid() = id)</code> to ensure admins cannot fetch data for other profiles.</p>
+            </div>
+          </div>
+          <p style="margin-top: 1rem;">
+            <strong>Data Isolation Policy:</strong> All database rows in the <code>leads</code>, <code>conversations</code>, <code>escalations</code>, and <code>document_chunks</code> tables are tagged with a foreign key reference to <code>schools.id</code>. Serverless functions filter all RAG queries and administrative analytics by the active school scope, preventing cross-tenant leakage.
+          </p>
+        </section>
+
+      </div>
+
+      <!-- FOOTER -->
+      <footer>
+        <p>School RAG Agent (Skylar) — Technical Documentation & Interactive Portal. Developed in May 2026.</p>
+        <p>Managed for Babcock University and Ahmadu Bello University (ABU). Confidential Internal Hub.</p>
+      </footer>
+
+      <!-- Back to Top Button -->
+      <a href="#" class="back-to-top" id="backToTop" aria-label="Scroll to top">
+        <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+      </a>
+
+    </main>
+  </div>
+
+  <script>
+    /* ── DATABASE DATA STRUCTURES ──────────────────────────────── */
+    const dbSchema = {
+      schools: {
+        desc: "Stores details about the institutions served, branding colors, and administrative emails.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, DEFAULT gen_random_uuid()", desc: "Unique identifier for the school." },
+          { name: "slug", type: "TEXT", constraint: "UNIQUE, NOT NULL", desc: "Short URL-friendly slug (e.g. 'backock', 'abu')." },
+          { name: "name", type: "TEXT", constraint: "NOT NULL", desc: "Full display name of the university." },
+          { name: "staff_email", type: "TEXT", constraint: "NOT NULL", desc: "Target email for escalation notifications." },
+          { name: "branding", type: "JSONB", constraint: "DEFAULT '{}'", desc: "JSON block storing primaryColor, welcomeMessage, etc." },
+          { name: "created_at", type: "TIMESTAMPTZ", constraint: "DEFAULT now()", desc: "Time of record creation." }
+        ],
+        relations: []
+      },
+      documents: {
+        desc: "Stores the metadata of files uploaded to the knowledge base for RAG context extraction.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, DEFAULT gen_random_uuid()", desc: "Unique identifier for the document." },
+          { name: "school_id", type: "UUID", constraint: "FK -> schools.id, ON DELETE CASCADE", desc: "Owner school associated with the document." },
+          { name: "name", type: "TEXT", constraint: "NOT NULL", desc: "File name as uploaded (e.g. 'admission_req.pdf')." },
+          { name: "file_type", type: "TEXT", constraint: "-", desc: "Mime type or extension (e.g. 'application/pdf')." },
+          { name: "file_size", type: "INTEGER", constraint: "-", desc: "Size in bytes." },
+          { name: "storage_path", type: "TEXT", constraint: "-", desc: "Internal path reference inside Supabase storage bucket." },
+          { name: "chunk_count", type: "INTEGER", constraint: "DEFAULT 0", desc: "Number of vector chunks parsed from the document." },
+          { name: "status", type: "TEXT", constraint: "DEFAULT 'processing'", desc: "Processing state: 'processing', 'completed', or 'failed'." },
+          { name: "error_message", type: "TEXT", constraint: "-", desc: "Error logs if extraction/chunking failed." },
+          { name: "created_at", type: "TIMESTAMPTZ", constraint: "DEFAULT now()", desc: "Time uploaded." }
+        ],
+        relations: ["schools"]
+      },
+      document_chunks: {
+        desc: "Stores text chunks parsed from documents alongside their 1536-dimension float embeddings for vector searches.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, DEFAULT gen_random_uuid()", desc: "Unique chunk ID." },
+          { name: "document_id", type: "UUID", constraint: "FK -> documents.id, ON DELETE CASCADE", desc: "Source document ID." },
+          { name: "school_id", type: "UUID", constraint: "FK -> schools.id, ON DELETE CASCADE", desc: "Associated school." },
+          { name: "content", type: "TEXT", constraint: "NOT NULL", desc: "Raw text block parsed for indexing." },
+          { name: "embedding", type: "VECTOR(1536)", constraint: "-", desc: "Generated OpenAI text-embedding-3-small float values." },
+          { name: "chunk_index", type: "INTEGER", constraint: "-", desc: "Ordered index of chunk relative to source file." },
+          { name: "metadata", type: "JSONB", constraint: "DEFAULT '{}'", desc: "Arbitrary metadata tags." },
+          { name: "created_at", type: "TIMESTAMPTZ", constraint: "DEFAULT now()", desc: "Index insertion time." }
+        ],
+        relations: ["documents", "schools"]
+      },
+      leads: {
+        desc: "Captures visitor contact info completed during the onboarding phase of the chatbot.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, DEFAULT gen_random_uuid()", desc: "Unique lead ID." },
+          { name: "school_id", type: "UUID", constraint: "FK -> schools.id", desc: "School profile lead is interested in." },
+          { name: "session_id", type: "TEXT", constraint: "NOT NULL", desc: "Unique browser session client token." },
+          { name: "name", type: "TEXT", constraint: "-", desc: "Student's full name." },
+          { name: "email", type: "TEXT", constraint: "-", desc: "Contact email." },
+          { name: "phone", type: "TEXT", constraint: "-", desc: "Phone contact." },
+          { name: "zoho_contact_id", type: "TEXT", constraint: "-", desc: "Created Lead reference returned from Zoho CRM." },
+          { name: "zoho_synced_at", type: "TIMESTAMPTZ", constraint: "-", desc: "Time sync operation completed." },
+          { name: "created_at", type: "TIMESTAMPTZ", constraint: "DEFAULT now()", desc: "Lead creation date." }
+        ],
+        relations: ["schools"]
+      },
+      conversations: {
+        desc: "Tracks the full chat history, message JSON blobs, active conversational stages, and metadata.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, DEFAULT gen_random_uuid()", desc: "Unique conversation ID." },
+          { name: "school_id", type: "UUID", constraint: "FK -> schools.id", desc: "Associated school." },
+          { name: "session_id", type: "TEXT", constraint: "UNIQUE, NOT NULL", desc: "Browser session key matching active client." },
+          { name: "lead_id", type: "UUID", constraint: "FK -> leads.id", desc: "Reference to the student lead profile." },
+          { name: "stage", type: "TEXT", constraint: "DEFAULT 'onboarding'", desc: "Conversation phase: 'onboarding', 'active', or 'escalated'." },
+          { name: "messages", type: "JSONB", constraint: "DEFAULT '[]'", desc: "Array of message objects storing role, content, and timestamp." },
+          { name: "failed_attempts", type: "INTEGER", constraint: "DEFAULT 0", desc: "Unanswered queries count (used to auto-trigger escalation)." },
+          { name: "created_at", type: "TIMESTAMPTZ", constraint: "DEFAULT now()", desc: "Session start time." }
+        ],
+        relations: ["schools", "leads"]
+      },
+      escalations: {
+        desc: "Manages conversation records routed to human support agents for live intervention.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, DEFAULT gen_random_uuid()", desc: "Unique escalation ID." },
+          { name: "conversation_id", type: "UUID", constraint: "FK -> conversations.id", desc: "Reference to the escalated conversation." },
+          { name: "school_id", type: "UUID", constraint: "FK -> schools.id", desc: "School context." },
+          { name: "lead_id", type: "UUID", constraint: "FK -> leads.id", desc: "Lead profile reference." },
+          { name: "reason", type: "TEXT", constraint: "NOT NULL", desc: "Why the chat was escalated (e.g. 'User request', 'AI failed')." },
+          { name: "status", type: "TEXT", constraint: "DEFAULT 'pending'", desc: "State: 'pending', 'attended', or 'resolved'." },
+          { name: "attended_by", type: "TEXT", constraint: "-", desc: "Name of the admin currently handling live responses." },
+          { name: "resolved_by", type: "TEXT", constraint: "-", desc: "Name of the admin who resolved the issue." },
+          { name: "tags", type: "TEXT[]", constraint: "DEFAULT '{}'", desc: "Staff tags categorizing the query." },
+          { name: "first_response_at", type: "TIMESTAMPTZ", constraint: "-", desc: "Timestamp when live agent first replied." },
+          { name: "created_at", type: "TIMESTAMPTZ", constraint: "DEFAULT now()", desc: "Escalation start time." }
+        ],
+        relations: ["conversations", "schools", "leads"]
+      },
+      tickets: {
+        desc: "Tracks offline tickets generated by prospective students if live chat escalations are not attended.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, DEFAULT gen_random_uuid()", desc: "Unique ticket ID." },
+          { name: "school_id", type: "UUID", constraint: "FK -> schools.id", desc: "School connection." },
+          { name: "lead_id", type: "UUID", constraint: "FK -> leads.id", desc: "Linked lead ID." },
+          { name: "name", type: "TEXT", constraint: "NOT NULL", desc: "Submitting user name." },
+          { name: "email", type: "TEXT", constraint: "NOT NULL", desc: "User contact email." },
+          { name: "subject", type: "TEXT", constraint: "NOT NULL", desc: "Ticket title." },
+          { name: "message", type: "TEXT", constraint: "NOT NULL", desc: "Description of the enquiry." },
+          { name: "status", type: "TEXT", constraint: "CHECK, DEFAULT 'open'", desc: "Ticket status: 'open', 'in_progress', 'resolved', or 'closed'." },
+          { name: "staff_reply", type: "TEXT", constraint: "-", desc: "Notes or email response body drafted by staff." }
+        ],
+        relations: ["schools", "leads"]
+      },
+      admin_profiles: {
+        desc: "Holds profile records for dashboard administrators, tying their identities to Supabase auth accounts and setting access control roles.",
+        fields: [
+          { name: "id", type: "UUID", constraint: "PK, FK -> auth.users.id", desc: "Matches auth ID of login credentials." },
+          { name: "email", type: "TEXT", constraint: "UNIQUE, NOT NULL", desc: "Primary administrative email." },
+          { name: "full_name", type: "TEXT", constraint: "NOT NULL", desc: "Staff display name shown on chat replies." },
+          { name: "role", type: "TEXT", constraint: "NOT NULL", desc: "Access level: 'admin' or 'super_admin'." },
+          { name: "created_at", type: "TIMESTAMPTZ", constraint: "DEFAULT now()", desc: "Registration timestamp." }
+        ],
+        relations: []
+      }
+    };
+
+    /* ── API DATA STRUCTURES ────────────────────────────────────── */
+    const apiEndpoints = [
+      {
+        path: "/api/chat",
+        method: "post",
+        role: "public",
+        summary: "Primary chat completion route. Employs vector embeddings for RAG and streams answers.",
+        headers: [
+          { name: "Content-Type", value: "application/json", desc: "Must be JSON format." }
+        ],
+        body: `{
+  "sessionId": "usr_session_uuid",
+  "schoolId": "backock",
+  "message": "What is the tuition fee for computer science?"
+}`,
+        response: `// Streams Server-Sent Events (SSE)
+data: {"token": "The"}
+data: {"token": " tuition"}
+data: {"token": " fee"}
+data: [DONE]`
+      },
+      {
+        path: "/api/chat/start",
+        method: "post",
+        role: "public",
+        summary: "Captures lead data (Name, Email, Phone) and initializes a chat session.",
+        headers: [
+          { name: "Content-Type", value: "application/json", desc: "Must be JSON." }
+        ],
+        body: `{
+  "schoolId": "backock",
+  "name": "David Alao",
+  "email": "david.alao@gmail.com",
+  "phone": "08012345678"
+}`,
+        response: `{
+  "status": "success",
+  "sessionId": "d8a1c93a-8b1c-43f1-bd5f-e2c72b8ac42c",
+  "conversationId": "a9d7b88b-cf3c-41c3-8f0a-7bb17d84a7e2"
+}`
+      },
+      {
+        path: "/api/chat/messages",
+        method: "get",
+        role: "public",
+        summary: "Fetches full conversation message history. Used by widget polling during human escalation.",
+        headers: [],
+        body: "URL Query: ?sessionId=usr_session_uuid",
+        response: `[
+  { "role": "user", "content": "Hello", "ts": 1718045610000 },
+  { "role": "assistant", "content": "Welcome! How can I help you?", "ts": 1718045612000 }
+]`
+      },
+      {
+        path: "/api/admin/stats",
+        method: "get",
+        role: "admin",
+        summary: "Fetches aggregated dashboard counts (leads, active chats, open escalations).",
+        headers: [
+          { name: "Authorization", value: "Bearer <JWT>", desc: "Supabase JWT obtained on login." }
+        ],
+        body: "URL Query: ?schoolId=backock (Optional)",
+        response: `{
+  "totalLeads": 154,
+  "totalConversations": 234,
+  "totalEscalations": 45,
+  "openEscalations": 8
+}`
+      },
+      {
+        path: "/api/admin/leads",
+        method: "get",
+        role: "admin",
+        summary: "Lists captured student lead records.",
+        headers: [
+          { name: "Authorization", value: "Bearer <JWT>", desc: "JWT role check." }
+        ],
+        body: "URL Query: ?schoolId=abu (Optional)",
+        response: `[
+  {
+    "id": "e98e22ad-1f2c-473d-9d41-e94921b7c4d5",
+    "name": "Funmi Coker",
+    "email": "funmi@coker.net",
+    "phone": "08034567890",
+    "schoolName": "Backock School",
+    "created_at": "2026-05-18T14:32:00Z"
+  }
+]`
+      },
+      {
+        path: "/api/admin/reply",
+        method: "post",
+        role: "admin",
+        summary: "Dispatches human agent replies to escalated conversations.",
+        headers: [
+          { name: "Authorization", value: "Bearer <JWT>", desc: "JWT role authorization." },
+          { name: "Content-Type", value: "application/json", desc: "JSON body." }
+        ],
+        body: `{
+  "conversationId": "uuid_here",
+  "message": "Hello Funmi, let me check the requirements."
+}`,
+        response: `{
+  "status": "success",
+  "message": "Message sent successfully."
+}`
+      },
+      {
+        path: "/api/documents",
+        method: "post",
+        role: "admin",
+        summary: "Uploads a knowledge base file, processes text, chunks it, and indexes vector embeddings.",
+        headers: [
+          { name: "Authorization", value: "Bearer <JWT>", desc: "JWT authorization required." },
+          { name: "Content-Type", value: "multipart/form-data", desc: "Must containing file attachments." }
+        ],
+        body: "Form Data: \n - file: <admission_requirements.pdf> \n - schoolId: <school_uuid>",
+        response: `{
+  "status": "success",
+  "documentId": "c8b1a2d5-8f4f-4d3b-9a2c-e1a3b5c7d9e1",
+  "chunksIndexed": 14
+}`
+      },
+      {
+        path: "/api/admin/users",
+        method: "post",
+        role: "super",
+        summary: "Triggers invitation emails to create new admin users.",
+        headers: [
+          { name: "Authorization", value: "Bearer <JWT>", desc: "Must resolve to role === 'super_admin'." }
+        ],
+        body: `{
+  "email": "registrar@babcock.edu.ng",
+  "fullName": "Prof. Oladele",
+  "role": "admin"
+}`,
+        response: `{
+  "status": "success",
+  "invitedUser": "uuid_auth_reference"
+}`
+      }
+    ];
+
+    /* ── SOP WORKFLOW STEPS ─────────────────────────────────────── */
+    const sopWorkflows = {
+      liveChat: [
+        {
+          title: "Monitor Queue",
+          desc: "Log into the Admin dashboard. Click on the <strong>Escalations</strong> menu in the left sidebar. Review the counts listed under 'Open Escalations'. Click on any active red-badged escalation row to open the live-chat panel."
+        },
+        {
+          title: "Review Transcript History",
+          desc: "Scroll through the message history. Inspect the questions asked by the visitor and the automated RAG answers previously served. This allows you to understand the exact context and resolve the gap immediately without repeating queries."
+        },
+        {
+          title: "Send Live Responses",
+          desc: "Draft a clear response in the text editor. Click **Send** (or hit Enter). The widget at the student's end checks for new replies every 3 seconds via `/api/chat/messages` and renders your text with your full name displayed as the active respondent."
+        },
+        {
+          title: "Mark Issue Resolved",
+          desc: "Once the prospect's questions are solved, click **Mark Resolved** at the top right of the chat screen. This changes the row status to 'resolved' and closes the conversation block, archiving the logs for performance analysis."
+        }
+      ],
+      kbUpload: [
+        {
+          title: "Select Scope",
+          desc: "Go to the **Knowledge Base** page. Choose the correct school filter from the top dropdown ('Babcock University' or 'ABU') to prevent documents from indexing in the wrong vector tenant."
+        },
+        {
+          title: "Upload & File Check",
+          desc: "Click **Upload File** or drop your document (PDF, TXT, or DOCX up to 10MB). The backend extracts raw text using specialized parser binaries (mammoth or pdf-parse) and checks formatting compatibility."
+        },
+        {
+          title: "Parsing & Chunking",
+          desc: "The document is split into smaller overlapping blocks (approx. 500-1000 characters). This ensures embeddings capture semantic context cleanly without dilution during vector similarity matches."
+        },
+        {
+          title: "Generate Embeddings",
+          desc: "The server calls OpenAI embeddings to create 1536 float vectors for each text chunk. Rows are inserted into the <code>document_chunks</code> table with indexes automatically set, making them immediately active for incoming chats."
+        }
+      ],
+      teamInvite: [
+        {
+          title: "Role Verification",
+          desc: "Ensure you are logged in as a **Super Admin**. Standard 'Admin' accounts are restricted from loading user list directories or invoking invite hooks due to server-side RBAC validation checks."
+        },
+        {
+          title: "Trigger Invitation Details",
+          desc: "Navigate to **Team Members** page. Click **+ Invite Member**. Supply the employee's corporate email, full name, and assign their access tier ('Admin' or 'Super Admin'). Click **Send Invite**."
+        },
+        {
+          title: "Email Dispatch & Token",
+          desc: "Supabase dispatches a transactional email containing a secure token redirect URL pointing to the dashboard's <code>/set-password</code> endpoint. The invite remains valid for 24 hours."
+        },
+        {
+          title: "Password Registration",
+          desc: "Upon clicking the email link, the user is navigated to the set-password portal, which detects their token session, allows password setup, and triggers a profile record insertion in <code>admin_profiles</code>."
+        }
+      ]
+    };
+
+    /* ── APPLICATION LOGIC ──────────────────────────────────────── */
+    
+    // Theme Switcher Logic
+    const themeToggleBtn = document.getElementById("themeToggle");
+    themeToggleBtn.addEventListener("click", () => {
+      const currentTheme = document.documentElement.getAttribute("data-theme");
+      const newTheme = currentTheme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
+    });
+
+    // Load theme setting
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    }
+
+    // Mobile Navigation Drawer Toggle
+    const menuToggleBtn = document.getElementById("menuToggle");
+    const sidebar = document.getElementById("sidebar");
+    menuToggleBtn.addEventListener("click", () => {
+      sidebar.classList.toggle("active");
+    });
+
+    // Close mobile menu on clicking nav links
+    document.querySelectorAll(".nav-link").forEach(link => {
+      link.addEventListener("click", () => {
+        sidebar.classList.remove("active");
+        
+        // Update active class
+        document.querySelectorAll(".nav-link").forEach(l => l.classList.remove("active"));
+        link.classList.add("active");
+      });
+    });
+
+    // Local Setup Checklist Logic
+    const setupChecklist = document.getElementById("setupChecklist");
+    const checklistProgressText = document.getElementById("checklistProgressText");
+    const checklistProgressFill = document.getElementById("checklistProgressFill");
+    
+    function updateChecklistProgress() {
+      const items = setupChecklist.querySelectorAll(".checklist-item");
+      const checkedCount = setupChecklist.querySelectorAll(".checklist-item.checked").length;
+      const progressPercent = Math.round((checkedCount / items.length) * 100);
+      
+      checklistProgressFill.style.width = `${progressPercent}%`;
+      checklistProgressText.innerText = `${progressPercent}% Completed`;
+    }
+
+    setupChecklist.addEventListener("click", (e) => {
+      const item = e.target.closest(".checklist-item");
+      if (!item) return;
+      
+      item.classList.toggle("checked");
+      const itemId = item.getAttribute("data-id");
+      const isChecked = item.classList.contains("checked");
+      
+      localStorage.setItem(`setup_step_${itemId}`, isChecked ? "true" : "false");
+      updateChecklistProgress();
+    });
+
+    // Load Checklist states
+    setupChecklist.querySelectorAll(".checklist-item").forEach(item => {
+      const itemId = item.getAttribute("data-id");
+      const isChecked = localStorage.getItem(`setup_step_${itemId}`) === "true";
+      if (isChecked) {
+        item.classList.add("checked");
+      }
+    });
+    updateChecklistProgress();
+
+    // Database Schema Visualizer Renderer
+    const dbTableList = document.getElementById("dbTableList");
+    const selectedTableName = document.getElementById("selectedTableName");
+    const selectedTableDesc = document.getElementById("selectedTableDesc");
+    const dbFieldsContainer = document.getElementById("dbFieldsContainer");
+    const dbFieldsBody = document.getElementById("dbFieldsBody");
+    const dbRelationsContainer = document.getElementById("dbRelationsContainer");
+
+    function renderTableDetails(tableName) {
+      const tableData = dbSchema[tableName];
+      selectedTableName.innerText = tableName;
+      selectedTableDesc.innerText = tableData.desc;
+      dbFieldsContainer.style.display = "block";
+      dbFieldsBody.innerHTML = "";
+      dbRelationsContainer.innerHTML = "";
+
+      // Render columns
+      tableData.fields.forEach(field => {
+        let constraintBadge = "";
+        if (field.constraint.includes("PK")) {
+          constraintBadge = `<span class="key-badge key-pk">PK</span> `;
+        } else if (field.constraint.includes("FK")) {
+          constraintBadge = `<span class="key-badge key-fk">FK</span> `;
+        } else {
+          constraintBadge = `<span class="key-badge key-generic">COL</span> `;
+        }
+        
+        const row = `<tr>
+          <td><strong>${field.name}</strong></td>
+          <td><code>${field.type}</code></td>
+          <td>${constraintBadge}${field.constraint}</td>
+          <td>${field.desc}</td>
+        </tr>`;
+        dbFieldsBody.insertAdjacentHTML("beforeend", row);
+      });
+
+      // Render relations tags
+      if (tableData.relations.length === 0) {
+        dbRelationsContainer.innerHTML = `<span style="font-size:0.875rem; color: var(--text-muted);">None</span>`;
+      } else {
+        tableData.relations.forEach(rel => {
+          const btn = `<span class="db-relation-tag" onclick="selectDbTable('${rel}')">🔗 ${rel}</span>`;
+          dbRelationsContainer.insertAdjacentHTML("beforeend", btn);
+        });
+      }
+    }
+
+    window.selectDbTable = function(tableName) {
+      document.querySelectorAll(".db-table-btn").forEach(btn => {
+        if (btn.getAttribute("data-table") === tableName) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      });
+      renderTableDetails(tableName);
+    };
+
+    // Populate tables sidebar
+    Object.keys(dbSchema).forEach((tableName, index) => {
+      const activeClass = index === 0 ? "active" : "";
+      const relationCount = dbSchema[tableName].relations.length;
+      const btn = `<button class="db-table-btn ${activeClass}" data-table="${tableName}" onclick="selectDbTable('${tableName}')">
+        <span>${tableName}</span>
+        <span class="relation-count">${relationCount} rel</span>
+      </button>`;
+      dbTableList.insertAdjacentHTML("beforeend", btn);
+    });
+
+    // Render first table details by default
+    renderTableDetails(Object.keys(dbSchema)[0]);
+
+    // API Reference Explorer Renderer
+    const apiEndpointsList = document.getElementById("apiEndpointsList");
+    
+    function renderApiExplorer(filterRole = "all") {
+      apiEndpointsList.innerHTML = "";
+      
+      const filtered = apiEndpoints.filter(api => {
+        if (filterRole === "all") return true;
+        return api.role === filterRole;
+      });
+
+      filtered.forEach((api, index) => {
+        const uniqueId = `api_item_${index}`;
+        const itemHtml = `<div class="api-item" id="${uniqueId}">
+          <div class="api-header" onclick="toggleApiExpand('${uniqueId}')">
+            <div class="api-endpoint-meta">
+              <span class="method-badge method-${api.method}">${api.method}</span>
+              <span class="api-path">${api.path}</span>
+              <span class="api-summary">${api.summary}</span>
+            </div>
+            <div class="api-header-right">
+              <span class="api-role-badge role-${api.role}">${api.role}</span>
+              <svg class="expand-icon" viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>
+            </div>
+          </div>
+          
+          <div class="api-details">
+            <div class="api-content">
+              <h4>Request Specifications</h4>
+              <table class="db-fields-table" style="margin-bottom: 1rem;">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Value / Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${api.headers.map(h => `<tr>
+                    <td><strong>Header: ${h.name}</strong></td>
+                    <td><code>${h.value}</code> — ${h.desc}</td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>
+
+              <div class="tab-container">
+                <button class="tab-btn active" onclick="switchApiTab(event, '${uniqueId}', 'body')">Payload Schema</button>
+                <button class="tab-btn" onclick="switchApiTab(event, '${uniqueId}', 'res')">Mock Response</button>
+              </div>
+
+              <div class="tab-panel active" data-tab-name="body" style="position: relative;">
+                <button class="copy-btn" onclick="copyText('${uniqueId}_body')">Copy</button>
+                <pre><code id="${uniqueId}_body">${api.body}</code></pre>
+              </div>
+
+              <div class="tab-panel" data-tab-name="res" style="position: relative;">
+                <button class="copy-btn" onclick="copyText('${uniqueId}_res')">Copy</button>
+                <pre><code id="${uniqueId}_res">${api.response}</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>`;
+        apiEndpointsList.insertAdjacentHTML("beforeend", itemHtml);
+      });
+    }
+
+    window.toggleApiExpand = function(itemId) {
+      const el = document.getElementById(itemId);
+      el.classList.toggle("expanded");
+    };
+
+    window.switchApiTab = function(event, itemId, tabName) {
+      event.stopPropagation();
+      const el = document.getElementById(itemId);
+      
+      // Toggle button active states
+      el.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.classList.remove("active");
+      });
+      event.target.classList.add("active");
+
+      // Toggle panel visibility
+      el.querySelectorAll(".tab-panel").forEach(panel => {
+        if (panel.getAttribute("data-tab-name") === tabName) {
+          panel.classList.add("active");
+        } else {
+          panel.classList.remove("active");
+        }
+      });
+    };
+
+    // API filter button listeners
+    document.querySelectorAll(".api-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".api-filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        renderApiExplorer(btn.getAttribute("data-filter"));
+      });
+    });
+
+    renderApiExplorer();
+
+    // Widget Embed Configurator Code Generator
+    const widgetSchool = document.getElementById("widgetSchool");
+    const widgetColor = document.getElementById("widgetColor");
+    const widgetApiUrl = document.getElementById("widgetApiUrl");
+    const widgetCode = document.getElementById("widgetCode");
+
+    function updateWidgetCode() {
+      const school = widgetSchool.value;
+      const color = widgetColor.value;
+      const api = widgetApiUrl.value;
+      
+      let configBlock = "";
+      if (school === "multi") {
+        configBlock = `window.SchoolBotConfig = {
+    schools: [
+      { id: 'backock', name: 'Babcock University' },
+      { id: 'abu',     name: 'ABU (Ahmadu Bello University)' }
+    ],
+    apiUrl: '${api}',
+    theme: {
+      primaryColor: '${color}'
+    }
+  };`;
+      } else {
+        const displaySchoolName = school === "backock" ? "Babcock University" : "ABU";
+        configBlock = `window.SchoolBotConfig = {
+    schoolId: '${school}',
+    apiUrl: '${api}',
+    theme: {
+      primaryColor: '${color}',
+      name: '${displaySchoolName}'
+    }
+  };`;
+      }
+
+      widgetCode.innerText = `<script>
+  ${configBlock}
+<\/script>
+<script src="${api}/widget.js" async><\/script>`;
+    }
+
+    widgetSchool.addEventListener("change", updateWidgetCode);
+    widgetColor.addEventListener("input", updateWidgetCode);
+    widgetApiUrl.addEventListener("input", updateWidgetCode);
+
+    // Color preset listeners
+    document.querySelectorAll(".color-preset").forEach(preset => {
+      preset.addEventListener("click", () => {
+        widgetColor.value = preset.getAttribute("data-color");
+        updateWidgetCode();
+      });
+    });
+
+    updateWidgetCode();
+
+    // SOP Wizard Logic
+    const sopWizardSelect = document.getElementById("sopWizardSelect");
+    const sopDotIndicator = document.getElementById("sopDotIndicator");
+    const sopStepContent = document.getElementById("sopStepContent");
+    const sopPrevBtn = document.getElementById("sopPrevBtn");
+    const sopNextBtn = document.getElementById("sopNextBtn");
+    
+    let activeWorkflow = "liveChat";
+    let activeStepIndex = 0;
+
+    function renderSopStep() {
+      const steps = sopWorkflows[activeWorkflow];
+      const stepData = steps[activeStepIndex];
+      
+      // Update dots indicator
+      sopDotIndicator.innerHTML = "";
+      steps.forEach((_, idx) => {
+        let dotClass = "sop-dot";
+        if (idx === activeStepIndex) dotClass += " active";
+        else if (idx < activeStepIndex) dotClass += " completed";
+        
+        sopDotIndicator.insertAdjacentHTML("beforeend", `<div class="${dotClass}"></div>`);
+      });
+
+      // Update text details
+      sopStepContent.innerHTML = `<h4 class="sop-step-title">
+        <span class="sop-step-number">${activeStepIndex + 1}</span>
+        ${stepData.title}
+      </h4>
+      <p style="font-size:0.95rem; margin-top:1rem;">${stepData.desc}</p>`;
+
+      // Disable/enable controls
+      sopPrevBtn.disabled = activeStepIndex === 0;
+      sopNextBtn.innerText = activeStepIndex === steps.length - 1 ? "Finish Workflow" : "Next Step";
+    }
+
+    sopWizardSelect.addEventListener("change", (e) => {
+      activeWorkflow = e.target.value;
+      activeStepIndex = 0;
+      renderSopStep();
+    });
+
+    sopPrevBtn.addEventListener("click", () => {
+      if (activeStepIndex > 0) {
+        activeStepIndex--;
+        renderSopStep();
+      }
+    });
+
+    sopNextBtn.addEventListener("click", () => {
+      const steps = sopWorkflows[activeWorkflow];
+      if (activeStepIndex < steps.length - 1) {
+        activeStepIndex++;
+        renderSopStep();
+      } else {
+        alert("Workflow completed! Outstanding action items logged.");
+        activeStepIndex = 0;
+        renderSopStep();
+      }
+    });
+
+    renderSopStep();
+
+    // FAQ Accordion Toggle
+    document.querySelectorAll(".faq-question").forEach(q => {
+      q.addEventListener("click", () => {
+        const item = q.parentNode;
+        const answer = item.querySelector(".faq-answer");
+        
+        if (item.classList.contains("active")) {
+          item.classList.remove("active");
+          answer.style.maxHeight = null;
+          q.querySelector(".faq-toggle").innerText = "+";
+        } else {
+          // Close others
+          document.querySelectorAll(".faq-item").forEach(i => {
+            i.classList.remove("active");
+            i.querySelector(".faq-answer").style.maxHeight = null;
+            i.querySelector(".faq-toggle").innerText = "+";
+          });
+          
+          item.classList.add("active");
+          answer.style.maxHeight = answer.scrollHeight + "px";
+          q.querySelector(".faq-toggle").innerText = "−";
+        }
+      });
+    });
+
+    // Copy to clipboard utility helper
+    window.copyText = function(elementId) {
+      const el = document.getElementById(elementId);
+      const textToCopy = el.innerText;
+      
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        // Change button label momentarily
+        const buttons = document.querySelectorAll(".copy-btn");
+        buttons.forEach(btn => {
+          if (btn.parentNode.contains(el)) {
+            const origText = btn.innerText;
+            btn.innerText = "Copied!";
+            setTimeout(() => {
+              btn.innerText = origText;
+            }, 1500);
+          }
+        });
+      }).catch(err => {
+        console.error("Clipboard copy failed: ", err);
+      });
+    };
+
+    // Live Search Filter & Highlights logic
+    const searchInput = document.getElementById("searchInput");
+    let originalDomState = new Map(); // Store original HTML of sections to reset highlights
+
+    // Cache original HTML structures of sections
+    document.querySelectorAll(".doc-section").forEach(sec => {
+      originalDomState.set(sec.id, sec.innerHTML);
+    });
+
+    function cleanSearchHighlights(sectionId) {
+      const sec = document.getElementById(sectionId);
+      sec.innerHTML = originalDomState.get(sectionId);
+    }
+
+    function applyHighlights(sectionId, query) {
+      const sec = document.getElementById(sectionId);
+      const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
+
+      const textNodes = [];
+      const walker = document.createTreeWalker(sec, NodeFilter.SHOW_TEXT, null, false);
+      
+      let node;
+      while (node = walker.nextNode()) {
+        // Avoid modifying pre, code, templates, scripts or style elements
+        const parentTagName = node.parentNode.tagName.toUpperCase();
+        if (parentTagName !== "CODE" && parentTagName !== "PRE" && parentTagName !== "SCRIPT" && parentTagName !== "STYLE") {
+          textNodes.push(node);
+        }
+      }
+
+      // Reverse nodes traversal to prevent index shifts on DOM edits
+      textNodes.reverse().forEach(node => {
+        const matches = node.nodeValue.match(regex);
+        if (matches) {
+          const parent = node.parentNode;
+          const content = node.nodeValue;
+          
+          const tempSpan = document.createElement("span");
+          tempSpan.innerHTML = content.replace(regex, `<mark class="search-highlight">$1</mark>`);
+          
+          while (tempSpan.firstChild) {
+            parent.insertBefore(tempSpan.firstChild, node);
+          }
+          parent.removeChild(node);
+        }
+      });
+    }
+
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    searchInput.addEventListener("input", (e) => {
+      const query = e.target.value.trim().toLowerCase();
+      
+      document.querySelectorAll(".doc-section").forEach(sec => {
+        cleanSearchHighlights(sec.id); // Reset first
+        
+        if (query.length < 2) {
+          sec.style.display = "flex"; // Show all
+          return;
+        }
+
+        const matchesQuery = sec.innerText.toLowerCase().includes(query);
+        if (matchesQuery) {
+          sec.style.display = "flex";
+          applyHighlights(sec.id, query);
+        } else {
+          sec.style.display = "none";
+        }
+      });
+
+      // Filter sidebar menu items
+      document.querySelectorAll(".nav-link").forEach(link => {
+        const href = link.getAttribute("href");
+        const targetSection = document.querySelector(href);
+        if (query.length < 2) {
+          link.style.display = "flex";
+          return;
+        }
+        
+        if (targetSection && targetSection.style.display !== "none") {
+          link.style.display = "flex";
+        } else {
+          link.style.display = "none";
+        }
+      });
+    });
+
+    // Scroll Back to Top Button Logic
+    const backToTopBtn = document.getElementById("backToTop");
+    const mainContentArea = document.querySelector(".main");
+
+    mainContentArea.addEventListener("scroll", () => {
+      if (mainContentArea.scrollTop > 300) {
+        backToTopBtn.classList.add("visible");
+      } else {
+        backToTopBtn.classList.remove("visible");
+      }
+    });
+
+    // Hash change tracker for active sidebar links highlighting
+    mainContentArea.addEventListener("scroll", () => {
+      const sections = document.querySelectorAll(".doc-section");
+      let activeSectionId = "";
+      
+      sections.forEach(sec => {
+        if (sec.style.display !== "none") {
+          const rect = sec.getBoundingClientRect();
+          if (rect.top <= 150) {
+            activeSectionId = sec.id;
+          }
+        }
+      });
+
+      if (activeSectionId) {
+        document.querySelectorAll(".nav-link").forEach(link => {
+          if (link.getAttribute("href") === `#${activeSectionId}`) {
+            link.classList.add("active");
+          } else {
+            link.classList.remove("active");
+          }
+        });
+      }
+    });
+
+  </script>
+</body>
+</html>
