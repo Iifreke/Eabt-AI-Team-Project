@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useUser } from '../context/UserContext.jsx';
@@ -235,7 +234,6 @@ function AgentConversationsPanel({ stat, onClose }) {
 }
 
 export default function Users() {
-  const navigate = useNavigate();
   const { profile, loadingProfile } = useUser();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -245,12 +243,7 @@ export default function Users() {
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [botFilter, setBotFilter] = useState('active'); // 'active' | 'all' | 'resolved'
 
-  // Guard: redirect non-super-admins
-  useEffect(() => {
-    if (!loadingProfile && profile?.role !== 'super_admin') {
-      navigate('/dashboard');
-    }
-  }, [profile, loadingProfile, navigate]);
+  const isSuperAdmin = profile?.role === 'super_admin';
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -294,12 +287,13 @@ export default function Users() {
     setUsers(prev => prev.filter(u => u.id !== userId));
   };
 
-  if (loadingProfile || profile?.role !== 'super_admin') return null;
+  if (loadingProfile) return null;
 
   return (
     <div className="ml-60 min-h-screen p-8">
       <Sidebar />
 
+      {isSuperAdmin && (
       <div className="max-w-4xl">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -364,9 +358,10 @@ export default function Users() {
           )}
         </div>
       </div>
+      )}
 
       {/* ── HUMAN AGENT CONVERSATION LOAD ── */}
-      <div className="mt-8 max-w-4xl">
+      <div className={`max-w-4xl ${isSuperAdmin ? 'mt-8' : ''}`}>
         <div className="mb-4">
           <h2 className="text-lg font-bold text-gray-900">Conversation Load</h2>
           <p className="text-gray-500 text-sm mt-0.5">Users each agent is attending to or has attended</p>

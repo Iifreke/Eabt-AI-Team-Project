@@ -13,6 +13,7 @@ import {
 import { searchKnowledgeBase, extractText } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
 import * as email from '../../src/services/email.js';
+import { anyAdminOnline } from '../../src/utils/presence.js';
 
 const READABLE_TYPES = new Set([
   'application/pdf',
@@ -120,11 +121,7 @@ export default async function handler(req, res) {
     let fullResponse = '';
 
     // Check admin online status once — used in all done events
-    const { count: onlineCount } = await supabase
-      .from('admin_profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'online');
-    const adminsOnline = (onlineCount || 0) > 0;
+    const adminsOnline = await anyAdminOnline(supabase);
 
     // ── ONBOARDING STAGE ──────────────────────────────────────
     if (conv.stage === 'onboarding') {
@@ -256,7 +253,9 @@ export default async function handler(req, res) {
       sendChunk({ chunk });
     });
 
-    const hasEscalation = detectEscalation(fullResponse);
+    // Check the user's own words directly — don't rely on the AI having phrased
+    // its reply in a way that happens to match, or having appended [ESCALATE].
+    const hasEscalation = detectEscalation(message) || detectEscalation(fullResponse);
     const cleanResponse = stripEscalateToken(fullResponse);
 
     // Check if THIS response failed (not accumulated) — so AI can keep helping on later messages

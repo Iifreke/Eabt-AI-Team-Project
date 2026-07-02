@@ -119,22 +119,38 @@ export async function generateSuggestions(schoolName, lastBotMessage) {
   }
 }
 
+// Static phrases that always mean "get me a human" regardless of sentence shape.
+const ESCALATION_PHRASES = [
+  'complaint',
+  'disciplinary',
+  'suspend',
+  'expel',
+  'legal',
+  'refund',
+  'real person',
+  'staff member',
+  'human being',
+  'customer service',
+  'customer support',
+  'support team',
+  'support agent',
+  'live agent',
+  'human support',
+  'human help',
+  'escalate',
+];
+
+// Catches the many ways people phrase "connect me to a human" —
+// "speak with a human", "reach admin", "talk to someone", "connect me to an agent", etc.
+const ESCALATION_REQUEST_RE =
+  /\b(talk|speak|chat|connect me|transfer me|put me|reach)\s*(to|with)?\s*(a|an|the)?\s*(human|person|someone|agent|admin|administrator|representative|rep|staff|manager)\b/i;
+
 export function detectEscalation(text) {
+  if (!text) return false;
   if (text.includes('[ESCALATE]')) return true;
-  const triggers = [
-    'complaint',
-    'disciplinary',
-    'suspend',
-    'expel',
-    'legal',
-    'refund',
-    'speak to someone',
-    'talk to a human',
-    'real person',
-    'staff member',
-  ];
   const lower = text.toLowerCase();
-  return triggers.some(t => lower.includes(t));
+  if (ESCALATION_PHRASES.some(t => lower.includes(t))) return true;
+  return ESCALATION_REQUEST_RE.test(text);
 }
 
 export function stripEscalateToken(text) {

@@ -1,5 +1,6 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth, requireSuperAdmin, getProfile } from '../../src/utils/auth.js';
+import { computeAgentStatus } from '../../src/utils/presence.js';
 import supabase from '../../src/db/supabase.js';
 
 export default async function handler(req, res) {
@@ -12,7 +13,7 @@ export default async function handler(req, res) {
 
     const { data: profiles, error } = await supabase
       .from('admin_profiles')
-      .select('id, email, full_name, role, status, created_at')
+      .select('id, email, full_name, role, status, updated_at, created_at')
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -20,7 +21,8 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    return res.status(200).json({ users: profiles || [] });
+    const users = (profiles || []).map(p => ({ ...p, status: computeAgentStatus(p) }));
+    return res.status(200).json({ users });
   }
 
   // POST /api/admin/users  — invite a new admin (super_admin only)

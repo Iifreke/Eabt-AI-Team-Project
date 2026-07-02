@@ -1,5 +1,6 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
+import { computeAgentStatus } from '../../src/utils/presence.js';
 import supabase from '../../src/db/supabase.js';
 
 export default async function handler(req, res) {
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
     // ── Human agents ──────────────────────────────────────────
     const { data: agents } = await supabase
       .from('admin_profiles')
-      .select('id, full_name, email, status, role')
+      .select('id, full_name, email, status, updated_at, role')
       .order('full_name');
 
     const { data: escalations } = await supabase
@@ -44,7 +45,7 @@ export default async function handler(req, res) {
         id:       agent.id,
         name:     agent.full_name || agent.email,
         email:    agent.email,
-        status:   agent.status,
+        status:   computeAgentStatus(agent),
         role:     agent.role,
         total:    mine.length,
         active:   mine.filter(e => e.status === 'in_progress').length,
@@ -92,14 +93,14 @@ export default async function handler(req, res) {
     const convLeadsMap   = Object.fromEntries((convLeads.data  || []).map(l => [l.id, l]));
     const convSchoolsMap = Object.fromEntries((convSchools.data || []).map(s => [s.id, s]));
 
-    const TEN_MIN = 10 * 60 * 1000;
+    const LEAD_ONLINE_WINDOW = 2 * 60 * 1000;
     const nowMs = Date.now();
 
     const botRows = convs.map(c => {
       let displayStage = c.stage;
-      // Inactive: active/onboarding but no activity in last 10 min
+      // Inactive: active/onboarding but no activity in last 2 min
       if ((displayStage === 'active' || displayStage === 'onboarding') &&
-          (nowMs - new Date(c.updated_at).getTime()) > TEN_MIN) {
+          (nowMs - new Date(c.updated_at).getTime()) > LEAD_ONLINE_WINDOW) {
         displayStage = 'inactive';
       }
       return {

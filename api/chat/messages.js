@@ -1,5 +1,6 @@
 import { applyCors } from '../../src/utils/cors.js';
 import supabase from '../../src/db/supabase.js';
+import { anyAdminOnline } from '../../src/utils/presence.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -37,12 +38,14 @@ export default async function handler(req, res) {
 
     if (error || !conv) return res.status(404).json({ error: 'Conversation not found' });
 
-    // Count online agents
-    const { count: onlineCount } = await supabase
-      .from('admin_profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'online');
-    const adminsOnline = (onlineCount || 0) > 0;
+    // This poll fires every 3s while escalated — piggyback a presence touch
+    // so the lead shows as online even while silently reading, not just messaging.
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conv.id);
+
+    const adminsOnline = await anyAdminOnline(supabase);
 
     const all = conv.messages || [];
     const typingEntry = all.find(m => m.role === '__typing__');

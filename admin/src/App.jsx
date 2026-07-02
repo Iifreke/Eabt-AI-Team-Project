@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -12,10 +12,18 @@ import Monitoring from './pages/Monitoring.jsx';
 import KnowledgeBase from './pages/KnowledgeBase.jsx';
 import Users from './pages/Users.jsx';
 import SetPassword from './pages/SetPassword.jsx';
+import EscalationAlertPopup from './components/EscalationAlertPopup.jsx';
+
+function AlertGate() {
+  const { pathname } = useLocation();
+  if (pathname === '/login' || pathname === '/set-password') return null;
+  return <EscalationAlertPopup />;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
+      <AlertGate />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/set-password" element={<SetPassword />} />

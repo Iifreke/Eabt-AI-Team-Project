@@ -12,23 +12,24 @@ const baseNav = [
   { to: '/tickets',    label: 'Tickets',    icon: '🎫' },
   { to: '/contacts',   label: 'Contacts',   icon: '👥' },
   { to: '/history',    label: 'History',    icon: '🗂️' },
+  { to: '/agents',     label: 'Team & Activity', icon: '🟢' },
   { to: '/shortcuts',  label: 'Shortcuts',  icon: '⚡' },
   { to: '/monitoring', label: 'Monitoring', icon: '👁️' },
 ];
 
 const superAdminNav = [
   { to: '/dashboard',     label: 'Overview',       icon: '📊' },
-  { to: '/agents',        label: 'Agents',         icon: '🔐' },
   { to: '/knowledge-base',label: 'Knowledge Base', icon: '📚' },
 ];
 
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Agent' };
 const ROLE_COLOR = { super_admin: 'bg-purple-600', admin: 'bg-blue-600' };
 
+// Online/away is now automatic (derived from heartbeat recency server-side) —
+// the only manual choice left is opting out entirely via "Invisible".
 const STATUS_OPTIONS = [
-  { value: 'online',    label: 'Online',    dot: 'bg-green-400' },
-  { value: 'away',      label: 'Away',      dot: 'bg-yellow-400' },
-  { value: 'invisible', label: 'Invisible', dot: 'bg-gray-400' },
+  { value: 'online',    label: 'Online (auto)', dot: 'bg-green-400' },
+  { value: 'invisible', label: 'Invisible',     dot: 'bg-gray-400' },
 ];
 
 export default function Sidebar() {
@@ -40,19 +41,21 @@ export default function Sidebar() {
   const [localStatus, setLocalStatus] = useState(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
-  // Heartbeat — keeps updated_at fresh so auto-status doesn't demote an active agent
+  // Heartbeat — keeps updated_at fresh so the server-side auto online/away
+  // derivation (src/utils/presence.js) sees this agent as present in real time.
   React.useEffect(() => {
     if (!profile?.id) return;
     api.heartbeat().catch(() => {});
-    const interval = setInterval(() => api.heartbeat().catch(() => {}), 60000);
+    const interval = setInterval(() => api.heartbeat().catch(() => {}), 20000);
     return () => clearInterval(interval);
   }, [profile?.id]);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const navItems = isSuperAdmin ? [...superAdminNav, ...baseNav] : baseNav;
 
-  // localStatus wins for immediate UI feedback; falls back to DB value
-  const agentStatus = localStatus ?? profile?.status ?? 'online';
+  // While this sidebar is mounted, heartbeat is firing, so we're online by
+  // definition — the only thing to reflect here is an explicit invisible opt-out.
+  const agentStatus = (localStatus ?? profile?.status) === 'invisible' ? 'invisible' : 'online';
   const currentStatusDot = STATUS_OPTIONS.find(s => s.value === agentStatus)?.dot || 'bg-green-400';
 
   // Sync localStatus when profile loads/changes from DB

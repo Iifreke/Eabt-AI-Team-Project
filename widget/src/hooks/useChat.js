@@ -65,12 +65,14 @@ export function useChat() {
   }, [stage, sessionId, config, pollEscalated]);
 
   // Poll adminsOnline every 30s in non-escalated stages so the ticket/escalate
-  // button always reflects current agent availability
+  // button always reflects current agent availability. Also doubles as a
+  // presence heartbeat (sessionId) so the lead shows as online while the
+  // widget tab is open, not just when they're actively typing.
   useEffect(() => {
-    if (stage !== 'escalated' && config?.apiUrl) {
+    if (stage !== 'escalated' && config?.apiUrl && sessionId) {
       const checkStatus = async () => {
         try {
-          const res = await fetch(`${config.apiUrl}/api/chat/status`);
+          const res = await fetch(`${config.apiUrl}/api/chat/status?sessionId=${sessionId}`);
           if (!res.ok) return;
           const data = await res.json();
           if (data.adminsOnline !== undefined) setAdminsOnline(data.adminsOnline);
@@ -82,7 +84,7 @@ export function useChat() {
       clearInterval(statusPollRef.current);
     }
     return () => clearInterval(statusPollRef.current);
-  }, [stage, config]);
+  }, [stage, config, sessionId]);
 
   const fetchGreeting = useCallback(async (cfg, sid) => {
     try {
