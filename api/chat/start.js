@@ -3,6 +3,7 @@ import { getSchool } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 import { chat } from '../../src/services/llm.js';
 import * as zoho from '../../src/services/zoho.js';
+import { anyAdminOnline } from '../../src/utils/presence.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -86,12 +87,7 @@ export default async function handler(req, res) {
     // Sync lead to Zoho CRM in the background
     zoho.syncLeadToZoho(lead, school).catch(console.error);
 
-    // Count online agents
-    const { count: onlineCount } = await supabase
-      .from('admin_profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'online');
-    const adminsOnline = (onlineCount || 0) > 0;
+    const adminsOnline = await anyAdminOnline(supabase);
 
     if (existingConv) {
       return res.status(200).json({
