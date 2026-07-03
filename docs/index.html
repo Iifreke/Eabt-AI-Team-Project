@@ -1439,6 +1439,7 @@
           <h3>Operations</h3>
           <ul class="nav-list">
             <li><a href="#sop" class="nav-link">SOP Manual</a></li>
+            <li><a href="#realtime" class="nav-link">Real-Time Presence & Alerts</a></li>
             <li><a href="#troubleshooting" class="nav-link">Troubleshooting</a></li>
             <li><a href="#security" class="nav-link">Security Policies</a></li>
           </ul>
@@ -1781,6 +1782,63 @@ VITE_API_URL=https://eabt-ai-team-project.vercel.app</code></pre>
           </div>
         </section>
 
+        <!-- SECTION 7.5: REAL-TIME PRESENCE & ALERTS -->
+        <section id="realtime" class="doc-section">
+          <div class="section-title">
+            🟢 Real-Time Presence & Escalation Alerts
+          </div>
+          <p>
+            Agent status, lead "online" indicators, and the escalation alert system are all derived server-side from activity recency rather than a manually-picked value — so nothing can get stuck stale. The single source of truth for presence is <code>src/utils/presence.js</code>.
+          </p>
+
+          <div class="grid-2">
+            <div class="card">
+              <h4>🟢 Agent Online / Away (Automatic)</h4>
+              <p>The admin Sidebar sends a heartbeat (<code>PATCH /api/admin/me</code> with <code>{ heartbeat: true }</code>) every <strong>20 seconds</strong> while the dashboard is open. Any endpoint reporting agent status — <code>/api/admin/users</code>, <code>/api/admin/agent-stats</code>, and the widget's <code>adminsOnline</code> flag — calls <code>computeAgentStatus(profile)</code>:</p>
+              <ul style="margin: 0.5rem 0 0 1.1rem; padding: 0; font-size: 0.9rem; color: var(--text-secondary);">
+                <li><code>updated_at</code> within 45s → <strong>online</strong></li>
+                <li><code>updated_at</code> older than 45s → <strong>away</strong></li>
+                <li>profile <code>status = 'invisible'</code> → always <strong>invisible</strong>, regardless of heartbeat</li>
+              </ul>
+              <p style="margin-top: 0.5rem;">"Invisible" is the <em>only</em> manual override left — there is no manual "online"/"away" toggle, since both are now derived automatically.</p>
+            </div>
+            <div class="card">
+              <h4>👤 Lead / Visitor Presence</h4>
+              <p>The widget already polls the backend while a chat is open — those polls now double as presence heartbeats instead of adding new traffic:</p>
+              <ul style="margin: 0.5rem 0 0 1.1rem; padding: 0; font-size: 0.9rem; color: var(--text-secondary);">
+                <li><code>GET /api/chat/status?sessionId=…</code> — every 30s outside escalation, touches <code>conversations.updated_at</code></li>
+                <li><code>GET /api/chat/messages?sessionId=…</code> — every 3s while escalated, does the same</li>
+              </ul>
+              <p style="margin-top: 0.5rem;">The Team &amp; Activity page treats a conversation as <strong>inactive</strong> once <code>updated_at</code> is more than <strong>2 minutes</strong> old (previously 10 minutes) — tight enough to reflect an open browser tab, not just recent messages.</p>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-top: 1rem;">
+            <div class="card">
+              <h4>🚨 Escalation Detection</h4>
+              <p><code>detectEscalation()</code> in <code>src/services/llm.js</code> runs directly on the visitor's <strong>raw message</strong> (not just the AI's reply), so it triggers regardless of how the AI chooses to respond. It combines:</p>
+              <ul style="margin: 0.5rem 0 0 1.1rem; padding: 0; font-size: 0.9rem; color: var(--text-secondary);">
+                <li>A static phrase list — <code>complaint</code>, <code>refund</code>, <code>real human</code>, <code>live agent</code>, <code>customer service</code>, etc.</li>
+                <li>A regex covering verb + role combinations — <em>"talk / speak / chat / want / need / connect me / reach"</em> + <em>"a human / person / someone / agent / admin / staff / manager"</em></li>
+                <li>The AI's own <code>[ESCALATE]</code> token, appended per its system prompt when it recognizes an escalation-worthy request</li>
+              </ul>
+              <p style="margin-top: 0.5rem;">This means phrasings like <em>"I want to speak with a human"</em>, <em>"can you reach admin"</em>, or <em>"is there a live person available"</em> all trigger reliably, independent of the model's wording that turn.</p>
+            </div>
+            <div class="card">
+              <h4>🔔 Ringtone & Popup Alerts</h4>
+              <p><code>EscalationContext.jsx</code> polls pending escalations every 5s. While there's an unacknowledged pending escalation, it plays a synthesized tone (<code>admin/src/utils/notificationSound.js</code>) on a repeating <strong>3-second</strong> interval — like an incoming call — until an admin views or dismisses it.</p>
+              <p style="margin-top: 0.5rem;"><code>EscalationAlertPopup.jsx</code> is mounted globally in <code>App.jsx</code> (hidden only on <code>/login</code> and <code>/set-password</code>), so it fires on <strong>any page</strong> the admin is on, regardless of their online/invisible status — as long as the dashboard tab is open.</p>
+            </div>
+          </div>
+
+          <div class="alert alert-note" style="margin-top: 1rem;">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h-2v2h2v4h-2v2h6v-2h-2v-4zM12 9c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+            <div>
+              <strong>Who sees what:</strong> The <strong>Team &amp; Activity</strong> page (<code>/agents</code>) is visible to every admin — live agent status and conversation load included. Only <code>super_admin</code> accounts see the invite / role-management controls at the top of that same page; the API endpoints for invite, role change, and removal remain server-side gated via <code>requireSuperAdmin</code> either way.
+            </div>
+          </div>
+        </section>
+
         <!-- SECTION 8: TROUBLESHOOTING -->
         <section id="troubleshooting" class="doc-section">
           <div class="section-title">
@@ -1862,6 +1920,17 @@ VITE_API_URL=https://eabt-ai-team-project.vercel.app</code></pre>
           <p style="margin-top: 1rem;">
             <strong>Data Isolation Policy:</strong> All database rows in the <code>leads</code>, <code>conversations</code>, <code>escalations</code>, and <code>document_chunks</code> tables are tagged with a foreign key reference to <code>schools.id</code>. Serverless functions filter all RAG queries and administrative analytics by the active school scope, preventing cross-tenant leakage.
           </p>
+
+          <div class="grid-2" style="margin-top: 1rem;">
+            <div class="card">
+              <h4>🔑 Password Recovery & Change</h4>
+              <p>Admins who forget their password use <strong>"Forgot password?"</strong> on the Login page, which calls <code>supabase.auth.resetPasswordForEmail()</code> and reuses the same <code>/set-password</code> page built for invite links. Logged-in admins can change their password any time via <strong>Change Password</strong> in the Sidebar.</p>
+            </div>
+            <div class="card">
+              <h4>💪 Server-Side Password Policy</h4>
+              <p>Password rules (length, uppercase, lowercase, number, symbol) are enforced by Supabase's own Auth password policy — not just the client-side checklist — so they can't be bypassed by calling the API directly. Supabase's leaked-password check (HaveIBeenPwned) is also enabled. Changing a password while already logged in requires the <strong>current password</strong> (<code>current_password</code> field), per Supabase's "Require current password when updating" setting.</p>
+            </div>
+          </div>
         </section>
 
       </div>
