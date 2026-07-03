@@ -453,7 +453,7 @@ export default function Users() {
           </div>
           <div className="bg-gray-100 border border-gray-200 rounded-xl p-4 text-center">
             <div className="text-3xl font-bold text-gray-500">{botStats.inactive}</div>
-            <div className="text-xs text-gray-400 mt-1">Inactive (10m+)</div>
+            <div className="text-xs text-gray-400 mt-1">Inactive (2m+)</div>
           </div>
           <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 text-center">
             <div className="text-3xl font-bold text-orange-600">{botStats.escalated}</div>

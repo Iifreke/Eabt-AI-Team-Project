@@ -4,7 +4,6 @@ import Sidebar from '../components/Sidebar.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
-import { playNotificationSound } from '../utils/notificationSound.js';
 import { supabase } from '../lib/supabase.js';
 
 const STATUSES = ['all', 'pending', 'in_progress', 'resolved'];
@@ -404,7 +403,6 @@ export default function Chats() {
   const [status, setStatus] = useState('all');
   const [tagFilter, setTagFilter] = useState('');
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
   const prevPendingRef = useRef(null);
 
   const fetchEscalations = useCallback(async () => {
@@ -424,12 +422,10 @@ export default function Chats() {
 
   useEffect(() => { fetchEscalations(); }, [fetchEscalations]);
 
+  // Sound + popup for new escalations is handled globally by EscalationContext
+  // / EscalationAlertPopup — this just refetches the list when the count moves.
   useEffect(() => {
     if (prevPendingRef.current !== null && pendingCount > prevPendingRef.current) {
-      const diff = pendingCount - prevPendingRef.current;
-      playNotificationSound();
-      setToast(`${diff} new chat${diff > 1 ? 's' : ''} waiting`);
-      setTimeout(() => setToast(null), 5000);
       fetchEscalations();
     }
     prevPendingRef.current = pendingCount;
@@ -442,13 +438,6 @@ export default function Chats() {
   return (
     <div className="ml-60 min-h-screen p-8">
       <Sidebar />
-
-      {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-red-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-3">
-          🚨 {toast}
-          <button onClick={() => setToast(null)} className="ml-2 text-white/70 hover:text-white">✕</button>
-        </div>
-      )}
 
       <div className="max-w-6xl">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Chats</h1>

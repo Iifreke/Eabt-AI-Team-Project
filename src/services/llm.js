@@ -128,6 +128,8 @@ const ESCALATION_PHRASES = [
   'legal',
   'refund',
   'real person',
+  'real human',
+  'live person',
   'staff member',
   'human being',
   'customer service',
@@ -141,9 +143,10 @@ const ESCALATION_PHRASES = [
 ];
 
 // Catches the many ways people phrase "connect me to a human" —
-// "speak with a human", "reach admin", "talk to someone", "connect me to an agent", etc.
+// "speak with a human", "reach admin", "talk to someone", "connect me to an agent",
+// "I want a human", "need an agent", etc.
 const ESCALATION_REQUEST_RE =
-  /\b(talk|speak|chat|connect me|transfer me|put me|reach)\s*(to|with)?\s*(a|an|the)?\s*(human|person|someone|agent|admin|administrator|representative|rep|staff|manager)\b/i;
+  /\b(talk|speak|chat|want|need|get me|connect me|transfer me|put me|reach)\s*(to|with)?\s*(a|an|the)?\s*(human|person|someone|agent|admin|administrator|representative|rep|staff|manager)\b/i;
 
 export function detectEscalation(text) {
   if (!text) return false;
