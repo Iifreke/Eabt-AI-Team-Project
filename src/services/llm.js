@@ -69,7 +69,7 @@ export async function chatStream(systemPrompt, messageHistory, onChunk) {
     temperature: 0.0,
     max_tokens: 1024,
     stream: true,
-  });`;,StartLine:27,TargetContent:
+  });
 
   let fullText = '';
   for await (const chunk of stream) {
