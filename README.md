@@ -188,6 +188,14 @@ Create admin users manually in Supabase:
 | `ZOHO_CLIENT_SECRET` | Zoho OAuth client secret |
 | `ZOHO_REFRESH_TOKEN` | Zoho OAuth refresh token |
 | `ZOHO_ACCOUNTS_URL` | `https://accounts.zoho.com` (or regional) |
+| `ZOHO_CLIQ_WEBHOOK_URL_BABCOCK` | Zoho Cliq channel webhook for Babcock alerts |
+| `ZOHO_CLIQ_WEBHOOK_URL_ABU` | Zoho Cliq channel webhook for ABU alerts |
+| `WHATSAPP_PHONE_NUMBER_ID` | Meta WhatsApp Cloud API Phone Number ID |
+| `WHATSAPP_BUSINESS_ACCOUNT_ID` | Meta WhatsApp Cloud API Business Account ID |
+| `WHATSAPP_ACCESS_TOKEN` | Meta WhatsApp System User / Permanent Access Token |
+| `WHATSAPP_APP_SECRET` | Meta App Secret for signature verification |
+| `WHATSAPP_VERIFY_TOKEN` | Webhook verification token |
+| `WHATSAPP_BUSINESS_NUMBER` | WhatsApp phone number in E.164 format |
 | `RESEND_API_KEY` | Resend API key for escalation emails |
 | `ESCALATION_EMAIL_BACKOCK` | Override email for Backock escalations |
 | `ESCALATION_EMAIL_ABU` | Override email for ABU escalations |

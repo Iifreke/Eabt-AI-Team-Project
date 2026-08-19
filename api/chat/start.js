@@ -4,6 +4,7 @@ import supabase from '../../src/db/supabase.js';
 import { chat } from '../../src/services/llm.js';
 import * as zoho from '../../src/services/zoho.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
+import { normalizePhoneNumber } from '../../src/utils/phone.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -19,13 +20,14 @@ export default async function handler(req, res) {
     const school = await getSchool(schoolId, res);
     if (!school) return;
 
-    // Check if there is an existing lead with the same email and phone for this school
+    const normalizedPhone = normalizePhoneNumber(phone) || phone;
+
+    // Check if there is an existing lead with the same email or normalized phone for this school
     let { data: existingLeads } = await supabase
       .from('leads')
       .select('*')
       .eq('school_id', school.id)
-      .eq('email', email)
-      .eq('phone', phone)
+      .or(`email.eq.${email},normalized_phone.eq.${normalizedPhone},phone.eq.${phone}`)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -44,7 +46,13 @@ export default async function handler(req, res) {
 
       const { data: updated } = await supabase
         .from('leads')
-        .update({ name, updated_at: new Date().toISOString() })
+        .update({
+          name,
+          email,
+          phone,
+          normalized_phone: normalizedPhone,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', lead.id)
         .select()
         .single();
@@ -52,13 +60,20 @@ export default async function handler(req, res) {
     } else {
       const { data: newLead } = await supabase
         .from('leads')
-        .insert({ school_id: school.id, session_id: sessionId, name, email, phone })
+        .insert({
+          school_id: school.id,
+          session_id: sessionId,
+          name,
+          email,
+          phone,
+          normalized_phone: normalizedPhone,
+        })
         .select()
         .single();
       lead = newLead;
     }
 
-    // Generate warm greeting ONLY if we are starting a new conversation
+    // Generate warm greeting ONLY if starting a new conversation
     let greetingText = '';
     let initialMessages = [];
     if (!existingConv) {
@@ -80,12 +95,32 @@ export default async function handler(req, res) {
           session_id: sessionId,
           lead_id: lead.id,
           stage: 'active',
+          channel: 'web',
+          user_web_online: true,
+          user_last_seen_web: new Date().toISOString(),
           messages: initialMessages,
         });
+
+      // Send Cliq alert for new prospective student
+      zoho.sendCliqAlert(
+        school,
+        lead,
+        `New prospective student started chatting on the website widget.`,
+        { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+      ).catch(console.error);
+    } else {
+      await supabase
+        .from('conversations')
+        .update({
+          user_web_online: true,
+          user_last_seen_web: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingConv.id);
     }
 
     // Sync lead to Zoho CRM in the background
-    zoho.syncLeadToZoho(lead, school).catch(console.error);
+    zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' }).catch(console.error);
 
     const adminsOnline = await anyAdminOnline(supabase);
 

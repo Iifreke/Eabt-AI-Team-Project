@@ -86,6 +86,40 @@ export default function ChatWidget({ config }) {
 
   const apiUrl = config?.apiUrl || '';
 
+  // ── Web User Presence Heartbeat ─────────────────────────────
+  useEffect(() => {
+    if (!sessionId || !isOpen || step !== 'chat') return;
+
+    const sendPresence = (online) => {
+      fetch(`${apiUrl}/api/chat/presence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, online }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    sendPresence(true);
+    const interval = setInterval(() => sendPresence(true), 25000);
+
+    const onVisibilityChange = () => {
+      sendPresence(document.visibilityState === 'visible');
+    };
+
+    const onBeforeUnload = () => {
+      sendPresence(false);
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [sessionId, isOpen, step, apiUrl]);
+
   // Start 2-minute no-response countdown when stage becomes escalated
   useEffect(() => {
     if (stage === 'escalated') {
@@ -106,6 +140,13 @@ export default function ChatWidget({ config }) {
       setShowNoResponseHint(false);
     }
   }, [messages, showNoResponseHint]);
+
+  const getWhatsAppUrl = () => {
+    const waNumber = config?.whatsappNumber || '2348000000000';
+    const schoolName = selectedSchool?.name || 'Admissions';
+    const text = encodeURIComponent(`Hello! I was chatting with ${schoolName} support on the website and would like to continue here.`);
+    return `https://wa.me/${waNumber.replace(/[^\d]/g, '')}?text=${text}`;
+  };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
   const windowStyle = isMobile
@@ -142,7 +183,6 @@ export default function ChatWidget({ config }) {
 
   function handleClose() {
     setIsOpen(false);
-    // Reset everything so next open starts a fresh session
     resetSession();
     resetChat();
     setStep(isMultiSchool ? 'school' : 'form');
@@ -154,6 +194,7 @@ export default function ChatWidget({ config }) {
     setShowNoResponseHint(false);
     setShowAgentOnlineBanner(false);
   }
+
   function handleSchoolSelect(school) { setSelectedSchool(school); setStep('form'); }
 
   async function handleFormSubmit(e) {
@@ -187,9 +228,9 @@ export default function ChatWidget({ config }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           schoolId: selectedSchool?.id,
-          name: form.name || lead.name || 'Visitor',
-          email: form.email || lead.email || '',
-          phone: form.phone || lead.phone || '',
+          name: form.name || 'Visitor',
+          email: form.email || '',
+          phone: form.phone || '',
           subject,
           message,
         }),
@@ -198,29 +239,31 @@ export default function ChatWidget({ config }) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Server error');
       }
-      setTicketForm({ subject: '', message: '' });
-      setShowNoResponseHint(false);
-      setStep('ticket_sent');
+      setStep('ticket_done');
     } catch (err) {
-      setTicketError(err.message || 'Failed to send. Please try again.');
+      setTicketError(err.message || 'Failed to submit ticket. Please try again.');
     } finally {
       setTicketLoading(false);
     }
   }
 
-  async function handleCsatSelect(rating) {
+  async function handleRatingSubmit(rating) {
     setCsatSending(true);
     try {
-      await fetch(`${apiUrl}/api/chat/messages`, {
-        method: 'PATCH',
+      await fetch(`${apiUrl}/api/admin/csat`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, rating }),
+        body: JSON.stringify({
+          schoolId: selectedSchool?.id,
+          sessionId,
+          rating,
+        }),
       });
-      setStep('rating_done');
-    } catch {
-      setStep('rating_done');
+    } catch (err) {
+      console.error('CSAT submit error:', err);
     } finally {
       setCsatSending(false);
+      setStep('rating_done');
     }
   }
 
@@ -228,74 +271,123 @@ export default function ChatWidget({ config }) {
     <>
       <style>{slideUpKeyframe}</style>
 
-      {/* ── SCHOOL PICKER ── */}
-      {isOpen && step === 'school' && (
+      {/* ── SCHOOL SELECT STEP ── */}
+      {isOpen && step === 'school' && isMultiSchool && (
         <div style={panelStyle}>
-          <PanelHeader title="Welcome!" subtitle="School Admissions Assistant" onClose={handleClose} />
-          <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-            <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.6' }}>Which school are you enquiring about?</p>
-            {config.schools.map(school => (
+          <PanelHeader title="Select Institution" subtitle="Choose your school to get started" onClose={handleClose} />
+          <div style={{ flex: 1, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center' }}>
+            {config.schools.map((school) => (
               <button
                 key={school.id}
                 onClick={() => handleSchoolSelect(school)}
-                style={{ padding: '16px 18px', borderRadius: '12px', border: `2px solid ${primaryColor}`, background: 'white', color: primaryColor, fontSize: '14px', fontWeight: 600, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease' }}
-                onMouseEnter={e => { e.currentTarget.style.background = primaryColor; e.currentTarget.style.color = 'white'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = primaryColor; }}
+                style={{
+                  padding: '16px 20px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #e0e0e0',
+                  background: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'border-color 0.15s, transform 0.1s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = primaryColor; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0e0e0'; e.currentTarget.style.transform = 'translateY(0)'; }}
               >
-                {school.name}
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#222' }}>{school.name}</div>
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>Admissions & Support</div>
+                </div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── LEAD FORM ── */}
+      {/* ── FORM STEP ── */}
       {isOpen && step === 'form' && (
         <div style={panelStyle}>
-          <PanelHeader title={selectedSchool?.name || 'School Support'} subtitle="Just a few quick details to get started" onClose={handleClose} />
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-            <p style={{ fontSize: '13px', color: '#666', marginBottom: '18px', lineHeight: '1.5' }}>
-              Hi! To help you better, please fill in your details below.
-            </p>
+          <PanelHeader title={selectedSchool?.name || 'School Support'} subtitle="Please share your details to begin" onClose={handleClose} />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
             <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Full Name</label>
-                <input type="text" placeholder="e.g. Amaka Johnson" value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
+                <input
+                  type="text"
+                  placeholder="e.g. Adeola Johnson"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor}
+                  onBlur={e => e.target.style.borderColor = '#ddd'}
+                  required
+                />
               </div>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Email Address</label>
-                <input type="email" placeholder="e.g. amaka@gmail.com" value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
+                <input
+                  type="email"
+                  placeholder="e.g. adeola@example.com"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor}
+                  onBlur={e => e.target.style.borderColor = '#ddd'}
+                  required
+                />
               </div>
               <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Phone Number</label>
-                <input type="tel" placeholder="e.g. 08012345678" value={form.phone}
-                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Phone Number (WhatsApp)</label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 08012345678"
+                  value={form.phone}
+                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = primaryColor}
+                  onBlur={e => e.target.style.borderColor = '#ddd'}
+                  required
+                />
               </div>
+
               {formError && (
                 <div style={{ fontSize: '12px', color: '#d93025', background: '#fce8e6', padding: '8px 12px', borderRadius: '6px' }}>{formError}</div>
               )}
-              <button type="submit" disabled={formLoading}
-                style={{ background: formLoading ? '#999' : primaryColor, color: 'white', border: 'none', borderRadius: '10px', padding: '13px', fontSize: '14px', fontWeight: 700, cursor: formLoading ? 'not-allowed' : 'pointer', marginTop: '4px' }}>
-                {formLoading ? 'Starting chat...' : 'Start Chat →'}
+
+              <button
+                type="submit"
+                disabled={formLoading}
+                style={{
+                  background: formLoading ? '#999' : primaryColor,
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  cursor: formLoading ? 'not-allowed' : 'pointer',
+                  marginTop: '6px',
+                  transition: 'opacity 0.15s',
+                }}
+              >
+                {formLoading ? 'Starting chat...' : 'Start Chat'}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* ── CHAT ── */}
+      {/* ── CHAT STEP ── */}
       {isOpen && step === 'chat' && (
         <div style={panelStyle}>
           <ChatHeader
-            schoolName={selectedSchool?.name || config?.theme?.name || 'School Support'}
-            primaryColor={primaryColor}
-            adminsOnline={adminsOnline}
+            config={effectiveConfig}
             onClose={handleClose}
+            stage={stage}
+            agentTyping={agentTyping}
+            adminsOnline={adminsOnline}
           />
           <MessageList
             messages={messages}
@@ -312,20 +404,8 @@ export default function ChatWidget({ config }) {
             primaryColor={primaryColor}
             apiUrl={effectiveConfig?.apiUrl}
           />
-          {/* Agent online banner — shown when user tried to open a ticket during business hours */}
-          {showAgentOnlineBanner && (
-            <div style={{ margin: '0 12px 8px', background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#1b5e20', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <span style={{ fontSize: '16px', flexShrink: 0 }}>🟢</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, marginBottom: '2px' }}>Support hours are active</div>
-                <div style={{ lineHeight: '1.5' }}>
-                  Tickets are only available outside support hours (Mon–Fri 8am–6pm WAT). Type your question and the AI will help you right away.
-                </div>
-              </div>
-              <button onClick={() => setShowAgentOnlineBanner(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#388e3c', fontSize: '14px', padding: '0', flexShrink: 0 }}>✕</button>
-            </div>
-          )}
-          {/* Off-hours ticket prompt — shown when AI couldn't help outside business hours */}
+
+          {/* Off-hours / Offline banner */}
           {showTicketPrompt && !isBusinessHours() && (
             <div style={{ margin: '0 12px 8px', background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#e65100', position: 'relative' }}>
               <button
@@ -333,15 +413,25 @@ export default function ChatWidget({ config }) {
                 style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#e65100', fontSize: '18px', fontWeight: 700, lineHeight: 1, padding: '2px 4px' }}
                 aria-label="Dismiss">&#x2715;</button>
               <div style={{ fontWeight: 700, marginBottom: '4px', paddingRight: '20px' }}>Support Team is Offline</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is offline (Mon–Fri 8am–6pm WAT). Open a ticket and we'll reply to your email.</div>
-              <button
-                onClick={() => { setTicketError(''); setStep('ticket'); }}
-                style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                Open a Ticket →
-              </button>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is offline (Mon–Fri 8am–6pm WAT). Continue on WhatsApp or open a ticket.</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <a
+                  href={getWhatsAppUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  📱 WhatsApp Chat →
+                </a>
+                <button
+                  onClick={() => { setTicketError(''); setStep('ticket'); }}
+                  style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                  Open a Ticket →
+                </button>
+              </div>
             </div>
           )}
-          {/* Offline warning banner — only after escalation, outside business hours */}
+
+          {/* Offline warning banner after escalation */}
           {stage === 'escalated' && !isBusinessHours() && !escalatedBannerDismissed && (
             <div style={{ margin: '0 12px 8px', background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#c62828', position: 'relative' }}>
               <button
@@ -349,27 +439,25 @@ export default function ChatWidget({ config }) {
                 style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#c62828', fontSize: '18px', fontWeight: 700, lineHeight: 1, padding: '2px 4px' }}
                 aria-label="Dismiss">&#x2715;</button>
               <div style={{ fontWeight: 700, marginBottom: '4px', paddingRight: '20px' }}>Support Team is Offline</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is currently offline. The AI BOT can help otherwise, Open a ticket and we'll reply to your email.</div>
-              <button
-                onClick={() => { setTicketError(''); setStep('ticket'); }}
-                style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                Open a Ticket →
-              </button>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our advisors are offline. You can chat with our AI, switch to WhatsApp, or open a ticket.</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <a
+                  href={getWhatsAppUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  📱 Chat on WhatsApp
+                </a>
+                <button
+                  onClick={() => { setTicketError(''); setStep('ticket'); }}
+                  style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                  Open a Ticket
+                </button>
+              </div>
             </div>
           )}
-          {/* No-response hint — only after escalation, outside business hours */}
-          {showNoResponseHint && stage === 'escalated' && !isBusinessHours() && (
-            <div style={{ margin: '0 12px 8px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#795548' }}>
-              <div style={{ fontWeight: 700, marginBottom: '4px' }}>No agent has responded yet</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team may be busy. The AI BOT can help otherwise, Open a ticket and we'll reply to your email.</div>
-              <button
-                onClick={() => { setTicketError(''); setStep('ticket'); }}
-                style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: '7px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                Open a Ticket →
-              </button>
-            </div>
-          )}
-          {/* Satisfaction check — shown after AI successfully answers */}
+
+          {/* Satisfaction check */}
           {askSatisfaction && stage !== 'resolved' && (
             <div style={{ margin: '0 12px 8px', background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#1e40af' }}>
               <div style={{ fontWeight: 700, marginBottom: '6px' }}>Were you satisfied with this answer?</div>
@@ -387,6 +475,7 @@ export default function ChatWidget({ config }) {
               </div>
             </div>
           )}
+
           {/* Resolved banner */}
           {stage === 'resolved' && (
             <div style={{ margin: '0 12px 8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#15803d', textAlign: 'center' }}>
@@ -394,13 +483,21 @@ export default function ChatWidget({ config }) {
               <div>Start a new chat any time you need help.</div>
             </div>
           )}
-          {/* Footer actions — escalated to human, OR off-hours ticket prompt */}
+
+          {/* Footer actions */}
           {(stage === 'escalated' || showTicketPrompt) && (
             <div style={{ background: '#f9f9f9', borderTop: '1px solid #eee', padding: '8px 16px', display: 'flex', gap: '12px', justifyContent: 'center', flexShrink: 0 }}>
               <button onClick={() => setStep('rating')}
                 style={{ fontSize: '12px', color: primaryColor, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                 Rate this chat ★
               </button>
+              <a
+                href={getWhatsAppUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '12px', color: '#128C7E', background: 'none', textDecoration: 'underline', fontWeight: 600 }}>
+                📱 WhatsApp
+              </a>
               <button
                 onClick={() => {
                   if (isBusinessHours()) {
@@ -418,7 +515,7 @@ export default function ChatWidget({ config }) {
         </div>
       )}
 
-      {/* ── TICKET FORM — only available outside business hours ── */}
+      {/* ── TICKET FORM ── */}
       {isOpen && step === 'ticket' && !isBusinessHours() && (
         <div style={panelStyle}>
           <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
@@ -454,47 +551,59 @@ export default function ChatWidget({ config }) {
         </div>
       )}
 
-      {/* ── TICKET SENT ── */}
-      {isOpen && step === 'ticket_sent' && (
+      {/* ── TICKET DONE ── */}
+      {isOpen && step === 'ticket_done' && (
         <div style={panelStyle}>
-          <PanelHeader title="Ticket Sent!" onClose={handleClose} />
+          <PanelHeader title="Ticket Submitted" onClose={handleClose} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#222', marginBottom: '8px' }}>We've received your ticket!</div>
-            <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6' }}>
-              Our team will reply to <strong>{form.email || lead.email || 'your email'}</strong> within 24 hours.
+            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-            <button onClick={() => setStep('chat')}
-              style={{ marginTop: '24px', padding: '10px 20px', borderRadius: '10px', border: '1.5px solid #ddd', background: 'white', cursor: 'pointer', fontSize: '13px', color: '#444' }}>
-              Back to chat
-            </button>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: '#222', marginBottom: '8px' }}>We've received your ticket!</div>
+            <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6', maxWidth: '280px' }}>
+              Our support team will review your message and reply to your email within 24 hours.
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+              <a
+                href={getWhatsAppUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ padding: '10px 16px', borderRadius: '10px', background: '#25D366', color: 'white', textDecoration: 'none', fontSize: '13px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                📱 Chat on WhatsApp
+              </a>
+              <button onClick={() => setStep('chat')}
+                style={{ padding: '10px 16px', borderRadius: '10px', border: '1.5px solid #ddd', background: 'white', cursor: 'pointer', fontSize: '13px', color: '#444' }}>
+                Back to chat
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── CSAT RATING ── */}
+      {/* ── RATING STEP ── */}
       {isOpen && step === 'rating' && (
         <div style={panelStyle}>
-          <PanelHeader title="Rate Your Experience" subtitle="How was your chat today?" onClose={handleClose} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: '24px' }}>
-            <div style={{ fontSize: '14px', color: '#444', textAlign: 'center' }}>
-              Your feedback helps us improve our support.
-            </div>
-            <div style={{ display: 'flex', gap: '16px' }}>
-              {CSAT_OPTIONS.map(({ rating, emoji, label }) => (
-                <button key={rating} onClick={() => handleCsatSelect(rating)} disabled={csatSending}
-                  title={label}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: csatSending ? 'not-allowed' : 'pointer', opacity: csatSending ? 0.5 : 1, transition: 'transform 0.1s' }}
-                  onMouseEnter={e => { if (!csatSending) e.currentTarget.style.transform = 'scale(1.2)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
-                  <span style={{ fontSize: '36px' }}>{emoji}</span>
-                  <span style={{ fontSize: '10px', color: '#888' }}>{label}</span>
+          <PanelHeader title="Rate Your Experience" subtitle="How did we do today?" onClose={handleClose} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', color: '#444', marginBottom: '24px', fontWeight: 600 }}>Please rate your support experience:</div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '32px' }}>
+              {CSAT_OPTIONS.map(opt => (
+                <button
+                  key={opt.rating}
+                  disabled={csatSending}
+                  onClick={() => handleRatingSubmit(opt.rating)}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '12px 10px', borderRadius: '12px', border: '1.5px solid #e0e0e0', background: 'white', cursor: 'pointer', minWidth: '58px', transition: 'border-color 0.15s, transform 0.1s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = primaryColor; e.currentTarget.style.transform = 'scale(1.08)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0e0e0'; e.currentTarget.style.transform = 'scale(1)'; }}
+                >
+                  <span style={{ fontSize: '26px' }}>{opt.emoji}</span>
+                  <span style={{ fontSize: '10px', color: '#666', fontWeight: 600 }}>{opt.label}</span>
                 </button>
               ))}
             </div>
             <button onClick={() => setStep('chat')}
-              style={{ fontSize: '12px', color: '#999', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-              Skip
+              style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #ddd', background: 'none', cursor: 'pointer', fontSize: '12px', color: '#888' }}>
+              Cancel
             </button>
           </div>
         </div>

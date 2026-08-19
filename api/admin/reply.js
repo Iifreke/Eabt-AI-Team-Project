@@ -1,6 +1,8 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth, getProfile } from '../../src/utils/auth.js';
 import supabase from '../../src/db/supabase.js';
+import { sendWhatsAppMessage } from '../../src/services/whatsapp.js';
+import * as zoho from '../../src/services/zoho.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -34,10 +36,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'conversationId and message are required' });
     }
 
-    // Load conversation
+    // Load conversation with lead and school details
     const { data: conv, error: convErr } = await supabase
       .from('conversations')
-      .select('id, messages, stage')
+      .select('id, messages, stage, channel, whatsapp_phone, user_web_online, user_last_seen_web, school_id, lead_id, schools(id, name, slug), leads(id, name, phone, normalized_phone, zoho_contact_id)')
       .eq('id', conversationId)
       .single();
 
@@ -53,6 +55,7 @@ export default async function handler(req, res) {
     // Look up the admin's display name from their profile
     const profile = await getProfile(user.id);
     const adminName = profile?.full_name || user.email || 'Support Agent';
+    const schoolName = conv.schools?.name || 'School Support';
 
     // Set first_response_at, status and attended_by on the escalation when admin replies
     const { data: esc } = await supabase
@@ -98,7 +101,34 @@ export default async function handler(req, res) {
 
     if (updateErr) throw updateErr;
 
-    return res.status(200).json({ ok: true, messages });
+    // ── Omnichannel WhatsApp Dispatch ─────────────────────────
+    // If conversation is from WhatsApp OR user is offline on the web widget
+    const isWhatsAppChannel = conv.channel === 'whatsapp';
+    const lastSeenMs = conv.user_last_seen_web ? new Date(conv.user_last_seen_web).getTime() : 0;
+    const isWebUserOffline = conv.user_web_online === false || (Date.now() - lastSeenMs > 90 * 1000);
+
+    const userPhone = conv.whatsapp_phone || conv.leads?.normalized_phone || conv.leads?.phone;
+
+    let whatsappSent = false;
+    if ((isWhatsAppChannel || isWebUserOffline) && userPhone) {
+      const waBody = `*${adminName}* (${schoolName}):\n${message.trim()}`;
+      const waResult = await sendWhatsAppMessage(userPhone, waBody);
+      whatsappSent = waResult.ok;
+      if (!waResult.ok) {
+        console.warn('[Admin Reply] WhatsApp dispatch failed:', waResult.error);
+      }
+    }
+
+    // Log admin response to Zoho CRM Notes in background if linked
+    if (conv.leads?.zoho_contact_id) {
+      zoho.addNoteToLead(
+        conv.leads.zoho_contact_id,
+        `Staff Reply by ${adminName}`,
+        `[${new Date().toLocaleTimeString()}] ${adminName}: ${message.trim()}`
+      ).catch(console.error);
+    }
+
+    return res.status(200).json({ ok: true, messages, whatsappSent });
   } catch (error) {
     console.error('admin reply error:', error);
     return res.status(500).json({ error: 'Internal server error' });

@@ -28,6 +28,13 @@ const reasonLabel = {
   sensitive_topic: 'Sensitive topic',
 };
 
+function formatWhatsAppLink(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/[^\d]/g, '');
+  if (!digits) return null;
+  return `https://wa.me/${digits}`;
+}
+
 // ── Shortcuts autocomplete ───────────────────────────────────────
 function useShortcuts() {
   const [shortcuts, setShortcuts] = useState([]);
@@ -45,13 +52,13 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
   const [shortcutQuery, setShortcutQuery] = useState('');
   const bottomRef = useRef(null);
   const pollRef = useRef(null);
   const typingTimerRef = useRef(null);
   const autoResolveRef = useRef(null);
 
-  // Use refs to stabilize callbacks and prevent re-render loops
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => {
     onUpdateRef.current = onUpdate;
@@ -69,6 +76,10 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
   }, [esc.id, esc.status, profile]);
 
   const sessionId = esc.conversations?.session_id;
+  const lead = esc.leads;
+  const conversation = esc.conversations;
+  const channel = conversation?.channel || (conversation?.whatsapp_phone ? 'whatsapp' : 'web');
+  const waUrl = formatWhatsAppLink(lead?.normalized_phone || lead?.phone || conversation?.whatsapp_phone);
 
   const fetchMessages = useCallback(async () => {
     if (!sessionId) return;
@@ -77,7 +88,6 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
       const data = await res.json();
       if (Array.isArray(data?.messages)) {
         setMessages(prev => {
-          // Only update if lengths differ or last message timestamp differs to prevent jumpy UI
           if (prev.length !== data.messages.length || prev[prev.length - 1]?.ts !== data.messages[data.messages.length - 1]?.ts) {
              return data.messages;
           }
@@ -94,7 +104,7 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
 
   useEffect(() => {
     fetchMessages();
-    pollRef.current = setInterval(fetchMessages, 1000);
+    pollRef.current = setInterval(fetchMessages, 1500);
     return () => {
       clearInterval(pollRef.current);
       clearTimeout(typingTimerRef.current);
@@ -131,12 +141,17 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
     clearTimeout(typingTimerRef.current);
     setSending(true);
     setError('');
+    setInfoMessage('');
     try {
-      await api.replyToConversation(esc.conversation_id, reply.trim());
+      const res = await api.replyToConversation(esc.conversation_id, reply.trim());
       setReply('');
       setShortcutQuery('');
       await fetchMessages();
       resetAutoResolve();
+      if (res?.whatsappSent) {
+        setInfoMessage('✓ Delivered to student via WhatsApp');
+        setTimeout(() => setInfoMessage(''), 4000);
+      }
     } catch {
       setError('Failed to send. Please try again.');
     } finally {
@@ -156,25 +171,54 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
   };
 
   const roleLabel = (msg) => {
-    if (msg.role === 'user') return 'Visitor';
+    if (msg.role === 'user') return msg.channel === 'whatsapp' ? '📱 Visitor (WhatsApp)' : '🌐 Visitor (Web)';
     if (msg.role === 'admin') return `🧑‍💼 ${msg.adminName || 'Support Agent'}`;
-    return '🤖 Maverick';
+    return '🤖 AI Assistant';
   };
 
   return (
-    <div className="mt-4 border border-purple-200 rounded-xl overflow-hidden">
-      <div className="bg-purple-50 px-4 py-2 flex items-center justify-between border-b border-purple-200">
-        <span className="text-xs font-semibold text-purple-700 uppercase tracking-wider">🟣 Live Chat</span>
-        <span className="text-xs text-purple-500">Auto-refreshing every 4s</span>
+    <div className="mt-4 border border-purple-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-purple-50 px-4 py-2.5 flex items-center justify-between border-b border-purple-200 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-purple-800 uppercase tracking-wider">🟣 Live Chat</span>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+            {channel === 'whatsapp' ? '📱 WhatsApp' : '🌐 Web Widget'}
+          </span>
+          {lead?.zoho_contact_id && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              💼 Zoho Synced
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {waUrl && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-300 flex items-center gap-1"
+            >
+              📱 Message on WhatsApp
+            </a>
+          )}
+          <span className="text-xs text-purple-500">Live Sync</span>
+        </div>
       </div>
 
-      <div className="bg-gray-50 p-3 space-y-2 overflow-y-auto" style={{ maxHeight: '240px' }}>
+      <div className="bg-gray-50 p-3 space-y-2 overflow-y-auto" style={{ maxHeight: '280px' }}>
         {messages.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-4">No messages yet. Reply below to start the live conversation.</p>
         ) : (
           messages.map((msg, i) => (
             <div key={msg.ts || i} className={`text-xs px-3 py-2 rounded-lg ${roleBg(msg.role)}`}>
-              <div className="font-semibold mb-0.5">{roleLabel(msg)}</div>
+              <div className="font-semibold mb-0.5 flex items-center justify-between">
+                <span>{roleLabel(msg)}</span>
+                {msg.ts && (
+                  <span className="text-gray-400 font-normal">
+                    {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
               <div className="whitespace-pre-wrap">{msg.content}</div>
               {msg.attachments?.map((att, ai) => (
                 att.type?.startsWith('image/')
@@ -185,11 +229,6 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
                       ? <audio key={ai} controls src={att.url} className="mt-1 max-w-xs" />
                       : <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="mt-1 text-xs underline flex items-center gap-1">📄 {att.name}</a>
               ))}
-              {msg.ts && (
-                <div className="text-gray-400 mt-0.5 text-right">
-                  {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              )}
             </div>
           ))
         )}
@@ -199,6 +238,7 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
       {esc.status !== 'resolved' && (
         <div className="p-3 bg-white border-t border-purple-100 relative">
           {error && <div className="text-xs text-red-600 mb-2">{error}</div>}
+          {infoMessage && <div className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded mb-2 font-medium">{infoMessage}</div>}
 
           {matchedShortcuts.length > 0 && (
             <div className="absolute bottom-full left-3 right-3 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
@@ -218,13 +258,13 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
               onChange={handleReplyChange}
               onKeyDown={handleKeyDown}
               rows={2}
-              placeholder="Type / for shortcuts, Enter to send"
+              placeholder="Type / for quick shortcuts, Enter to send (auto-dispatches to WhatsApp if student is offline)..."
               className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
             />
             <button
               onClick={sendReply}
               disabled={sending || !reply.trim()}
-              className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 self-end"
+              className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 self-end transition-colors"
             >
               {sending ? '...' : 'Send'}
             </button>
@@ -305,13 +345,23 @@ function ChatRow({ esc, onUpdate }) {
     return '—';
   };
 
+  const channel = esc.conversations?.channel || (esc.conversations?.whatsapp_phone ? 'whatsapp' : 'web');
+  const waUrl = formatWhatsAppLink(esc.leads?.normalized_phone || esc.leads?.phone || esc.conversations?.whatsapp_phone);
+
   return (
     <>
       <tr
         className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
         onClick={() => setExpanded(e => !e)}
       >
-        <td className="px-5 py-3 font-medium">{esc.leads?.name || '—'}</td>
+        <td className="px-5 py-3 font-medium">
+          <div className="flex items-center gap-1.5">
+            <span>{esc.leads?.name || '—'}</span>
+            <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+              {channel === 'whatsapp' ? 'WA' : 'WEB'}
+            </span>
+          </div>
+        </td>
         <td className="px-5 py-3">
           <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
             {schoolBadge(esc.schools?.slug)}
@@ -339,11 +389,28 @@ function ChatRow({ esc, onUpdate }) {
           <td colSpan={7} className="px-5 py-4">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Visitor</div>
-                <div className="text-sm space-y-1">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Visitor Details</div>
+                <div className="text-sm space-y-1.5">
                   <div>Name: <strong>{esc.leads?.name || '—'}</strong></div>
                   <div>Email: {esc.leads?.email || '—'}</div>
-                  <div>Phone: {esc.leads?.phone || '—'}</div>
+                  <div>Phone: {esc.leads?.phone || esc.leads?.normalized_phone || '—'}</div>
+                  <div className="flex items-center gap-2 pt-1">
+                    {waUrl && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                      >
+                        📱 WhatsApp Chat
+                      </a>
+                    )}
+                    {esc.leads?.zoho_contact_id && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded">
+                        💼 Zoho ID: {esc.leads.zoho_contact_id}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {esc.status === 'resolved' && (
@@ -362,14 +429,14 @@ function ChatRow({ esc, onUpdate }) {
                   onBlur={() => update({ staff_notes: notes })}
                   rows={3}
                   className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="Add notes..."
+                  placeholder="Add staff notes..."
                 />
 
                 <div className="flex gap-2 mt-3 flex-wrap">
                   {esc.status === 'pending' && (
                     <button onClick={() => update({ status: 'in_progress', attended_by: profile?.full_name })} disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">
-                      Serve
+                      Attend / Serve
                     </button>
                   )}
                   {(esc.status === 'pending' || esc.status === 'in_progress') && (
@@ -422,8 +489,6 @@ export default function Chats() {
 
   useEffect(() => { fetchEscalations(); }, [fetchEscalations]);
 
-  // Sound + popup for new escalations is handled globally by EscalationContext
-  // / EscalationAlertPopup — this just refetches the list when the count moves.
   useEffect(() => {
     if (prevPendingRef.current !== null && pendingCount > prevPendingRef.current) {
       fetchEscalations();
@@ -440,8 +505,8 @@ export default function Chats() {
       <Sidebar />
 
       <div className="max-w-6xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Chats</h1>
-        <p className="text-gray-500 text-sm mb-6">Click a row to expand, manage and reply live</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Chats & Escalations</h1>
+        <p className="text-gray-500 text-sm mb-6">Manage live conversations from Web & WhatsApp, attend leads, and reply in real-time</p>
 
         <div className="flex flex-wrap gap-2 mb-5 items-center">
           {STATUSES.map(s => (
@@ -464,11 +529,11 @@ export default function Chats() {
           />
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           {loading ? (
             <div className="flex items-center gap-2 text-gray-400 p-5">
               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              Loading...
+              Loading chats...
             </div>
           ) : !displayed.length ? (
             <p className="text-gray-400 text-sm p-5">No chats found.</p>

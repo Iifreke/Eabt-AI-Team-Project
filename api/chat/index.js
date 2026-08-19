@@ -14,6 +14,7 @@ import { searchKnowledgeBase, extractText } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
 import * as email from '../../src/services/email.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
+import { normalizePhoneNumber } from '../../src/utils/phone.js';
 
 const READABLE_TYPES = new Set([
   'application/pdf',
@@ -65,10 +66,26 @@ export default async function handler(req, res) {
     if (!conv) {
       const { data: newConv } = await supabase
         .from('conversations')
-        .insert({ school_id: school.id, session_id: sessionId, stage: 'onboarding' })
+        .insert({
+          school_id: school.id,
+          session_id: sessionId,
+          stage: 'onboarding',
+          channel: 'web',
+          user_web_online: true,
+          user_last_seen_web: new Date().toISOString(),
+        })
         .select()
         .single();
       conv = newConv;
+    } else {
+      // Refresh user presence timestamp
+      await supabase
+        .from('conversations')
+        .update({
+          user_web_online: true,
+          user_last_seen_web: new Date().toISOString(),
+        })
+        .eq('id', conv.id);
     }
 
     // Load or create lead
@@ -87,7 +104,7 @@ export default async function handler(req, res) {
       lead = newLead;
     }
 
-    // Ensure conversation has lead_id linked (so admin dashboard shows lead names)
+    // Ensure conversation has lead_id linked
     if (!conv.lead_id && lead?.id) {
       await supabase
         .from('conversations')
@@ -96,13 +113,13 @@ export default async function handler(req, res) {
       conv.lead_id = lead.id;
     }
 
-    // Extract text from any readable attachments so the AI can see the content
+    // Extract text from any readable attachments
     const attachmentText = await extractAttachmentText(attachments);
     const messageWithAttachments = attachmentText
       ? `${message}\n\n${attachmentText}`
       : message;
 
-    // Append user message (store original text in DB, AI gets enriched version)
+    // Append user message
     const messages = conv.messages || [];
     const userMsg = { role: 'user', content: message, ts: Date.now() };
     if (Array.isArray(attachments) && attachments.length > 0) userMsg.attachments = attachments;
@@ -139,12 +156,22 @@ export default async function handler(req, res) {
 
       if (fromUser.name || fromBot.name) lead.name = fromUser.name || fromBot.name;
       if (fromUser.email || fromBot.email) lead.email = fromUser.email || fromBot.email;
-      if (fromUser.phone || fromBot.phone) lead.phone = fromUser.phone || fromBot.phone;
+      if (fromUser.phone || fromBot.phone) {
+        const rawPhone = fromUser.phone || fromBot.phone;
+        lead.phone = rawPhone;
+        lead.normalized_phone = normalizePhoneNumber(rawPhone) || rawPhone;
+      }
 
       // Update lead in DB
       await supabase
         .from('leads')
-        .update({ name: lead.name, email: lead.email, phone: lead.phone, updated_at: new Date().toISOString() })
+        .update({
+          name: lead.name,
+          email: lead.email,
+          phone: lead.phone,
+          normalized_phone: lead.normalized_phone,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', lead.id);
 
       // Check if onboarding complete
@@ -152,13 +179,25 @@ export default async function handler(req, res) {
       if (lead.name && lead.email && lead.phone) {
         newStage = 'active';
         conv.stage = 'active';
-        zoho.syncLeadToZoho(lead, school).catch(console.error);
+        zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' }).catch(console.error);
+        zoho.sendCliqAlert(
+          school,
+          lead,
+          `Visitor completed onboarding on the website widget.`,
+          { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+        ).catch(console.error);
       }
 
       messages.push({ role: 'assistant', content: fullResponse, ts: Date.now() });
       await supabase
         .from('conversations')
-        .update({ messages, stage: newStage, updated_at: new Date().toISOString() })
+        .update({
+          messages,
+          stage: newStage,
+          user_web_online: true,
+          user_last_seen_web: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', conv.id);
 
       sendChunk({ done: true, stage: newStage, lead, suggestions: [], adminsOnline });
@@ -168,13 +207,17 @@ export default async function handler(req, res) {
     // ── ESCALATED STAGE ───────────────────────────────────────
     if (conv.stage === 'escalated') {
       if (adminsOnline) {
-        // Only hand off to the human agent if they have already replied.
-        // If nobody has replied yet, fall through so the AI keeps the user engaged.
+        // Only hand off to human agent if they have already replied
         const hasAdminReply = messages.some(m => m.role === 'admin' || m.adminName);
         if (hasAdminReply) {
           await supabase
             .from('conversations')
-            .update({ messages, updated_at: new Date().toISOString() })
+            .update({
+              messages,
+              user_web_online: true,
+              user_last_seen_web: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
             .eq('id', conv.id);
           sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages, adminsOnline });
           return res.end();
@@ -183,16 +226,13 @@ export default async function handler(req, res) {
       // No human has replied yet (or no agent online) — fall through to AI
     }
 
-
     // ── RESOLVED STAGE ───────────────────────────────────────
     if (conv.stage === 'resolved') {
-      // Conversation already resolved — restart as active
       await supabase.from('conversations').update({ stage: 'active', updated_at: new Date().toISOString() }).eq('id', conv.id);
       conv.stage = 'active';
     }
 
     // ── SATISFACTION RESPONSE ─────────────────────────────────
-    // Check if the previous assistant message asked for satisfaction
     const prevMsgs = (conv.messages || []).filter(m => !m.role?.startsWith('__'));
     const lastAssistantMsg = [...prevMsgs].reverse().find(m => m.role === 'assistant');
     if (lastAssistantMsg?.satisfactionCheck) {
@@ -214,17 +254,19 @@ export default async function handler(req, res) {
           await supabase.from('escalations').insert({ conversation_id: conv.id, school_id: school.id, lead_id: lead.id, reason: 'user_request' });
           conv.stage = 'escalated';
           email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason: 'user_request' }).catch(console.error);
+          zoho.createEscalationTask(lead, school, 'Visitor expressed dissatisfaction / requested human', message).catch(console.error);
+          zoho.sendCliqAlert(school, lead, `Visitor expressed dissatisfaction / requested human advisor: "${message}"`, { channel: 'Web Chatbot', reason: 'User Request' }).catch(console.error);
+
           messages.push({ role: 'assistant', content: "No problem! Let me connect you with a support agent who can help further.", ts: Date.now() });
           await supabase.from('conversations').update({ messages, stage: 'escalated', updated_at: new Date().toISOString() }).eq('id', conv.id);
           sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], adminsOnline, messages });
         } else {
-          messages.push({ role: 'assistant', content: "No problem! Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Please open a ticket and we'll follow up by email.", ts: Date.now() });
+          messages.push({ role: 'assistant', content: "No problem! Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Please open a ticket or message us on WhatsApp and we'll follow up.", ts: Date.now() });
           await supabase.from('conversations').update({ messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
           sendChunk({ done: true, stage: conv.stage, lead, suggestions: [], adminsOnline, offHoursTicketPrompt: true });
         }
         return res.end();
       }
-      // Not a clear yes/no — fall through to normal AI handling
     }
 
     // ── ACTIVE STAGE ──────────────────────────────────────────
@@ -236,8 +278,6 @@ export default async function handler(req, res) {
 
     const systemPrompt = buildActiveSystemPrompt(school.name, lead.name || 'there', context);
 
-    // Build history — exclude system notification messages (__*) and replace the last user
-    // message with the attachment-enriched version so the AI sees file content.
     const messageHistory = messages
       .filter(m => !m.role?.startsWith('__'))
       .slice(-10)
@@ -253,16 +293,12 @@ export default async function handler(req, res) {
       sendChunk({ chunk });
     });
 
-    // Check the user's own words directly — don't rely on the AI having phrased
-    // its reply in a way that happens to match, or having appended [ESCALATE].
     const hasEscalation = detectEscalation(message) || detectEscalation(fullResponse);
     const cleanResponse = stripEscalateToken(fullResponse);
 
-    // Check if THIS response failed (not accumulated) — so AI can keep helping on later messages
     const fallbackPhrase = 'do not have that specific detail';
     const currentResponseFailed = fullResponse.toLowerCase().includes(fallbackPhrase);
 
-    // Trigger on: user requested human OR this specific answer wasn't in the knowledge base
     const shouldEscalate = hasEscalation || currentResponseFailed;
 
     // Business hours: Mon–Fri 8am–6pm WAT (UTC+1)
@@ -273,7 +309,6 @@ export default async function handler(req, res) {
     let newStage = conv.stage;
 
     if (shouldEscalate && withinBusinessHours && newStage !== 'escalated') {
-      // During business hours → escalate to human agent (only once)
       const reason = hasEscalation ? 'user_request' : 'failed_attempts';
       await supabase.from('escalations').insert({
         conversation_id: conv.id,
@@ -284,33 +319,54 @@ export default async function handler(req, res) {
       newStage = 'escalated';
       conv.stage = 'escalated';
       email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason }).catch(console.error);
-    }
-    // Outside business hours: stay active, AI keeps working — just show ticket prompt below
 
-    // Ask satisfaction check only when AI answered successfully (not failing, not escalating)
+      // Trigger Zoho CRM Task and Zoho Cliq Alert
+      zoho.createEscalationTask(lead, school, reason, message).catch(console.error);
+      zoho.sendCliqAlert(
+        school,
+        lead,
+        `Chatbot escalation: "${message}" (${reason === 'user_request' ? 'Visitor requested human' : 'Knowledge Base Fallback'})`,
+        { channel: 'Web Chatbot', reason }
+      ).catch(console.error);
+    } else if (shouldEscalate && !withinBusinessHours) {
+      // Off-hours escalation alert to Cliq and Task for next day follow-up
+      zoho.createEscalationTask(lead, school, 'Off-Hours Escalation', message).catch(console.error);
+      zoho.sendCliqAlert(
+        school,
+        lead,
+        `Off-hours chatbot escalation from ${lead.name || 'Visitor'}: "${message}"`,
+        { channel: 'Web Chatbot', reason: 'Off-Hours Escalation' }
+      ).catch(console.error);
+    }
+
     const askSatisfaction = !shouldEscalate && newStage !== 'escalated';
     messages.push({ role: 'assistant', content: cleanResponse, satisfactionCheck: askSatisfaction, ts: Date.now() });
-
-    // No notification message during business hours — escalation is silent on the user side.
-    // The human agent sees the chat in the dashboard and replies directly.
-    // Off-hours: the widget banner (offHoursTicketPrompt flag) handles user communication.
 
     await supabase
       .from('conversations')
       .update({
         messages,
         stage: newStage,
+        user_web_online: true,
+        user_last_seen_web: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', conv.id);
 
     const suggestions = await generateSuggestions(school.name, cleanResponse);
 
-    // Only signal ticket prompt on this specific response — not sticky across messages
     const offHoursTicketPrompt = shouldEscalate && !withinBusinessHours;
 
-    // Include full messages when escalating so widget rebuilds immediately without waiting for poll
-    sendChunk({ done: true, stage: newStage, lead, suggestions, adminsOnline, offHoursTicketPrompt, askSatisfaction, ...(newStage === 'escalated' ? { messages } : {}) });
+    sendChunk({
+      done: true,
+      stage: newStage,
+      lead,
+      suggestions,
+      adminsOnline,
+      offHoursTicketPrompt,
+      askSatisfaction,
+      ...(newStage === 'escalated' ? { messages } : {}),
+    });
     return res.end();
   } catch (error) {
     console.error('chat error:', error);
