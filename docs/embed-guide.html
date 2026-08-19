@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Widget Embed Guide</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 820px; margin: 48px auto; padding: 0 24px; color: #1a1a2e; line-height: 1.6; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 2px solid #e8f0fe; padding-bottom: 6px; }
+    pre { background: #1a1a2e; color: #e8f0fe; padding: 20px; border-radius: 10px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+    code { background: #e8f0fe; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .warn { background: #fff3cd; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 14px; }
+    .ok   { background: #d1fae5; border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 10px 14px; text-align: left; }
+    th { background: #f4f6fb; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<h1>EABT Widget — Embed Guide</h1>
+<p>How to add the AI admissions chat widget to any school website.</p>
+
+<h2>Step 1 — Get the school slug</h2>
+<p>Each school has a unique <code>slug</code> in the Supabase <code>schools</code> table. You need this as the <code>schoolId</code>.</p>
+<table>
+  <tr><th>School</th><th>schoolId (slug)</th></tr>
+  <tr><td>Babcock University</td><td><code>babcock</code></td></tr>
+  <tr><td>Ahmadu Bello University</td><td><code>abu</code></td></tr>
+  <tr><td><em>add more rows as schools are onboarded</em></td><td></td></tr>
+</table>
+<p>To add a new school, insert a row into Supabase: <code>INSERT INTO schools (slug, name) VALUES ('oau', 'Obafemi Awolowo University');</code> and upload its knowledge base documents in the admin panel.</p>
+
+<h2>Step 2 — Paste this snippet before <code>&lt;/body&gt;</code></h2>
+
+<div class="warn">
+  ⚠️ <strong>Critical:</strong> <code>apiUrl</code> MUST always point to the Vercel deployment URL, not <code>window.location.origin</code>. Without it every API call goes to the host site's server (which has no chat API) and the widget will appear to work but never respond.
+</div>
+
+<pre>&lt;!-- EABT AI Admissions Widget --&gt;
+&lt;script&gt;
+  window.SchoolBotConfig = {
+    schoolId: 'abu',                                        // ← slug from Step 1
+    apiUrl:   'https://eabt-ai-team-project.vercel.app',    // ← NEVER change this
+    theme: {
+      primaryColor: '#1a73e8',                              // ← hex colour to match school brand
+      name: 'ABU (Ahmadu Bello University)'                 // ← school display name in widget header
+    }
+  };
+&lt;/script&gt;
+&lt;script src="https://eabt-ai-team-project.vercel.app/widget.js"&gt;&lt;/script&gt;</pre>
+
+<div class="ok">
+  ✅ CORS is open to all origins so the widget works on any domain — no extra configuration needed on the host site.
+</div>
+
+<h2>Multi-school selector (optional)</h2>
+<p>If one page should offer a school picker (like the live demo), use the <code>schools</code> array instead of a single <code>schoolId</code>:</p>
+<pre>&lt;script&gt;
+  window.SchoolBotConfig = {
+    schools: [
+      { id: 'babcock', name: 'Babcock University' },
+      { id: 'abu',     name: 'ABU (Ahmadu Bello University)' }
+    ],
+    apiUrl: 'https://eabt-ai-team-project.vercel.app',
+    theme: { primaryColor: '#1a73e8' }
+  };
+&lt;/script&gt;
+&lt;script src="https://eabt-ai-team-project.vercel.app/widget.js"&gt;&lt;/script&gt;</pre>
+
+<h2>VigiLearn (school1.azure.vigilearn.live) — fix</h2>
+<p>The widget was embedded on the VigiLearn site without <code>apiUrl</code>, so all API calls were hitting the VigiLearn server instead of Vercel, causing silent failures. Replace the existing snippet with:</p>
+<pre>&lt;!-- EABT AI Admissions Widget --&gt;
+&lt;script&gt;
+  window.SchoolBotConfig = {
+    schoolId: 'abu',                                        // ← replace with the correct school slug
+    apiUrl:   'https://eabt-ai-team-project.vercel.app',
+    theme: {
+      primaryColor: '#1a73e8',
+      name: 'Obafemi Awolowo University'
+    }
+  };
+&lt;/script&gt;
+&lt;script src="https://eabt-ai-team-project.vercel.app/widget.js"&gt;&lt;/script&gt;</pre>
+
+<h2>Troubleshooting checklist</h2>
+<table>
+  <tr><th>Symptom</th><th>Root cause</th><th>Fix</th></tr>
+  <tr><td>Widget opens but never replies</td><td><code>apiUrl</code> missing or wrong</td><td>Set <code>apiUrl: 'https://eabt-ai-team-project.vercel.app'</code></td></tr>
+  <tr><td>Greeting shows but messages fail</td><td>Same as above (greet falls back to hardcoded text)</td><td>Same fix</td></tr>
+  <tr><td>API returns <code>400 Invalid schoolId</code></td><td>Slug not in Supabase <code>schools</code> table</td><td>Insert school row + upload knowledge base</td></tr>
+  <tr><td>AI says "I don't have that detail"</td><td>No documents uploaded for that school</td><td>Upload PDFs/docs in admin → Knowledge Base</td></tr>
+  <tr><td>Human agent not responding</td><td>No admin logged into dashboard, or outside business hours (Mon–Fri 8am–6pm WAT)</td><td>Open admin dashboard; check Escalations panel</td></tr>
+  <tr><td>Stream cuts off mid-response</td><td>Vercel 30s timeout on slow LLM calls</td><td>Already bumped to 60s for chat endpoint in vercel.json</td></tr>
+</table>
+
+</body>
+</html>
