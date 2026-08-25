@@ -6,7 +6,7 @@ import { useSchool } from '../context/SchoolContext.jsx';
 
 const STAGES = ['all', 'onboarding', 'active', 'escalated', 'resolved'];
 
-const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
+const SLUG_DISPLAY = { backock: 'BABCOCK', babcock: 'BABCOCK', abu: 'ABU' };
 const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
 
 const stageBadge = (stage) => {

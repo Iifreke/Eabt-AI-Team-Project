@@ -143,14 +143,15 @@ const ESCALATION_REQUEST_RE =
 
 export function detectEscalation(text) {
   if (!text) return false;
-  if (text.includes('[ESCALATE]')) return true;
+  if (/\[ESCALATE(?::[^\]]*)?\]/i.test(text)) return true;
   const lower = text.toLowerCase();
   if (ESCALATION_PHRASES.some(t => lower.includes(t))) return true;
   return ESCALATION_REQUEST_RE.test(text);
 }
 
 export function stripEscalateToken(text) {
-  return text.replace('[ESCALATE]', '').trim();
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/\[ESCALATE(?::[^\]]*)?\]/gi, '').trim();
 }
 
 export function extractLeadFields(text) {

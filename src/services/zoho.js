@@ -217,6 +217,7 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
   const schoolSlug = school?.slug?.toUpperCase();
   const webhookUrl =
     (schoolSlug && process.env[`ZOHO_CLIQ_WEBHOOK_URL_${schoolSlug}`]) ||
+    (schoolSlug === 'BABCOCK' || schoolSlug === 'BACKOCK' ? (process.env.ZOHO_CLIQ_WEBHOOK_URL_BABCOCK || process.env.ZOHO_CLIQ_WEBHOOK_URL_BACKOCK) : null) ||
     process.env.ZOHO_CLIQ_WEBHOOK_URL;
 
   if (!webhookUrl) {

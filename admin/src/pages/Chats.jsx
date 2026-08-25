@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase.js';
 
 const STATUSES = ['all', 'pending', 'in_progress', 'resolved'];
 
-const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
+const SLUG_DISPLAY = { backock: 'BABCOCK', babcock: 'BABCOCK', abu: 'ABU' };
 const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
 
 const statusBadge = (status) => {

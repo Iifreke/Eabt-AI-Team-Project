@@ -5,7 +5,7 @@ import StatsCard from '../components/StatsCard.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 
-const SLUG_DISPLAY = { backock: 'Babcock', abu: 'ABU' };
+const SLUG_DISPLAY = { backock: 'Babcock', babcock: 'Babcock', abu: 'ABU' };
 const schoolDisplayName = (slug) => SLUG_DISPLAY[slug] || slug?.toUpperCase() || '—';
 
 const RANGES = [
@@ -180,7 +180,7 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white rounded-xl border border-gray-200 p-5">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Babcock Contacts</div>
-                      <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.backock ?? '—'}</div>
+                      <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.babcock ?? stats?.leadsBySchool?.backock ?? '—'}</div>
                     </div>
                     <div className="bg-white rounded-xl border border-gray-200 p-5">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">ABU Contacts</div>

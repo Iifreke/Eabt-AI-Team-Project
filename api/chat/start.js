@@ -22,14 +22,16 @@ export default async function handler(req, res) {
 
     const normalizedPhone = normalizePhoneNumber(phone) || phone;
 
-    // Check if there is an existing lead with the same email or normalized phone for this school
-    let { data: existingLeads } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('school_id', school.id)
-      .or(`email.eq.${email},normalized_phone.eq.${normalizedPhone},phone.eq.${phone}`)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const conditions = [];
+    if (email) conditions.push(`email.eq.${email}`);
+    if (normalizedPhone) conditions.push(`normalized_phone.eq.${normalizedPhone}`);
+    if (phone && phone !== normalizedPhone) conditions.push(`phone.eq.${phone}`);
+
+    let leadQuery = supabase.from('leads').select('*').eq('school_id', school.id);
+    if (conditions.length > 0) {
+      leadQuery = leadQuery.or(conditions.join(','));
+    }
+    let { data: existingLeads } = await leadQuery.order('created_at', { ascending: false }).limit(1);
 
     let lead = existingLeads?.[0] || null;
     let existingConv = null;

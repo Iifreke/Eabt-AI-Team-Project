@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../lib/api.js';
 
-const SLUG_DISPLAY = { backock: 'Babcock University', abu: 'ABU (Ahmadu Bello University)' };
+const SLUG_DISPLAY = { backock: 'Babcock University', babcock: 'Babcock University', abu: 'ABU (Ahmadu Bello University)' };
 
 export default function ConversationViewer({ conversationId, initialConv, onClose }) {
   const [conv, setConv] = useState(initialConv || null);

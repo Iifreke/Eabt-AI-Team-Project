@@ -113,7 +113,7 @@ export default async function handler(req, res) {
       const buttonReply = messageObj.interactive?.button_reply;
       if (buttonReply) {
         incomingText = buttonReply.title;
-        if (buttonReply.id === 'select_school_backock') selectedSchoolSlug = 'backock';
+        if (buttonReply.id === 'select_school_backock' || buttonReply.id === 'select_school_babcock') selectedSchoolSlug = 'babcock';
         if (buttonReply.id === 'select_school_abu') selectedSchoolSlug = 'abu';
       }
     }
@@ -128,10 +128,14 @@ export default async function handler(req, res) {
     }
 
     // ── Check Existing Lead and Conversation ─────────────────
+    const waLeadConditions = [`session_id.eq.wa_${rawFrom}`];
+    if (normalizedPhone) waLeadConditions.push(`normalized_phone.eq.${normalizedPhone}`);
+    if (rawFrom) waLeadConditions.push(`phone.eq.${rawFrom}`);
+
     let { data: existingLead } = await supabase
       .from('leads')
       .select('*')
-      .or(`phone.eq.${normalizedPhone},normalized_phone.eq.${normalizedPhone},session_id.eq.wa_${rawFrom}`)
+      .or(waLeadConditions.join(','))
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -141,8 +145,13 @@ export default async function handler(req, res) {
 
     // 1. If explicit button clicked
     if (selectedSchoolSlug) {
-      const { data: s } = await supabase.from('schools').select('*').eq('slug', selectedSchoolSlug).single();
-      school = s;
+      if (selectedSchoolSlug === 'babcock' || selectedSchoolSlug === 'backock') {
+        const { data: s } = await supabase.from('schools').select('*').or('slug.eq.babcock,slug.eq.backock').limit(1).maybeSingle();
+        school = s;
+      } else {
+        const { data: s } = await supabase.from('schools').select('*').eq('slug', selectedSchoolSlug).limit(1).maybeSingle();
+        school = s;
+      }
     }
 
     // 2. If lead already exists and has a school
@@ -155,7 +164,7 @@ export default async function handler(req, res) {
     if (!school) {
       const lower = incomingText.toLowerCase();
       if (lower.includes('babcock') || lower.includes('backock')) {
-        const { data: s } = await supabase.from('schools').select('*').eq('slug', 'backock').single();
+        const { data: s } = await supabase.from('schools').select('*').or('slug.eq.babcock,slug.eq.backock').limit(1).maybeSingle();
         school = s;
       } else if (lower.includes('abu') || lower.includes('ahmadu bello')) {
         const { data: s } = await supabase.from('schools').select('*').eq('slug', 'abu').single();

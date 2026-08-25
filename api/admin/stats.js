@@ -1,5 +1,6 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
+import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 
 export default async function handler(req, res) {
@@ -21,8 +22,7 @@ export default async function handler(req, res) {
 
     let schoolUUID = null;
     if (schoolId) {
-      const { data: school } = await supabase.from('schools').select('id').eq('slug', schoolId).single();
-      schoolUUID = school?.id || null;
+      schoolUUID = await resolveSchoolId(schoolId);
     }
 
     // Range-filtered count

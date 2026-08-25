@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
+const SLUG_DISPLAY = { backock: 'BABCOCK', babcock: 'BABCOCK', abu: 'ABU' };
 const schoolLabel = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
 
 export default function LeadsTable({ leads }) {

@@ -3,7 +3,7 @@ import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 
-const SLUG_DISPLAY = { backock: 'BABCOCK', abu: 'ABU' };
+const SLUG_DISPLAY = { backock: 'BABCOCK', babcock: 'BABCOCK', abu: 'ABU' };
 const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
 
 export default function Monitoring() {

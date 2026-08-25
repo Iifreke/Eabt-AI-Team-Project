@@ -1,5 +1,6 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
+import { resolveSchoolId, getSchool } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 import { sendTicketEmail, sendTicketReplyEmail, sendTicketConfirmationEmail } from '../../src/services/email.js';
 
@@ -17,15 +18,8 @@ export default async function handler(req, res) {
       let school_id = null;
       let school = null;
       if (schoolId) {
-        // Widget passes the slug (e.g. 'babcock') — try slug first, fall back to UUID
-        let { data: s } = await supabase
-          .from('schools').select('id, name, staff_email, slug').eq('slug', schoolId).single();
-        if (!s) {
-          const r = await supabase
-            .from('schools').select('id, name, staff_email, slug').eq('id', schoolId).single();
-          s = r.data;
-        }
-        if (s) { school_id = s.id; school = s; }
+        school = await getSchool(schoolId, null);
+        if (school) school_id = school.id;
       }
 
       const { data: ticket, error } = await supabase
@@ -71,8 +65,8 @@ export default async function handler(req, res) {
 
       if (status) query = query.eq('status', status);
       if (schoolId) {
-        const { data: s } = await supabase.from('schools').select('id').eq('slug', schoolId).single();
-        if (s) query = query.eq('school_id', s.id);
+        const resolvedId = await resolveSchoolId(schoolId);
+        if (resolvedId) query = query.eq('school_id', resolvedId);
       }
 
       const { data: tickets, count, error } = await query

@@ -1,5 +1,6 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
+import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 
 export default async function handler(req, res) {
@@ -93,12 +94,8 @@ export default async function handler(req, res) {
       );
 
     if (schoolId) {
-      const { data: school } = await supabase
-        .from('schools')
-        .select('id')
-        .eq('slug', schoolId)
-        .single();
-      if (school) query = query.eq('school_id', school.id);
+      const resolvedId = await resolveSchoolId(schoolId);
+      if (resolvedId) query = query.eq('school_id', resolvedId);
     }
 
     if (stage) query = query.eq('stage', stage);
