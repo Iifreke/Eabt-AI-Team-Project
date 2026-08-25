@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = '1220287537833494'; // The real phone number ID ending in 4
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '1220287537833494';
   const targetPhone = req.query.to || '2348145349114';
 
   const payload = {
