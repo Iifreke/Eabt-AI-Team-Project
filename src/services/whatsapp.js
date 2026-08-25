@@ -75,11 +75,12 @@ export async function sendWhatsAppMessage(to, message) {
     const data = await res.json();
 
     if (!res.ok) {
-      console.error('[WhatsApp Service] Meta API Error:', data);
+      console.error('[WhatsApp Service] Meta API Error:', JSON.stringify(data, null, 2));
       return { ok: false, error: data?.error?.message || 'Failed to send WhatsApp message' };
     }
 
     const messageId = data?.messages?.[0]?.id;
+    console.log('[WhatsApp Service] Message dispatched successfully, id:', messageId);
     return { ok: true, messageId };
   } catch (err) {
     console.error('[WhatsApp Service] Network/Dispatch Error:', err.message);
@@ -89,6 +90,7 @@ export async function sendWhatsAppMessage(to, message) {
 
 /**
  * Sends an interactive 2-button selector for school routing (Babcock vs ABU).
+ * Automatically falls back to plain text if buttons are not supported or rejected by Meta.
  *
  * @param {string} to - Recipient phone number
  * @param {string} headerText - Prompt text
@@ -99,11 +101,12 @@ export async function sendSchoolSelectionButtons(to, headerText) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
+  const bodyText = headerText || 'Welcome to Admissions Support! Please select which institution you are inquiring about:';
+
   if (!recipient || !phoneNumberId || !accessToken) {
+    console.error('[WhatsApp Service] Missing credentials or recipient for buttons:', { recipient, hasPhoneId: !!phoneNumberId, hasToken: !!accessToken });
     return { ok: false, error: 'Credentials or recipient missing' };
   }
-
-  const bodyText = headerText || 'Welcome to EduTech Admissions Support! Please select which institution you are inquiring about:';
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -121,7 +124,7 @@ export async function sendSchoolSelectionButtons(to, headerText) {
             type: 'reply',
             reply: {
               id: 'select_school_backock',
-              title: 'Babcock School',
+              title: 'Babcock University',
             },
           },
           {
@@ -148,14 +151,18 @@ export async function sendSchoolSelectionButtons(to, headerText) {
 
     const data = await res.json();
     if (!res.ok) {
-      console.error('[WhatsApp Service] Button Send Error:', data);
-      return { ok: false, error: data?.error?.message };
+      console.warn('[WhatsApp Service] Interactive Button Send failed, falling back to text prompt:', data);
+      const fallbackText = `${bodyText}\n\n1️⃣ Reply *1* or *Babcock* for Babcock University\n2️⃣ Reply *2* or *ABU* for Ahmadu Bello University (ABU)`;
+      return await sendWhatsAppMessage(to, fallbackText);
     }
 
-    return { ok: true, messageId: data?.messages?.[0]?.id };
+    const messageId = data?.messages?.[0]?.id;
+    console.log('[WhatsApp Service] Interactive buttons dispatched successfully, id:', messageId);
+    return { ok: true, messageId };
   } catch (err) {
-    console.error('[WhatsApp Service] Button Dispatch Error:', err.message);
-    return { ok: false, error: err.message };
+    console.error('[WhatsApp Service] Button Dispatch Error, falling back to text:', err.message);
+    const fallbackText = `${bodyText}\n\n1️⃣ Reply *1* or *Babcock* for Babcock University\n2️⃣ Reply *2* or *ABU* for Ahmadu Bello University (ABU)`;
+    return await sendWhatsAppMessage(to, fallbackText);
   }
 }
 
