@@ -1,20 +1,16 @@
-import { formatWhatsAppRecipient } from '../../src/utils/phone.js';
-
 export default async function handler(req, res) {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = '1220287537833494'; // The real phone number ID ending in 4
   const targetPhone = req.query.to || '2348145349114';
-
-  const recipient = formatWhatsAppRecipient(targetPhone);
 
   const payload = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
-    to: recipient,
+    to: targetPhone,
     type: 'text',
     text: {
       preview_url: false,
-      body: 'Hello from EduTech Bot! Meta WhatsApp connection is working perfectly.',
+      body: '🎉 Hello from EduTech Bot! Your WhatsApp AI bot is connected and working!',
     },
   };
 
@@ -29,15 +25,9 @@ export default async function handler(req, res) {
     });
 
     const metaData = await metaRes.json();
-
     return res.status(200).json({
       metaStatus: metaRes.status,
       metaOk: metaRes.ok,
-      phoneNumberId,
-      tokenLength: accessToken ? accessToken.length : 0,
-      tokenPrefix: accessToken ? accessToken.slice(0, 10) + '...' : 'none',
-      tokenSuffix: accessToken ? '...' + accessToken.slice(-10) : 'none',
-      recipient,
       metaResponse: metaData,
     });
   } catch (err) {
