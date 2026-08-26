@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     type: 'text',
     text: {
       preview_url: false,
-      body: '🎉 Hello from EduTech Bot! Your WhatsApp AI bot is connected and working!',
+      body: '🎉 Hello from ABU Distance Learning Centre Admissions Support! Your WhatsApp AI bot is connected and working!',
     },
   };
 

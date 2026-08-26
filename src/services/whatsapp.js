@@ -89,24 +89,44 @@ export async function sendWhatsAppMessage(to, message) {
 }
 
 /**
- * Sends an interactive 2-button selector for school routing (Babcock vs ABU).
- * Automatically falls back to plain text if buttons are not supported or rejected by Meta.
+ * Sends interactive reply buttons (up to 3 buttons) via Meta WhatsApp Cloud API.
+ * Automatically falls back to clean Markdown text prompt if buttons fail or are not supported.
  *
  * @param {string} to - Recipient phone number
- * @param {string} headerText - Prompt text
+ * @param {string} bodyText - Main message text
+ * @param {Array<{ id: string, title: string }>} buttons - Array of button objects (max 3)
+ * @param {string} [fallbackText] - Optional custom fallback text if interactive payload is rejected
  * @returns {Promise<{ ok: boolean, messageId?: string, error?: string }>}
  */
-export async function sendSchoolSelectionButtons(to, headerText) {
+export async function sendWhatsAppButtons(to, bodyText, buttons = [], fallbackText = '') {
   const recipient = formatWhatsAppRecipient(to);
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
-  const bodyText = headerText || 'Welcome to Admissions Support! Please select which institution you are inquiring about:';
-
-  if (!recipient || !phoneNumberId || !accessToken) {
-    console.error('[WhatsApp Service] Missing credentials or recipient for buttons:', { recipient, hasPhoneId: !!phoneNumberId, hasToken: !!accessToken });
-    return { ok: false, error: 'Credentials or recipient missing' };
+  if (!recipient) {
+    console.error('[WhatsApp Service] Invalid recipient phone number:', to);
+    return { ok: false, error: 'Invalid recipient phone number' };
   }
+
+  if (!phoneNumberId || !accessToken) {
+    console.warn('[WhatsApp Service] Missing WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN in env.');
+    return { ok: false, error: 'WhatsApp credentials not configured' };
+  }
+
+  const formattedBody = toWhatsAppMarkdown(bodyText);
+
+  // If no buttons provided, send standard text message
+  if (!buttons || buttons.length === 0) {
+    return await sendWhatsAppMessage(to, formattedBody);
+  }
+
+  const validButtons = buttons.slice(0, 3).map((b, idx) => ({
+    type: 'reply',
+    reply: {
+      id: b.id || `btn_${idx + 1}`,
+      title: (b.title || `Option ${idx + 1}`).slice(0, 20),
+    },
+  }));
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -116,28 +136,20 @@ export async function sendSchoolSelectionButtons(to, headerText) {
     interactive: {
       type: 'button',
       body: {
-        text: bodyText,
+        text: formattedBody,
       },
       action: {
-        buttons: [
-          {
-            type: 'reply',
-            reply: {
-              id: 'select_school_backock',
-              title: 'Babcock University',
-            },
-          },
-          {
-            type: 'reply',
-            reply: {
-              id: 'select_school_abu',
-              title: 'ABU',
-            },
-          },
-        ],
+        buttons: validButtons,
       },
     },
   };
+
+  const defaultFallback =
+    fallbackText ||
+    `${formattedBody}\n\n` +
+      validButtons
+        .map((b, idx) => `${idx + 1}️⃣ Reply *${idx + 1}* or *${b.reply.title}*`)
+        .join('\n');
 
   try {
     const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
@@ -151,9 +163,8 @@ export async function sendSchoolSelectionButtons(to, headerText) {
 
     const data = await res.json();
     if (!res.ok) {
-      console.warn('[WhatsApp Service] Interactive Button Send failed, falling back to text prompt:', data);
-      const fallbackText = `${bodyText}\n\n1️⃣ Reply *1* or *Babcock* for Babcock University\n2️⃣ Reply *2* or *ABU* for Ahmadu Bello University (ABU)`;
-      return await sendWhatsAppMessage(to, fallbackText);
+      console.warn('[WhatsApp Service] Interactive Button Send rejected by Meta, falling back to text prompt:', data);
+      return await sendWhatsAppMessage(to, defaultFallback);
     }
 
     const messageId = data?.messages?.[0]?.id;
@@ -161,8 +172,7 @@ export async function sendSchoolSelectionButtons(to, headerText) {
     return { ok: true, messageId };
   } catch (err) {
     console.error('[WhatsApp Service] Button Dispatch Error, falling back to text:', err.message);
-    const fallbackText = `${bodyText}\n\n1️⃣ Reply *1* or *Babcock* for Babcock University\n2️⃣ Reply *2* or *ABU* for Ahmadu Bello University (ABU)`;
-    return await sendWhatsAppMessage(to, fallbackText);
+    return await sendWhatsAppMessage(to, defaultFallback);
   }
 }
 
