@@ -113,12 +113,12 @@ export default function Sidebar() {
         <div>
           <label className="text-xs text-gray-400 uppercase tracking-wider block mb-1">School</label>
           <select
-            value={selectedSchool}
+            value={selectedSchool === 'backock' ? 'babcock' : selectedSchool}
             onChange={e => setSelectedSchool(e.target.value)}
             className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-blue-500"
           >
             <option value="all">All Schools</option>
-            <option value="backock">Babcock University</option>
+            <option value="babcock">Babcock University</option>
             <option value="abu">ABU (Ahmadu Bello University)</option>
           </select>
         </div>

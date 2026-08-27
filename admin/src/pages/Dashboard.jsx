@@ -73,7 +73,7 @@ export default function Dashboard() {
   }, [profile]);
 
   const schoolLabel = selectedSchool === 'all' ? 'All Schools'
-    : selectedSchool === 'backock' ? 'Babcock University' : 'ABU';
+    : (selectedSchool === 'backock' || selectedSchool === 'babcock') ? 'Babcock University' : 'ABU';
 
   return (
     <div className="ml-60 min-h-screen p-8">
@@ -180,11 +180,13 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white rounded-xl border border-gray-200 p-5">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Babcock Contacts</div>
-                      <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.babcock ?? stats?.leadsBySchool?.backock ?? '—'}</div>
+                      <div className="text-4xl font-bold text-gray-900">
+                        {((stats?.leadsBySchool?.babcock || 0) + (stats?.leadsBySchool?.backock || 0)) || '0'}
+                      </div>
                     </div>
                     <div className="bg-white rounded-xl border border-gray-200 p-5">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">ABU Contacts</div>
-                      <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.abu ?? '—'}</div>
+                      <div className="text-4xl font-bold text-gray-900">{stats?.leadsBySchool?.abu ?? '0'}</div>
                     </div>
                   </div>
                 )}

@@ -1,6 +1,40 @@
 import { formatWhatsAppRecipient } from '../utils/phone.js';
 
 /**
+ * Resolves the appropriate Meta Phone Number ID based on school slug or options.
+ */
+export function resolveWhatsAppPhoneNumberId(options) {
+  if (!options) {
+    return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || process.env.WHATSAPP_PHONE_NUMBER_ID || '1308107395712291';
+  }
+
+  if (typeof options === 'string') {
+    const slug = options.toLowerCase().trim();
+    if (slug === 'babcock' || slug === 'backock') {
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
+    }
+    if (slug === 'abu') {
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494';
+    }
+    // If passed a numeric string directly
+    if (/^\d+$/.test(slug)) return slug;
+  }
+
+  if (typeof options === 'object') {
+    if (options.phoneNumberId) return options.phoneNumberId;
+    const slug = (options.schoolSlug || options.school || '').toLowerCase().trim();
+    if (slug === 'babcock' || slug === 'backock') {
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
+    }
+    if (slug === 'abu') {
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494';
+    }
+  }
+
+  return process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
+}
+
+/**
  * Converts standard Markdown to WhatsApp-compatible formatting.
  * - **bold** or <strong>bold</strong> -> *bold*
  * - *italic* or <em>italic</em> -> _italic_
@@ -32,11 +66,12 @@ export function toWhatsAppMarkdown(text) {
  *
  * @param {string} to - Recipient phone number in E.164 or local format
  * @param {string} message - Message body
+ * @param {string|object} [options] - school slug ('babcock'|'abu') or options object { phoneNumberId, schoolSlug }
  * @returns {Promise<{ ok: boolean, messageId?: string, error?: string }>}
  */
-export async function sendWhatsAppMessage(to, message) {
+export async function sendWhatsAppMessage(to, message, options = {}) {
   const recipient = formatWhatsAppRecipient(to);
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const phoneNumberId = resolveWhatsAppPhoneNumberId(options);
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
   if (!recipient) {
@@ -70,6 +105,7 @@ export async function sendWhatsAppMessage(to, message) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5000),
     });
 
     const data = await res.json();
@@ -80,7 +116,7 @@ export async function sendWhatsAppMessage(to, message) {
     }
 
     const messageId = data?.messages?.[0]?.id;
-    console.log('[WhatsApp Service] Message dispatched successfully, id:', messageId);
+    console.log('[WhatsApp Service] Message dispatched successfully, id:', messageId, 'phoneId:', phoneNumberId);
     return { ok: true, messageId };
   } catch (err) {
     console.error('[WhatsApp Service] Network/Dispatch Error:', err.message);
@@ -95,12 +131,21 @@ export async function sendWhatsAppMessage(to, message) {
  * @param {string} to - Recipient phone number
  * @param {string} bodyText - Main message text
  * @param {Array<{ id: string, title: string }>} buttons - Array of button objects (max 3)
- * @param {string} [fallbackText] - Optional custom fallback text if interactive payload is rejected
+ * @param {string|object} [optionsOrFallback] - school slug ('babcock'|'abu') or options object or custom fallback text
+ * @param {string} [fallbackText] - Optional custom fallback text
  * @returns {Promise<{ ok: boolean, messageId?: string, error?: string }>}
  */
-export async function sendWhatsAppButtons(to, bodyText, buttons = [], fallbackText = '') {
+export async function sendWhatsAppButtons(to, bodyText, buttons = [], optionsOrFallback = {}, fallbackText = '') {
   const recipient = formatWhatsAppRecipient(to);
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const options = (typeof optionsOrFallback === 'string' && !optionsOrFallback.includes('\n') && ['babcock', 'backock', 'abu'].includes(optionsOrFallback.toLowerCase()))
+    ? { schoolSlug: optionsOrFallback }
+    : (typeof optionsOrFallback === 'object' ? optionsOrFallback : {});
+
+  const customFallback = typeof optionsOrFallback === 'string' && optionsOrFallback.includes('\n')
+    ? optionsOrFallback
+    : fallbackText;
+
+  const phoneNumberId = resolveWhatsAppPhoneNumberId(options);
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
   if (!recipient) {
@@ -117,7 +162,7 @@ export async function sendWhatsAppButtons(to, bodyText, buttons = [], fallbackTe
 
   // If no buttons provided, send standard text message
   if (!buttons || buttons.length === 0) {
-    return await sendWhatsAppMessage(to, formattedBody);
+    return await sendWhatsAppMessage(to, formattedBody, options);
   }
 
   const validButtons = buttons.slice(0, 3).map((b, idx) => ({
@@ -145,7 +190,7 @@ export async function sendWhatsAppButtons(to, bodyText, buttons = [], fallbackTe
   };
 
   const defaultFallback =
-    fallbackText ||
+    customFallback ||
     `${formattedBody}\n\n` +
       validButtons
         .map((b, idx) => `${idx + 1}️⃣ Reply *${idx + 1}* or *${b.reply.title}*`)
@@ -159,20 +204,21 @@ export async function sendWhatsAppButtons(to, bodyText, buttons = [], fallbackTe
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5000),
     });
 
     const data = await res.json();
     if (!res.ok) {
       console.warn('[WhatsApp Service] Interactive Button Send rejected by Meta, falling back to text prompt:', data);
-      return await sendWhatsAppMessage(to, defaultFallback);
+      return await sendWhatsAppMessage(to, defaultFallback, options);
     }
 
     const messageId = data?.messages?.[0]?.id;
-    console.log('[WhatsApp Service] Interactive buttons dispatched successfully, id:', messageId);
+    console.log('[WhatsApp Service] Interactive buttons dispatched successfully, id:', messageId, 'phoneId:', phoneNumberId);
     return { ok: true, messageId };
   } catch (err) {
     console.error('[WhatsApp Service] Button Dispatch Error, falling back to text:', err.message);
-    return await sendWhatsAppMessage(to, defaultFallback);
+    return await sendWhatsAppMessage(to, defaultFallback, options);
   }
 }
 
@@ -184,10 +230,11 @@ export async function sendWhatsAppButtons(to, bodyText, buttons = [], fallbackTe
  * @param {string} templateName - Approved template name in Meta Business Manager
  * @param {string} languageCode - e.g. "en_US" or "en"
  * @param {Array} components - Template parameters / variables
+ * @param {string|object} [options] - school slug or options object
  */
-export async function sendWhatsAppTemplate(to, templateName, languageCode = 'en_US', components = []) {
+export async function sendWhatsAppTemplate(to, templateName, languageCode = 'en_US', components = [], options = {}) {
   const recipient = formatWhatsAppRecipient(to);
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const phoneNumberId = resolveWhatsAppPhoneNumberId(options);
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
   if (!recipient || !phoneNumberId || !accessToken) {
@@ -214,6 +261,7 @@ export async function sendWhatsAppTemplate(to, templateName, languageCode = 'en_
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5000),
     });
 
     const data = await res.json();

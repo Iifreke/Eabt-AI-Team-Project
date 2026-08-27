@@ -1,7 +1,14 @@
+import { resolveWhatsAppPhoneNumberId } from '../../src/services/whatsapp.js';
+
 export default async function handler(req, res) {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '1220287537833494';
+  const school = (req.query.school || 'babcock').toLowerCase();
+  const phoneNumberId = req.query.phoneId || resolveWhatsAppPhoneNumberId(school);
   const targetPhone = req.query.to || '2348145349114';
+
+  const schoolName = (school === 'abu')
+    ? 'ABU Distance Learning Centre'
+    : 'Babcock University';
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -10,7 +17,7 @@ export default async function handler(req, res) {
     type: 'text',
     text: {
       preview_url: false,
-      body: '🎉 Hello from ABU Distance Learning Centre Admissions Support! Your WhatsApp AI bot is connected and working!',
+      body: `🎉 Hello from ${schoolName} Admissions Support! Your WhatsApp AI bot is connected and operational!`,
     },
   };
 
@@ -26,6 +33,8 @@ export default async function handler(req, res) {
 
     const metaData = await metaRes.json();
     return res.status(200).json({
+      school,
+      phoneNumberId,
       metaStatus: metaRes.status,
       metaOk: metaRes.ok,
       metaResponse: metaData,

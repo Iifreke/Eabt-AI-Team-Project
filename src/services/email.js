@@ -65,9 +65,14 @@ ${transcript || '(No messages recorded)'}
 </body>
 </html>`;
 
+    const staffEmail =
+      (school.slug === 'babcock' || school.slug === 'backock')
+        ? (process.env.ESCALATION_EMAIL_BABCOCK || process.env.ESCALATION_EMAIL_BACKOCK || school.staff_email)
+        : (process.env.ESCALATION_EMAIL_ABU || school.staff_email);
+
     await transporter.sendMail({
       from: FROM,
-      to: school.staff_email,
+      to: staffEmail,
       subject: `Escalation — ${lead.name || 'Unknown Visitor'} — ${school.name}`,
       html,
     });

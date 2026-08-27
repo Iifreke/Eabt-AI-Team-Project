@@ -112,7 +112,8 @@ export default async function handler(req, res) {
     let whatsappSent = false;
     if ((isWhatsAppChannel || isWebUserOffline) && userPhone) {
       const waBody = `*${adminName}* (${schoolName}):\n${message.trim()}`;
-      const waResult = await sendWhatsAppMessage(userPhone, waBody);
+      const schoolSlug = conv.schools?.slug || 'babcock';
+      const waResult = await sendWhatsAppMessage(userPhone, waBody, { schoolSlug });
       whatsappSent = waResult.ok;
       if (!waResult.ok) {
         console.warn('[Admin Reply] WhatsApp dispatch failed:', waResult.error);

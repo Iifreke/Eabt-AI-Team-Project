@@ -13,3 +13,6 @@ admin/dist/
 
 # Vercel
 .vercel
+
+# Local scratch / test files
+scratch/

@@ -2,6 +2,7 @@ import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
 import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
+import { calculateLeadScore } from '../../src/utils/leadScoring.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -37,7 +38,34 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    return res.status(200).json({ leads: leads || [], total: count || 0, page: pageNum, limit: limitNum });
+    const leadIds = (leads || []).map(l => l.id);
+    const convMap = {};
+
+    if (leadIds.length > 0) {
+      const { data: convs } = await supabase
+        .from('conversations')
+        .select('lead_id, messages')
+        .in('lead_id', leadIds);
+
+      (convs || []).forEach(c => {
+        if (!convMap[c.lead_id]) convMap[c.lead_id] = [];
+        if (Array.isArray(c.messages)) convMap[c.lead_id].push(...c.messages);
+      });
+    }
+
+    const scoredLeads = (leads || []).map(lead => {
+      const msgs = convMap[lead.id] || [];
+      const scoreData = calculateLeadScore(lead, msgs);
+      return {
+        ...lead,
+        lead_score: scoreData.score,
+        lead_tier: scoreData.tier,
+        lead_label: scoreData.label,
+        intent_tags: scoreData.tags,
+      };
+    });
+
+    return res.status(200).json({ leads: scoredLeads, total: count || 0, page: pageNum, limit: limitNum });
   } catch (error) {
     console.error('leads error:', error);
     return res.status(500).json({ error: 'Internal server error' });

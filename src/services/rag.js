@@ -1,5 +1,6 @@
 import supabase from '../db/supabase.js';
 import { generateEmbedding } from './embeddings.js';
+import { ragQueryCache } from '../utils/cache.js';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import mammoth from 'mammoth';
 
@@ -121,19 +122,40 @@ export async function processDocument(documentId, schoolId, storagePath, fileTyp
 }
 
 export async function searchKnowledgeBase(query, schoolId, topK = 5) {
-  const embedding = await generateEmbedding(query);
+  const cleanQuery = (query || '').trim();
+  if (!cleanQuery || !schoolId) return [];
 
-  const { data, error } = await supabase.rpc('match_chunks', {
-    query_embedding: embedding,
-    match_school_id: schoolId,
-    match_count: topK,
-  });
+  const cacheKey = `${schoolId}:${cleanQuery.toLowerCase()}`;
+  const cachedChunks = ragQueryCache.get(cacheKey);
+  if (cachedChunks) {
+    return cachedChunks;
+  }
 
-  if (error || !data) return [];
+  try {
+    const embedding = await generateEmbedding(cleanQuery);
+    if (!embedding || embedding.length === 0) return [];
 
-  return data.map(row => ({
-    content: row.content,
-    similarity: row.similarity,
-    metadata: row.metadata,
-  }));
+    const { data, error } = await supabase.rpc('match_chunks', {
+      query_embedding: embedding,
+      match_school_id: schoolId,
+      match_count: topK,
+    });
+
+    if (error || !data) return [];
+
+    const mapped = data.map(row => ({
+      content: row.content,
+      similarity: row.similarity,
+      metadata: row.metadata,
+    }));
+
+    if (mapped.length > 0) {
+      ragQueryCache.set(cacheKey, mapped);
+    }
+
+    return mapped;
+  } catch (err) {
+    console.warn('[RAG] searchKnowledgeBase fallback:', err.message);
+    return [];
+  }
 }

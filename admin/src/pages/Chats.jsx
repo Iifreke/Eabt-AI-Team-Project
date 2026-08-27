@@ -35,6 +35,32 @@ function formatWhatsAppLink(phone) {
   return `https://wa.me/${digits}`;
 }
 
+function getSlaBadge(createdAt, status) {
+  if (status === 'resolved' || !createdAt) return null;
+  const created = new Date(createdAt).getTime();
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
+
+  if (elapsedMinutes < 3) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+        ⏱️ {elapsedMinutes}m
+      </span>
+    );
+  }
+  if (elapsedMinutes < 10) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+        ⏱️ {elapsedMinutes}m
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+      🚨 {elapsedMinutes}m SLA
+    </span>
+  );
+}
+
 // ── Shortcuts autocomplete ───────────────────────────────────────
 function useShortcuts() {
   const [shortcuts, setShortcuts] = useState([]);
@@ -179,11 +205,17 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
   return (
     <div className="mt-4 border border-purple-200 rounded-xl overflow-hidden shadow-sm">
       <div className="bg-purple-50 px-4 py-2.5 flex items-center justify-between border-b border-purple-200 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold text-purple-800 uppercase tracking-wider">🟣 Live Chat</span>
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
             {channel === 'whatsapp' ? '📱 WhatsApp' : '🌐 Web Widget'}
           </span>
+          {lead?.lead_tier && (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.lead_tier === 'HOT' ? 'bg-rose-100 text-rose-700 border border-rose-200' : lead.lead_tier === 'WARM' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+              {lead.lead_tier === 'HOT' ? '🔥 Hot Lead' : lead.lead_tier === 'WARM' ? '⚡ Warm' : '❄️ Cold'}
+            </span>
+          )}
+          {getSlaBadge(esc.created_at, esc.status)}
           {lead?.zoho_contact_id && (
             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
               💼 Zoho Synced
@@ -258,15 +290,15 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
               onChange={handleReplyChange}
               onKeyDown={handleKeyDown}
               rows={2}
-              placeholder="Type / for quick shortcuts, Enter to send (auto-dispatches to WhatsApp if student is offline)..."
-              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
+              className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+              placeholder="Type your reply to the visitor... (Type '/' for saved shortcuts, Enter to send)"
             />
             <button
               onClick={sendReply}
               disabled={sending || !reply.trim()}
-              className="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 self-end transition-colors"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold self-end transition-colors"
             >
-              {sending ? '...' : 'Send'}
+              {sending ? 'Sending...' : 'Send'}
             </button>
           </div>
         </div>
@@ -355,11 +387,14 @@ function ChatRow({ esc, onUpdate }) {
         onClick={() => setExpanded(e => !e)}
       >
         <td className="px-5 py-3 font-medium">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span>{esc.leads?.name || '—'}</span>
             <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
               {channel === 'whatsapp' ? 'WA' : 'WEB'}
             </span>
+            {esc.leads?.lead_tier === 'HOT' && (
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700">🔥 Hot</span>
+            )}
           </div>
         </td>
         <td className="px-5 py-3">
@@ -369,7 +404,10 @@ function ChatRow({ esc, onUpdate }) {
         </td>
         <td className="px-5 py-3 text-gray-500 text-xs">{reasonLabel[esc.reason] || esc.reason}</td>
         <td className="px-5 py-3">
-          <span className={statusBadge(esc.status)}>{STATUS_LABEL[esc.status] || esc.status}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={statusBadge(esc.status)}>{STATUS_LABEL[esc.status] || esc.status}</span>
+            {getSlaBadge(esc.created_at, esc.status)}
+          </div>
         </td>
         <td className="px-5 py-3 text-gray-500 text-xs">
           <div className="flex flex-wrap gap-1">

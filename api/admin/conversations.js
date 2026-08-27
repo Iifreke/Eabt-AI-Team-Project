@@ -2,6 +2,7 @@ import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
 import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
+import { calculateLeadScore } from '../../src/utils/leadScoring.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -26,7 +27,7 @@ export default async function handler(req, res) {
       // Fetch lead, school, and escalation in parallel — avoids FK join ambiguity
       const [leadResult, schoolResult, escalationResult] = await Promise.all([
         conv.lead_id
-          ? supabase.from('leads').select('id, name, email, phone').eq('id', conv.lead_id).single()
+          ? supabase.from('leads').select('id, name, email, phone, zoho_contact_id').eq('id', conv.lead_id).single()
           : Promise.resolve({ data: null }),
         conv.school_id
           ? supabase.from('schools').select('name, slug').eq('id', conv.school_id).single()
@@ -38,9 +39,22 @@ export default async function handler(req, res) {
           .maybeSingle(),
       ]);
 
+      const leadData = leadResult.data;
+      let scoredLead = leadData;
+      if (leadData) {
+        const scoreInfo = calculateLeadScore(leadData, conv.messages || []);
+        scoredLead = {
+          ...leadData,
+          lead_score: scoreInfo.score,
+          lead_tier: scoreInfo.tier,
+          lead_label: scoreInfo.label,
+          intent_tags: scoreInfo.tags,
+        };
+      }
+
       return res.status(200).json({
         ...conv,
-        leads: leadResult.data || null,
+        leads: scoredLead || null,
         schools: schoolResult.data || null,
         escalation: escalationResult.data || null,
       });

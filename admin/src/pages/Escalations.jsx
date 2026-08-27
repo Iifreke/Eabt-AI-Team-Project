@@ -25,6 +25,32 @@ const reasonLabel = {
   sensitive_topic: 'Sensitive topic',
 };
 
+function getSlaBadge(createdAt, status) {
+  if (status === 'resolved' || !createdAt) return null;
+  const created = new Date(createdAt).getTime();
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
+
+  if (elapsedMinutes < 3) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+        ⏱️ {elapsedMinutes}m
+      </span>
+    );
+  }
+  if (elapsedMinutes < 10) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+        ⏱️ {elapsedMinutes}m
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+      🚨 {elapsedMinutes}m SLA
+    </span>
+  );
+}
+
 function playNotificationSound() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -247,15 +273,25 @@ function EscalationRow({ esc, onUpdate }) {
         className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
         onClick={() => setExpanded(e => !e)}
       >
-        <td className="px-5 py-3 font-medium">{esc.leads?.name || '—'}</td>
+        <td className="px-5 py-3 font-medium">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span>{esc.leads?.name || '—'}</span>
+            {esc.leads?.lead_tier === 'HOT' && (
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700">🔥 Hot</span>
+            )}
+          </div>
+        </td>
         <td className="px-5 py-3">
           <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
             {schoolBadge(esc.schools?.slug)}
           </span>
         </td>
-        <td className="px-5 py-3 text-gray-500">{reasonLabel[esc.reason] || esc.reason}</td>
+        <td className="px-5 py-3 text-gray-500 text-xs">{reasonLabel[esc.reason] || esc.reason}</td>
         <td className="px-5 py-3">
-          <span className={statusBadge(esc.status)}>{esc.status?.replace('_', ' ')}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={statusBadge(esc.status)}>{esc.status?.replace('_', ' ')}</span>
+            {getSlaBadge(esc.created_at, esc.status)}
+          </div>
         </td>
         <td className="px-5 py-3 text-gray-500 text-xs">{agentCell()}</td>
         <td className="px-5 py-3 text-gray-400">

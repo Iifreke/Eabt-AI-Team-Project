@@ -15,25 +15,18 @@ import { searchKnowledgeBase } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
 import * as email from '../../src/services/email.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
+import {
+  isValidHumanName,
+  cleanPersonName,
+  extractCleanName,
+  isConversationalSentence,
+} from '../../src/utils/name.js';
 
 // ── Contact Validation & Helper Functions ─────────────────────────
 
 function isPlaceholderName(name) {
   if (!name || typeof name !== 'string') return true;
-  const lower = name.trim().toLowerCase();
-  const placeholders = [
-    'whatsapp inquirer',
-    'whatsapp user',
-    'prospective student',
-    'unknown visitor',
-    'student',
-    'user',
-    'someone',
-    'null',
-    'undefined',
-    'none',
-  ];
-  return placeholders.includes(lower) || lower.length < 2;
+  return !isValidHumanName(name);
 }
 
 function isValidEmail(emailStr) {
@@ -43,18 +36,10 @@ function isValidEmail(emailStr) {
 
 function isLeadComplete(lead) {
   if (!lead) return false;
-  const hasName = Boolean(lead.name && !isPlaceholderName(lead.name));
+  const hasName = Boolean(lead.name && isValidHumanName(lead.name));
   const hasEmail = Boolean(lead.email && isValidEmail(lead.email));
   const hasPhone = Boolean(lead.phone);
   return hasName && hasEmail && hasPhone;
-}
-
-function cleanPersonName(raw) {
-  if (!raw || typeof raw !== 'string') return '';
-  return raw
-    .replace(/^(my name is|i am|i'm|this is|call me|name:?)\s+/i, '')
-    .replace(/[^\w\s'-]/g, '')
-    .trim();
 }
 
 function extractContactDetails(text) {
@@ -73,21 +58,10 @@ function extractContactDetails(text) {
     result.phone = phoneMatch[0].trim();
   }
 
-  // Name patterns
-  const namePatterns = [
-    /my name is ([A-Za-z]+(?: [A-Za-z]+)+)/i,
-    /i am ([A-Za-z]+(?: [A-Za-z]+)+)/i,
-    /i'm ([A-Za-z]+(?: [A-Za-z]+)+)/i,
-    /this is ([A-Za-z]+(?: [A-Za-z]+)+)/i,
-    /call me ([A-Za-z]+(?: [A-Za-z]+)+)/i,
-    /name:\s*([A-Za-z]+(?: [A-Za-z]+)+)/i,
-  ];
-  for (const pat of namePatterns) {
-    const m = text.match(pat);
-    if (m && !isPlaceholderName(m[1])) {
-      result.name = m[1].trim();
-      break;
-    }
+  // Extract clean name if pattern matches
+  const extractedName = extractCleanName(text);
+  if (extractedName) {
+    result.name = extractedName;
   }
 
   return result;
@@ -101,6 +75,8 @@ const RESET_KEYWORDS = new Set([
   'restart',
   'reset',
   'menu',
+  'main menu',
+  'options',
   'change details',
   'update details',
   'update info',
@@ -123,22 +99,70 @@ function isSessionStale(conv) {
   return Date.now() - lastActive > twelveHoursMs;
 }
 
-async function sendConfirmationPrompt(to, lead) {
+// ── Time & Support Hours Helpers (West Africa Time UTC+1) ──────────
+
+export function getWATDate() {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utcMs + 3600000);
+}
+
+export function isDuringAdmissionsHours() {
+  const wat = getWATDate();
+  const day = wat.getDay(); // 0 = Sun, 6 = Sat
+  const hour = wat.getHours(); // 0 - 23
+  // Mon (1) to Fri (5), 8:00 AM (8) to 6:00 PM (18)
+  return day >= 1 && day <= 5 && hour >= 8 && hour < 18;
+}
+
+function getEscalationAckMessage(school) {
+  const schoolName = getSchoolDisplayName(school);
+  if (isDuringAdmissionsHours()) {
+    return `I've connected you to our *${schoolName}* admissions concierge team! 🎓\n\nAn admissions advisor has been alerted on our live portal and will reply to you directly right here shortly.\n_(Admissions Hours: Mon–Fri, 8:00 AM – 6:00 PM WAT)_`;
+  }
+  return `I've prioritized and logged your request with our *${schoolName}* admissions team! 🌙\n\nSince you are reaching out outside official office hours (Mon–Fri, 8:00 AM – 6:00 PM WAT), an admissions advisor will review your inquiry and reply to you first thing tomorrow morning directly here on WhatsApp.`;
+}
+
+// ── Multi-Tenant School Helpers ───────────────────────────────────
+
+function getSchoolDisplayName(school) {
+  if (!school) return 'University Admissions Support';
+  const slug = (school.slug || '').toLowerCase();
+  if (slug === 'babcock' || slug === 'backock') {
+    return 'Babcock University (BU-CODEL)';
+  }
+  if (slug === 'abu') {
+    return 'Ahmadu Bello University (ABU) Distance Learning Centre';
+  }
+  return school.name || 'Admissions Support';
+}
+
+function getSchoolWelcomePrompt(school, leadName) {
+  const schoolName = getSchoolDisplayName(school);
+  const slug = (school?.slug || '').toLowerCase();
+  if (slug === 'babcock' || slug === 'backock') {
+    return `Welcome to *${schoolName}*! 🎓\n\nHow can I help you today? Feel free to ask about our undergraduate and conversion degree programmes, admission requirements, tuition fees, or application procedures.`;
+  }
+  return `Welcome to *${schoolName}*! 🎓\n\nHow can I help you today? Feel free to ask about our undergraduate and postgraduate programmes, admission requirements, tuition fees, or application procedures.`;
+}
+
+async function sendConfirmationPrompt(to, lead, school) {
+  const schoolName = getSchoolDisplayName(school);
   const name = lead.name || 'Student';
   const emailVal = lead.email || 'Not provided';
   const phoneVal = lead.phone || lead.normalized_phone || `+${to}`;
 
-  const bodyText = `Welcome to *Ahmadu Bello University (ABU) Distance Learning Centre*! 🎓\n\nPlease confirm your contact details before we proceed:\n• *Name:* ${name}\n• *Email:* ${emailVal}\n• *Phone:* ${phoneVal}\n\nReply *1* (or click *Confirm & Proceed*) to continue.\nReply *2* (or click *Change Details*) to update your information.`;
+  const bodyText = `Welcome to *${schoolName}*! 🎓\n\nPlease confirm your contact details before we proceed:\n• *Name:* ${name}\n• *Email:* ${emailVal}\n• *Phone:* ${phoneVal}\n\nReply *1* (or click *Confirm & Proceed*) to continue.\nReply *2* (or click *Change Details*) to update your information.`;
 
   const buttons = [
     { id: 'confirm_details', title: 'Confirm & Proceed' },
     { id: 'change_details', title: 'Change Details' },
   ];
 
-  return await sendWhatsAppButtons(to, bodyText, buttons);
+  return await sendWhatsAppButtons(to, bodyText, buttons, { schoolSlug: school.slug });
 }
 
-async function sendPhoneCollectionPrompt(to, rawFrom) {
+async function sendPhoneCollectionPrompt(to, rawFrom, school) {
   const bodyText = `Great! Lastly, what is your *Phone number*?\n\nWould you like to use your current WhatsApp number *+${rawFrom}* as your contact phone number? (Reply *1* or *'Same'* to use it, or enter a different phone number):`;
 
   const buttons = [
@@ -146,7 +170,114 @@ async function sendPhoneCollectionPrompt(to, rawFrom) {
     { id: 'phone_enter_different', title: 'Enter Other Phone' },
   ];
 
-  return await sendWhatsAppButtons(to, bodyText, buttons);
+  return await sendWhatsAppButtons(to, bodyText, buttons, { schoolSlug: school.slug });
+}
+
+async function sendInteractiveWelcomeMenu(to, school, customHeader = '') {
+  const schoolName = getSchoolDisplayName(school);
+  const header = customHeader || `Welcome to *${schoolName}*! 🎓\n\nHow can I assist you with your academic goals today?`;
+  const bodyText = `${header}\n\nSelect an option below or type any specific question:`;
+
+  const buttons = [
+    { id: 'btn_programmes', title: 'Explore Courses' },
+    { id: 'btn_fees', title: 'Tuition & Fees' },
+    { id: 'btn_apply', title: 'How to Apply' },
+  ];
+
+  return await sendWhatsAppButtons(to, bodyText, buttons, { schoolSlug: school.slug });
+}
+
+export function getFastPathResponse(actionIdOrText, school) {
+  const slug = (school?.slug || '').toLowerCase();
+  const isBabcock = slug === 'babcock' || slug === 'backock';
+  const lower = (actionIdOrText || '').toLowerCase().trim();
+
+  // Programmes Fast-Path
+  if (
+    lower === 'btn_programmes' ||
+    lower === 'explore courses' ||
+    lower === 'programmes' ||
+    lower === 'courses' ||
+    lower === '1'
+  ) {
+    if (isBabcock) {
+      return `🎓 *Babcock University (BU-CODEL) Programmes*\n\n• *B.Sc. Accounting* (Direct Entry & 100L)\n• *B.Sc. Business Administration*\n• *B.Sc. Computer Science*\n• *B.Sc. Economics*\n• *B.Sc. Mass Communication*\n• *B.Sc. Public Health*\n• *BNSc. Nursing Science* (HND / RN to B.Sc. Conversion)\n\n📌 *Study Mode:* 100% Online with virtual lectures and flexible examinations.\n\nReply with any programme name to view specific admission requirements or tuition breakdown!`;
+    }
+    return `🎓 *ABU Distance Learning Centre Programmes*\n\n• *B.Sc. Accounting, Business Administration, Public Administration*\n• *B.Sc. Computer Science, Economics, Mass Communication, Political Science*\n• *BNSc. Nursing Science* (RN / RM to B.Sc. Conversion)\n• *Postgraduate:* MBA, PGD Education, PGD Management, M.Sc. Mass Comm\n\n📌 *Study Mode:* NUC-accredited online learning with continuous LMS support.\n\nReply with any programme name to view specific admission requirements or tuition breakdown!`;
+  }
+
+  // Fees Fast-Path
+  if (
+    lower === 'btn_fees' ||
+    lower === 'tuition & fees' ||
+    lower === 'fees' ||
+    lower === 'tuition' ||
+    lower === 'school fees' ||
+    lower === '2'
+  ) {
+    if (isBabcock) {
+      return `💰 *Babcock University (BU-CODEL) Tuition Schedule*\n\n• *Structured Payments:* Flexible per-semester payments or 2 to 3 instalments.\n• *What's Included:* Tuition, electronic study packs, e-library, continuous assessment, and exams.\n• *Official Portal:* Verified fee schedules are published on *https://codel.babcock.edu.ng*\n\nReply with your specific programme (e.g. *Accounting* or *Nursing*) for exact figures!`;
+    }
+    return `💰 *ABU Distance Learning Centre Tuition Schedule*\n\n• *Affordable Instalments:* Pay per semester with flexible instalment plans.\n• *Includes:* Portal access, e-courseware, and examination screening.\n• *Official Portal:* Detailed breakdowns available at *https://apply.abudlc.edu.ng*\n\nReply with your specific programme (e.g. *Nursing* or *MBA*) for exact figures!`;
+  }
+
+  // How to Apply Fast-Path
+  if (
+    lower === 'btn_apply' ||
+    lower === 'how to apply' ||
+    lower === 'apply' ||
+    lower === 'application' ||
+    lower === 'admission form' ||
+    lower === '3'
+  ) {
+    if (isBabcock) {
+      return `📝 *How to Apply — Babcock University (BU-CODEL)*\n\n1️⃣ Visit the official portal: *https://codel.babcock.edu.ng*\n2️⃣ Click *'Apply Now'* and register your applicant profile.\n3️⃣ Upload credentials (O'Level / WAEC / NECO / RN License if conversion).\n4️⃣ Submit application for expedited online screening.\n\nNeed human guidance? Reply *'Agent'* anytime to speak with an admissions advisor!`;
+    }
+    return `📝 *How to Apply — ABU Distance Learning Centre*\n\n1️⃣ Visit the application portal: *https://apply.abudlc.edu.ng*\n2️⃣ Create your application account and select your programme.\n3️⃣ Upload your academic credentials and submit.\n4️⃣ Receive your screening response and admission letter.\n\nNeed human guidance? Reply *'Agent'* anytime to speak with an admissions advisor!`;
+  }
+
+  return null;
+}
+
+/**
+ * Resolves the destination school slug based on WhatsApp metadata.
+ */
+function resolveSchoolSlugFromPayload(entry, change, query = {}) {
+  // Check direct query parameter override
+  if (query.school) {
+    const q = query.school.toLowerCase().trim();
+    if (q === 'babcock' || q === 'backock') return 'babcock';
+    if (q === 'abu') return 'abu';
+  }
+
+  const phoneId = change?.metadata?.phone_number_id || '';
+  const displayPhone = change?.metadata?.display_phone_number || '';
+  const wabaId = entry?.id || '';
+
+  const babcockPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
+  const babcockWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_BABCOCK || '1306201654679772';
+  const babcockNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_BABCOCK || '2348080523171').replace(/[^\d]/g, '');
+
+  const abuPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494';
+  const abuWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_ABU || '920478204428865';
+  const abuNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_ABU || '2347025105412').replace(/[^\d]/g, '');
+
+  // Match by Phone Number ID
+  if (phoneId === babcockPhoneId) return 'babcock';
+  if (phoneId === abuPhoneId) return 'abu';
+
+  // Match by Business Number / Display Phone
+  const cleanDisplay = displayPhone.replace(/[^\d]/g, '');
+  if (cleanDisplay && (cleanDisplay === babcockNumber || cleanDisplay.endsWith('8080523171'))) return 'babcock';
+  if (cleanDisplay && (cleanDisplay === abuNumber || cleanDisplay.endsWith('7025105412'))) return 'abu';
+
+  // Match by WABA ID
+  if (wabaId === babcockWabaId) return 'babcock';
+  if (wabaId === abuWabaId) return 'abu';
+
+  // Default fallback to Babcock if primary configured, otherwise check general env
+  if (process.env.WHATSAPP_PHONE_NUMBER_ID === abuPhoneId) return 'abu';
+  return 'babcock';
 }
 
 /**
@@ -247,6 +378,30 @@ export default async function handler(req, res) {
       from_phone: rawFrom,
     });
 
+    // ── Multi-Tenant School Resolution ───────────────────────
+    const schoolSlug = resolveSchoolSlugFromPayload(entry, change, req.query);
+    console.log('[WhatsApp Webhook] Resolved School Slug:', schoolSlug);
+
+    let { data: school, error: schoolErr } = await supabase
+      .from('schools')
+      .select('*')
+      .eq('slug', schoolSlug)
+      .maybeSingle();
+
+    if (!school && (schoolSlug === 'babcock' || schoolSlug === 'backock')) {
+      const { data: altSchool } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('slug', 'backock')
+        .maybeSingle();
+      school = altSchool;
+    }
+
+    if (schoolErr || !school) {
+      console.error('[WhatsApp Webhook] School record missing in DB for slug:', schoolSlug, schoolErr);
+      return res.status(500).json({ error: 'School configuration error' });
+    }
+
     // ── Extract Incoming Content ─────────────────────────────
     let incomingText = '';
     let clickedButtonId = null;
@@ -270,21 +425,10 @@ export default async function handler(req, res) {
       // Non-text message (e.g. sticker, media, location)
       await sendWhatsAppMessage(
         rawFrom,
-        'I received your attachment. Could you please describe what you need assistance with in text so I can help you best?'
+        'I received your attachment. Could you please describe what you need assistance with in text so I can help you best?',
+        { schoolSlug: school.slug }
       );
       return res.status(200).json({ status: 'media_prompt_sent' });
-    }
-
-    // ── Bind Strictly to ABU School Record ───────────────────
-    const { data: school, error: schoolErr } = await supabase
-      .from('schools')
-      .select('*')
-      .eq('slug', 'abu')
-      .single();
-
-    if (schoolErr || !school) {
-      console.error('[WhatsApp Webhook] ABU school record missing in DB:', schoolErr);
-      return res.status(500).json({ error: 'School configuration error' });
     }
 
     // ── Load or Create Lead Record ───────────────────────────
@@ -300,14 +444,15 @@ export default async function handler(req, res) {
       .limit(1)
       .maybeSingle();
 
+    const cleanInitialName = extractCleanName(profileName);
+
     if (!lead) {
-      const initialName = isPlaceholderName(profileName) ? null : profileName;
       const { data: newLead } = await supabase
         .from('leads')
         .insert({
           school_id: school.id,
           session_id: `wa_${rawFrom}`,
-          name: initialName,
+          name: cleanInitialName || null,
           phone: null,
           normalized_phone: normalizedPhone,
           whatsapp_opt_in: true,
@@ -373,6 +518,7 @@ export default async function handler(req, res) {
 
     const messages = Array.isArray(conv.messages) ? conv.messages : [];
     const lowerInput = incomingText.toLowerCase().trim();
+    const schoolName = getSchoolDisplayName(school);
 
     // ── Handle ESCALATED Conversation First ──────────────────
     if (conv.stage === 'escalated') {
@@ -400,10 +546,8 @@ export default async function handler(req, res) {
 
       const hasRecentAdminReply = messages.slice(-4).some(m => m.role === 'admin');
       if (!hasRecentAdminReply) {
-        await sendWhatsAppMessage(
-          rawFrom,
-          `Thanks for your message! Our *Ahmadu Bello University (ABU)* admissions team has been alerted. An available advisor will reply to you directly right here.`
-        );
+        const ackReply = getEscalationAckMessage(school);
+        await sendWhatsAppMessage(rawFrom, ackReply, { schoolSlug: school.slug });
       }
       return res.status(200).json({ status: 'escalated_message_logged' });
     }
@@ -432,7 +576,7 @@ export default async function handler(req, res) {
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, replyPrompt);
+      await sendWhatsAppMessage(rawFrom, replyPrompt, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'change_flow_started' });
     }
 
@@ -458,7 +602,7 @@ export default async function handler(req, res) {
         })
         .eq('id', conv.id);
 
-      await sendConfirmationPrompt(rawFrom, lead);
+      await sendConfirmationPrompt(rawFrom, lead, school);
       return res.status(200).json({ status: 'confirmation_prompt_sent' });
     }
 
@@ -503,25 +647,43 @@ export default async function handler(req, res) {
           .replace(/^(1|confirm|yes|proceed|correct|ok|okay|sure|looks good|all good)[., ]*/i, '')
           .trim();
 
-        let welcomeReply = `Thank you, *${lead.name}*! Your details have been confirmed. ✅\n\nWhat would you like to know about *Ahmadu Bello University (ABU) Distance Learning Centre*? I am happy to assist you with available programmes, admission requirements, tuition fees, and application procedures!`;
+        if (questionSnippet.length > 5 && isConversationalSentence(questionSnippet)) {
+          let welcomeReply = `Thank you, *${lead.name}*! Your details have been confirmed. ✅\n\n`;
+          try {
+            const chunks = await searchKnowledgeBase(questionSnippet, school.id);
+            const context =
+              chunks.length > 0
+                ? chunks.map(c => c.content).join('\n\n---\n\n')
+                : 'No specific information found in the knowledge base for this query.';
 
-        if (questionSnippet.length > 5) {
-          const chunks = await searchKnowledgeBase(questionSnippet, school.id);
-          const context =
-            chunks.length > 0
-              ? chunks.map(c => c.content).join('\n\n---\n\n')
-              : 'No specific information found in the knowledge base for this query.';
-
-          const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context)}
+            const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context)}
 IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
 
-          const aiReply = await chat(systemPrompt, [{ role: 'user', content: questionSnippet }]);
-          const cleanReply = stripEscalateToken(aiReply);
+            const aiReply = await chat(systemPrompt, [{ role: 'user', content: questionSnippet }]);
+            const cleanReply = stripEscalateToken(aiReply);
+            welcomeReply += cleanReply;
+          } catch (e) {
+            welcomeReply += getSchoolWelcomePrompt(school, lead.name);
+          }
 
-          welcomeReply = `Thank you, *${lead.name}*! Your details are confirmed. ✅\n\n${cleanReply}`;
+          messages.push({ role: 'assistant', content: welcomeReply, ts: Date.now() });
+
+          await supabase
+            .from('conversations')
+            .update({
+              stage: 'active',
+              messages,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conv.id);
+
+          await sendWhatsAppMessage(rawFrom, welcomeReply, { schoolSlug: school.slug });
+          return res.status(200).json({ status: 'confirmed_and_activated' });
         }
 
-        messages.push({ role: 'assistant', content: welcomeReply, ts: Date.now() });
+        // Send Interactive Menu for pristine luxury experience
+        const welcomeHeader = `Thank you, *${lead.name}*! Your details have been confirmed. ✅`;
+        messages.push({ role: 'assistant', content: `${welcomeHeader}\n\nSelect an option below or ask any question:`, ts: Date.now() });
 
         await supabase
           .from('conversations')
@@ -532,7 +694,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', conv.id);
 
-        await sendWhatsAppMessage(rawFrom, welcomeReply);
+        await sendInteractiveWelcomeMenu(rawFrom, school, welcomeHeader);
         return res.status(200).json({ status: 'confirmed_and_activated' });
       }
 
@@ -550,14 +712,14 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', conv.id);
 
-        await sendWhatsAppMessage(rawFrom, changePrompt);
+        await sendWhatsAppMessage(rawFrom, changePrompt, { schoolSlug: school.slug });
         return res.status(200).json({ status: 'change_flow_started' });
       }
 
       // Direct field extraction during confirmation
       const directDetails = extractContactDetails(incomingText);
       if (directDetails.email || directDetails.name || directDetails.phone) {
-        if (directDetails.name) lead.name = directDetails.name;
+        if (directDetails.name && isValidHumanName(directDetails.name)) lead.name = directDetails.name;
         if (directDetails.email) lead.email = directDetails.email;
         if (directDetails.phone) {
           lead.phone = directDetails.phone;
@@ -588,12 +750,12 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', conv.id);
 
-        await sendConfirmationPrompt(rawFrom, lead);
+        await sendConfirmationPrompt(rawFrom, lead, school);
         return res.status(200).json({ status: 'direct_details_updated' });
       }
 
       // Unrecognized answer -> resend prompt
-      await sendConfirmationPrompt(rawFrom, lead);
+      await sendConfirmationPrompt(rawFrom, lead, school);
       return res.status(200).json({ status: 'confirmation_prompt_resent' });
     }
 
@@ -602,9 +764,16 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
 
       if (lowerInput !== 'keep') {
-        const cleanedName = cleanPersonName(incomingText);
-        if (!isPlaceholderName(cleanedName)) {
+        const cleanedName = extractCleanName(incomingText) || cleanPersonName(incomingText);
+        if (cleanedName && isValidHumanName(cleanedName)) {
           lead.name = cleanedName;
+          await supabase.from('leads').update({ name: lead.name, updated_at: new Date().toISOString() }).eq('id', lead.id);
+        } else {
+          const retryName = `Please enter your *Full Name* (e.g. *John Doe*) or reply *'Keep'* to keep *${lead.name || 'current name'}*:`;
+          messages.push({ role: 'assistant', content: retryName, ts: Date.now() });
+          await supabase.from('conversations').update({ messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
+          await sendWhatsAppMessage(rawFrom, retryName, { schoolSlug: school.slug });
+          return res.status(200).json({ status: 'invalid_name_in_update' });
         }
       }
 
@@ -612,7 +781,6 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       const promptEmail = `Great! What is your *Email address*? (or reply *'Keep'* to keep *${lead.email || 'current email'}*):`;
       messages.push({ role: 'assistant', content: promptEmail, ts: Date.now() });
 
-      await supabase.from('leads').update({ name: lead.name, updated_at: new Date().toISOString() }).eq('id', lead.id);
       await supabase
         .from('conversations')
         .update({
@@ -622,7 +790,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, promptEmail);
+      await sendWhatsAppMessage(rawFrom, promptEmail, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'updated_name' });
     }
 
@@ -633,9 +801,10 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         const extracted = extractContactDetails(incomingText).email || (isValidEmail(incomingText) ? incomingText.toLowerCase().trim() : null);
         if (extracted) {
           lead.email = extracted;
+          await supabase.from('leads').update({ email: lead.email, updated_at: new Date().toISOString() }).eq('id', lead.id);
         } else {
           const invalidReply = `That doesn't look like a valid email address. Please enter your email (e.g. *name@example.com*) or reply *'Keep'* to keep *${lead.email || 'current email'}*:`;
-          await sendWhatsAppMessage(rawFrom, invalidReply);
+          await sendWhatsAppMessage(rawFrom, invalidReply, { schoolSlug: school.slug });
           return res.status(200).json({ status: 'invalid_email_prompt' });
         }
       }
@@ -644,7 +813,6 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       const promptPhone = `Got it! What is your *Phone number*? (Reply *1* or *'Same'* to use *+${rawFrom}*, or reply *'Keep'* to keep *${lead.phone || lead.normalized_phone}*):`;
       messages.push({ role: 'assistant', content: promptPhone, ts: Date.now() });
 
-      await supabase.from('leads').update({ email: lead.email, updated_at: new Date().toISOString() }).eq('id', lead.id);
       await supabase
         .from('conversations')
         .update({
@@ -654,7 +822,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, promptPhone);
+      await sendWhatsAppMessage(rawFrom, promptPhone, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'updated_email' });
     }
 
@@ -666,8 +834,14 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         lead.normalized_phone = normalizedPhone;
       } else if (lowerInput !== 'keep') {
         const norm = normalizePhoneNumber(incomingText);
-        lead.phone = norm || incomingText.trim();
-        lead.normalized_phone = norm || normalizedPhone;
+        if (norm) {
+          lead.phone = norm;
+          lead.normalized_phone = norm;
+        } else {
+          const retryPhone = `Please enter a valid phone number (e.g. *08012345678*) or reply *'Keep'* to keep *${lead.phone || lead.normalized_phone}*:`;
+          await sendWhatsAppMessage(rawFrom, retryPhone, { schoolSlug: school.slug });
+          return res.status(200).json({ status: 'invalid_phone_in_update' });
+        }
       }
 
       await supabase
@@ -684,7 +858,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' }).catch(console.error);
 
       conv.stage = 'active';
-      const successReply = `Thank you, *${lead.name}*! Your details have been updated successfully: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nHow can I help you today regarding *Ahmadu Bello University (ABU) Distance Learning Centre*?`;
+      const successReply = `Thank you, *${lead.name}*! Your details have been updated successfully: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\n${getSchoolWelcomePrompt(school, lead.name)}`;
       messages.push({ role: 'assistant', content: successReply, ts: Date.now() });
 
       await supabase
@@ -696,22 +870,22 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, successReply);
+      await sendInteractiveWelcomeMenu(rawFrom, school, `Thank you, *${lead.name}*! Your details have been updated successfully. ✅`);
       return res.status(200).json({ status: 'update_completed' });
     }
 
     // ── STAGE: INCOMPLETE LEAD ONBOARDING ────────────────────
     // Sub-stage 1: Onboarding Name
-    if (conv.stage === 'onboarding_name' || !lead.name || isPlaceholderName(lead.name)) {
+    if (conv.stage === 'onboarding_name' || !lead.name || !isValidHumanName(lead.name)) {
       messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
 
-      // Check if user provided multi-field input
+      // Check if user provided valid name or multi-field input
       const multi = extractContactDetails(incomingText);
-      const cleaned = multi.name || cleanPersonName(incomingText);
+      const cleaned = extractCleanName(incomingText) || cleanPersonName(incomingText);
 
-      if (cleaned && !isPlaceholderName(cleaned) && !isSessionStartMessage(incomingText)) {
+      if (cleaned && isValidHumanName(cleaned) && !isSessionStartMessage(incomingText)) {
         lead.name = cleaned;
-        if (multi.email) lead.email = multi.email;
+        if (multi.email && isValidEmail(multi.email)) lead.email = multi.email;
         if (multi.phone) {
           lead.phone = multi.phone;
           lead.normalized_phone = normalizePhoneNumber(multi.phone) || multi.phone;
@@ -734,11 +908,8 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' }).catch(console.error);
           zoho.sendCliqAlert(school, lead, `New student completed registration: "${lead.name}" (${lead.email})`, { channel: 'WhatsApp' }).catch(console.error);
 
-          const welcomeActive = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nWelcome to *Ahmadu Bello University (ABU) Distance Learning Centre*! 🎓\nHow can I help you today? Feel free to ask about our undergraduate and postgraduate programmes, admission requirements, tuition fees, or application procedures.`;
-          messages.push({ role: 'assistant', content: welcomeActive, ts: Date.now() });
-
           await supabase.from('conversations').update({ stage: 'active', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-          await sendWhatsAppMessage(rawFrom, welcomeActive);
+          await sendInteractiveWelcomeMenu(rawFrom, school, `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`);
           return res.status(200).json({ status: 'onboarding_completed' });
         }
 
@@ -748,17 +919,17 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         messages.push({ role: 'assistant', content: promptEmail, ts: Date.now() });
 
         await supabase.from('conversations').update({ stage: 'onboarding_email', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-        await sendWhatsAppMessage(rawFrom, promptEmail);
+        await sendWhatsAppMessage(rawFrom, promptEmail, { schoolSlug: school.slug });
         return res.status(200).json({ status: 'asked_email' });
       }
 
-      // Needs Name prompt
+      // Needs Name prompt (DO NOT set incoming question/sentence as name!)
       conv.stage = 'onboarding_name';
-      const promptName = `Welcome to *Ahmadu Bello University (ABU) Distance Learning Centre* Admissions Support! 🎓\n\nI am Maverick, your admissions assistant.\n\nBefore we proceed, could you please tell me your *Full Name*?`;
+      const promptName = `Welcome to *${schoolName}* Admissions Support! 🎓\n\nI am Maverick, your admissions concierge.\n\nBefore we proceed with your inquiry, could you please tell me your *Full Name*?`;
       messages.push({ role: 'assistant', content: promptName, ts: Date.now() });
 
       await supabase.from('conversations').update({ stage: 'onboarding_name', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-      await sendWhatsAppMessage(rawFrom, promptName);
+      await sendWhatsAppMessage(rawFrom, promptName, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'asked_name' });
     }
 
@@ -780,7 +951,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         });
 
         await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-        await sendPhoneCollectionPrompt(rawFrom, rawFrom);
+        await sendPhoneCollectionPrompt(rawFrom, rawFrom, school);
         return res.status(200).json({ status: 'asked_phone' });
       }
 
@@ -789,7 +960,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       messages.push({ role: 'assistant', content: invalidEmailPrompt, ts: Date.now() });
 
       await supabase.from('conversations').update({ stage: 'onboarding_email', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-      await sendWhatsAppMessage(rawFrom, invalidEmailPrompt);
+      await sendWhatsAppMessage(rawFrom, invalidEmailPrompt, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'asked_email' });
     }
 
@@ -802,7 +973,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         messages.push({ role: 'assistant', content: enterDifferentPrompt, ts: Date.now() });
 
         await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-        await sendWhatsAppMessage(rawFrom, enterDifferentPrompt);
+        await sendWhatsAppMessage(rawFrom, enterDifferentPrompt, { schoolSlug: school.slug });
         return res.status(200).json({ status: 'asked_phone' });
       }
 
@@ -827,7 +998,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           messages.push({ role: 'assistant', content: retryPhone, ts: Date.now() });
 
           await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-          await sendPhoneCollectionPrompt(rawFrom, rawFrom);
+          await sendPhoneCollectionPrompt(rawFrom, rawFrom, school);
           return res.status(200).json({ status: 'asked_phone' });
         }
       }
@@ -853,8 +1024,42 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       ).catch(console.error);
 
       conv.stage = 'active';
-      const welcomeActive = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nWelcome to *Ahmadu Bello University (ABU) Distance Learning Centre*! 🎓\nHow can I help you today? Feel free to ask about our undergraduate and postgraduate programmes, admission requirements, tuition fees, or application procedures.`;
-      messages.push({ role: 'assistant', content: welcomeActive, ts: Date.now() });
+
+      // Check if user had an earlier inquiry asked at session start
+      const firstInquiry = messages.find(m => m.role === 'user' && isConversationalSentence(m.content) && !extractCleanName(m.content))?.content;
+
+      if (firstInquiry && firstInquiry.length > 5) {
+        try {
+          const chunks = await searchKnowledgeBase(firstInquiry, school.id);
+          const context =
+            chunks.length > 0
+              ? chunks.map(c => c.content).join('\n\n---\n\n')
+              : 'No specific information found in the knowledge base for this query.';
+
+          const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context)}
+IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
+
+          const aiReply = await chat(systemPrompt, [{ role: 'user', content: firstInquiry }]);
+          const cleanReply = stripEscalateToken(aiReply);
+
+          const welcomeActiveWithAnswer = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nRegarding your inquiry:\n${cleanReply}`;
+          messages.push({ role: 'assistant', content: welcomeActiveWithAnswer, ts: Date.now() });
+
+          await supabase
+            .from('conversations')
+            .update({
+              stage: 'active',
+              messages,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conv.id);
+
+          await sendWhatsAppMessage(rawFrom, welcomeActiveWithAnswer, { schoolSlug: school.slug });
+          return res.status(200).json({ status: 'onboarding_completed_with_answer' });
+        } catch (ragErr) {
+          console.warn('[WhatsApp Webhook] Initial inquiry answer fallback:', ragErr.message);
+        }
+      }
 
       await supabase
         .from('conversations')
@@ -865,14 +1070,32 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, welcomeActive);
+      await sendInteractiveWelcomeMenu(rawFrom, school, `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`);
       return res.status(200).json({ status: 'onboarding_completed' });
     }
 
-    // ── STAGE: ACTIVE (ABU Admissions Q&A + RAG) ──────────────
+    // ── STAGE: ACTIVE (Admissions Q&A, Fast-Path, RAG) ────────
     messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
 
-    // Check for Human Escalation Intent
+    // 1. FAST-PATH EXECUTION (Sub-50ms instant response for buttons & high-frequency queries)
+    const fastReply = getFastPathResponse(clickedButtonId || incomingText, school);
+    if (fastReply) {
+      messages.push({ role: 'assistant', content: fastReply, ts: Date.now() });
+
+      await supabase
+        .from('conversations')
+        .update({
+          messages,
+          channel: 'whatsapp',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conv.id);
+
+      await sendWhatsAppMessage(rawFrom, fastReply, { schoolSlug: school.slug });
+      return res.status(200).json({ status: 'fast_path_dispatched' });
+    }
+
+    // 2. CHECK FOR HUMAN ESCALATION INTENT
     const wantsHuman = detectEscalation(incomingText);
 
     if (wantsHuman) {
@@ -888,7 +1111,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       zoho.createEscalationTask(
         lead,
         school,
-        'WhatsApp visitor requested human advisor',
+        `WhatsApp visitor requested human advisor for ${schoolName}`,
         `User Message: "${incomingText}"`
       ).catch(console.error);
 
@@ -910,7 +1133,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         reason: 'user_request',
       }).catch(console.error);
 
-      const botResponse = `I've connected you to the *Ahmadu Bello University (ABU)* admissions team! 🎓\n\nAn admissions advisor has been alerted on our portal and will reply to you directly right here shortly. (Admissions Support Hours: Mon–Fri, 8:00 AM – 6:00 PM WAT).`;
+      const botResponse = getEscalationAckMessage(school);
       messages.push({ role: 'assistant', content: botResponse, ts: Date.now() });
 
       await supabase
@@ -923,11 +1146,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, botResponse);
+      await sendWhatsAppMessage(rawFrom, botResponse, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'escalated' });
     }
 
-    // Execute ABU Knowledge Base RAG Search
+    // 3. EXECUTE KNOWLEDGE BASE RAG SEARCH & CLAUDE INFERENCE
     const chunks = await searchKnowledgeBase(incomingText, school.id);
     const context =
       chunks.length > 0
@@ -961,14 +1184,14 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       zoho.createEscalationTask(
         lead,
         school,
-        'WhatsApp AI could not find specific details in ABU knowledge base',
+        `WhatsApp AI could not find specific details in ${schoolName} knowledge base`,
         `Question: "${incomingText}"`
       ).catch(console.error);
 
       zoho.sendCliqAlert(
         school,
         lead,
-        `AI could not find knowledge base answer for: "${incomingText}". Escalating to ABU admissions team.`,
+        `AI could not find knowledge base answer for: "${incomingText}". Escalating to ${schoolName} support team.`,
         {
           channel: 'WhatsApp',
           reason: 'Knowledge Base Fallback',
@@ -983,7 +1206,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         reason: 'failed_attempts',
       }).catch(console.error);
 
-      const combinedReply = `${cleanReply}\n\nI've forwarded your query to our *Ahmadu Bello University (ABU)* admissions team so an advisor can provide you with the exact details directly here.`;
+      const combinedReply = `${cleanReply}\n\n` + getEscalationAckMessage(school);
       messages.push({ role: 'assistant', content: combinedReply, ts: Date.now() });
 
       await supabase
@@ -996,7 +1219,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, combinedReply);
+      await sendWhatsAppMessage(rawFrom, combinedReply, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'answered_and_escalated' });
     }
 
@@ -1012,7 +1235,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       })
       .eq('id', conv.id);
 
-    await sendWhatsAppMessage(rawFrom, cleanReply);
+    await sendWhatsAppMessage(rawFrom, cleanReply, { schoolSlug: school.slug });
 
     // Periodically attach summary note to Zoho CRM
     if (lead.zoho_contact_id && messages.length >= 4 && messages.length % 4 === 0) {
