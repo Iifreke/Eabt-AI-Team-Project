@@ -491,15 +491,13 @@ export default async function handler(req, res) {
       .limit(1)
       .maybeSingle();
 
-    const cleanInitialName = extractCleanName(profileName);
-
     if (!lead) {
       const { data: newLead } = await supabase
         .from('leads')
         .insert({
           school_id: school.id,
           session_id: `wa_${rawFrom}`,
-          name: cleanInitialName || null,
+          name: null,
           phone: null,
           normalized_phone: normalizedPhone,
           whatsapp_opt_in: true,
@@ -536,12 +534,6 @@ export default async function handler(req, res) {
       let initialStage = 'onboarding_name';
       if (isComplete) {
         initialStage = 'confirming_details';
-      } else if (lead.name && isValidHumanName(lead.name)) {
-        if (!lead.email || !isValidEmail(lead.email)) {
-          initialStage = 'onboarding_email';
-        } else if (!lead.phone) {
-          initialStage = 'onboarding_phone';
-        }
       }
 
       const { data: newConv } = await supabase
@@ -642,7 +634,6 @@ export default async function handler(req, res) {
       messages.length === 0 ||
       conv.stage === 'resolved' ||
       conv.stage === 'confirming_details' ||
-      isSessionStartMessage(incomingText) ||
       isSessionStale(conv);
 
     // If at beginning of chat and details are complete: Must confirm before proceeding
@@ -972,7 +963,9 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
         // Advance to email
         conv.stage = 'onboarding_email';
-        const promptEmail = `Thank you, *${lead.name}*! What is your *Email address*?`;
+        const promptEmail = messages.length <= 1
+          ? `Welcome to *${schoolName}* Admissions Support! 🎓\n\nI am Maverick, your admissions concierge.\n\nThank you, *${lead.name}*! What is your *Email address*?`
+          : `Thank you, *${lead.name}*! What is your *Email address*?`;
         messages.push({ role: 'assistant', content: promptEmail, ts: Date.now() });
 
         await supabase.from('conversations').update({ stage: 'onboarding_email', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
@@ -1010,6 +1003,16 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
         await sendPhoneCollectionPrompt(rawFrom, rawFrom, school);
         return res.status(200).json({ status: 'asked_phone' });
+      }
+
+      // If user sent a greeting / session start keyword while in email onboarding
+      if (isSessionStartMessage(incomingText)) {
+        const greetingEmailPrompt = `Hello${lead.name ? ` *${lead.name}*` : ''}! Welcome to *${schoolName}* Admissions Support! 🎓\n\nTo assist you with your inquiry, could you please provide your *Email address* (e.g. *name@example.com*)?`;
+        messages.push({ role: 'assistant', content: greetingEmailPrompt, ts: Date.now() });
+
+        await supabase.from('conversations').update({ stage: 'onboarding_email', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
+        await sendWhatsAppMessage(rawFrom, greetingEmailPrompt, { schoolSlug: school.slug });
+        return res.status(200).json({ status: 'asked_email' });
       }
 
       // Invalid email provided
@@ -1050,6 +1053,16 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           lead.phone = norm;
           lead.normalized_phone = norm;
         } else {
+          // If user sent a greeting / session start keyword while in phone onboarding
+          if (isSessionStartMessage(incomingText)) {
+            const greetingPhonePrompt = `Hello${lead.name ? ` *${lead.name}*` : ''}! We're almost done.\n\nWould you like to use your current WhatsApp number *+${rawFrom}* as your contact phone number? (Reply *1* or *'Same'* to use it, or enter a different phone number):`;
+            messages.push({ role: 'assistant', content: greetingPhonePrompt, ts: Date.now() });
+
+            await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
+            await sendPhoneCollectionPrompt(rawFrom, rawFrom, school);
+            return res.status(200).json({ status: 'asked_phone' });
+          }
+
           // If input is not a valid phone number
           const retryPhone = `Please enter a valid phone number (e.g. *08012345678*) or reply *'Same'* to use your current WhatsApp number *+${rawFrom}*:`;
           messages.push({ role: 'assistant', content: retryPhone, ts: Date.now() });
