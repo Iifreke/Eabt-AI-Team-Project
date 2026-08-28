@@ -5,14 +5,14 @@
 
 const HIGH_INTENT_KEYWORDS = [
   /\b(?:appl(?:y|ying|ication)|register|registration|admissions?\s+form|screening|admitted)\b/i,
-  /\b(?:tuition|fees?|cost|payment|instalments?|bank|account|pay)\b/i,
-  /\b(?:how\s+to\s+join|enroll|enrolment|start\s+application|portal)\b/i,
+  /\b(?:tuition|fees?|cost|payment|instalments?|bank|account|pay|paystack)\b/i,
+  /\b(?:how\s+to\s+join|enroll|enrolment|start\s+application|portal|apply\.abudlc\.edu\.ng|codel\.babcock\.edu\.ng)\b/i,
 ];
 
 const MEDIUM_INTENT_KEYWORDS = [
-  /\b(?:nursing|computer\s+science|accounting|economics|mass\s+comm|business\s+admin|public\s+health)\b/i,
-  /\b(?:conversion|postgraduate|undergraduate|masters?|msc|mba|phd|pgd|degree|direct\s+entry)\b/i,
-  /\b(?:requirements?|waec|neco|jamb|duration|curriculum|syllabus|credits?)\b/i,
+  /\b(?:nursing|bnsc|computer\s+science|accounting|economics|mass\s+comm|business\s+admin|public\s+health|mph|public\s+admin|mpa|mim|mlcj|miad|mdrm|blis|sociology|political\s+science|international\s+studies)\b/i,
+  /\b(?:conversion|postgraduate|undergraduate|masters?|msc|mba|phd|pgd|pgde|pgdm|degree|direct\s+entry|transfer)\b/i,
+  /\b(?:requirements?|waec|neco|jamb|duration|curriculum|syllabus|credits?|exam\s+centers?|proctored)\b/i,
 ];
 
 /**
@@ -60,8 +60,9 @@ export function calculateLeadScore(lead, messages = []) {
     if (pattern.test(allUserText)) {
       score += 20;
       hasHighIntent = true;
-      if (/fee|tuition|cost|payment|instalment/i.test(allUserText)) tags.add('Fee Inquirer');
+      if (/fee|tuition|cost|payment|instalment|paystack/i.test(allUserText)) tags.add('Fee Inquirer');
       if (/appl|register|form|portal/i.test(allUserText)) tags.add('Ready to Apply');
+      if (/screening/i.test(allUserText)) tags.add('Screening Inquirer');
       break;
     }
   }
@@ -72,8 +73,10 @@ export function calculateLeadScore(lead, messages = []) {
       score += 15;
       hasMediumIntent = true;
       if (/conversion|direct\s+entry/i.test(allUserText)) tags.add('Conversion Prospect');
-      if (/nursing/i.test(allUserText)) tags.add('Nursing Inquirer');
-      if (/postgraduate|masters|msc|mba/i.test(allUserText)) tags.add('Postgraduate');
+      if (/nursing|bnsc/i.test(allUserText)) tags.add('Nursing Inquirer');
+      if (/mba/i.test(allUserText)) tags.add('MBA Prospect');
+      if (/postgraduate|masters|msc|mph|mpa|pgde|pgdm/i.test(allUserText)) tags.add('Postgraduate');
+      if (/transfer/i.test(allUserText)) tags.add('Transfer Applicant');
       if (/requirements|waec|jamb/i.test(allUserText)) tags.add('Checking Requirements');
       break;
     }

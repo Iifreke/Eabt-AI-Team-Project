@@ -198,12 +198,14 @@ export function getFastPathResponse(actionIdOrText, school) {
     lower === 'explore courses' ||
     lower === 'programmes' ||
     lower === 'courses' ||
+    lower === 'courses offered' ||
+    lower === 'programmes offered' ||
     lower === '1'
   ) {
     if (isBabcock) {
       return `🎓 *Babcock University (BU-CODEL) Programmes*\n\n• *B.Sc. Accounting* (Direct Entry & 100L)\n• *B.Sc. Business Administration*\n• *B.Sc. Computer Science*\n• *B.Sc. Economics*\n• *B.Sc. Mass Communication*\n• *B.Sc. Public Health*\n• *BNSc. Nursing Science* (HND / RN to B.Sc. Conversion)\n\n📌 *Study Mode:* 100% Online with virtual lectures and flexible examinations.\n\nReply with any programme name to view specific admission requirements or tuition breakdown!`;
     }
-    return `🎓 *ABU Distance Learning Centre Programmes*\n\n• *B.Sc. Accounting, Business Administration, Public Administration*\n• *B.Sc. Computer Science, Economics, Mass Communication, Political Science*\n• *BNSc. Nursing Science* (RN / RM to B.Sc. Conversion)\n• *Postgraduate:* MBA, PGD Education, PGD Management, M.Sc. Mass Comm\n\n📌 *Study Mode:* NUC-accredited online learning with continuous LMS support.\n\nReply with any programme name to view specific admission requirements or tuition breakdown!`;
+    return `🎓 *ABU Distance Learning Centre (ABUDLC) Programmes*\n\n📚 *Undergraduate Programmes (B.Sc. / B.A.):*\n• *B.Sc. Accounting*\n• *B.Sc. Business Administration*\n• *B.Sc. Public Administration*\n• *B.Sc. Computer Science*\n• *B.Sc. Economics*\n• *B.Sc. Mass Communication*\n• *B.Sc. Political Science*\n• *B.Sc. International Studies*\n• *B.Sc. Sociology*\n• *B.Sc. Library & Information Science (BLIS)*\n\n🩺 *Conversion / Nursing:*\n• *BNSc. Nursing Science* (For Registered Nurses with N&MCoN License)\n\n🎓 *Postgraduate Degree & Diploma Programmes:*\n• *Master of Business Administration (MBA)* (Regular & Special)\n• *Master of Public Health (MPH)*\n• *Master of Public Administration (MPA)*\n• *Master in Information Management (MIM)*\n• *Master in Law Enforcement & Criminal Justice (MLCJ)*\n• *Master in International Affairs & Diplomacy (MIAD)*\n• *Master in Disaster Risk Management (MDRM)*\n• *Master in Accounting (MAC)*\n• *Postgraduate Diploma in Education (PGDE)*\n• *Postgraduate Diploma in Management (PGDM)*\n\n📌 *Study Mode:* 100% Online. No JAMB required for undergraduate entry!\n\nReply with any programme name to view specific admission requirements or tuition breakdown!`;
   }
 
   // Fees Fast-Path
@@ -213,12 +215,13 @@ export function getFastPathResponse(actionIdOrText, school) {
     lower === 'fees' ||
     lower === 'tuition' ||
     lower === 'school fees' ||
+    lower === 'cost' ||
     lower === '2'
   ) {
     if (isBabcock) {
       return `💰 *Babcock University (BU-CODEL) Tuition Schedule*\n\n• *Structured Payments:* Flexible per-semester payments or 2 to 3 instalments.\n• *What's Included:* Tuition, electronic study packs, e-library, continuous assessment, and exams.\n• *Official Portal:* Verified fee schedules are published on *https://codel.babcock.edu.ng*\n\nReply with your specific programme (e.g. *Accounting* or *Nursing*) for exact figures!`;
     }
-    return `💰 *ABU Distance Learning Centre Tuition Schedule*\n\n• *Affordable Instalments:* Pay per semester with flexible instalment plans.\n• *Includes:* Portal access, e-courseware, and examination screening.\n• *Official Portal:* Detailed breakdowns available at *https://apply.abudlc.edu.ng*\n\nReply with your specific programme (e.g. *Nursing* or *MBA*) for exact figures!`;
+    return `💰 *ABU Distance Learning Centre Tuition Schedule*\n\n• *Per-Semester Payments:* Tuition is payable per semester directly on the portal. (Bulk payments for multiple semesters are not accepted).\n• *Payment Gateway:* Processed securely through Paystack on *https://reg.abudlc.edu.ng*\n• *What's Included:* LMS access, interactive e-courseware, continuous assessment, and exam access.\n• *Application Fee:* *₦10,300* (one-time fee payable during online registration at *https://apply.abudlc.edu.ng*).\n\nReply with your specific programme (e.g. *MBA*, *Nursing*, or *Computer Science*) for exact figures!`;
   }
 
   // How to Apply Fast-Path
@@ -228,12 +231,56 @@ export function getFastPathResponse(actionIdOrText, school) {
     lower === 'apply' ||
     lower === 'application' ||
     lower === 'admission form' ||
+    lower === 'how do i apply' ||
     lower === '3'
   ) {
     if (isBabcock) {
       return `📝 *How to Apply — Babcock University (BU-CODEL)*\n\n1️⃣ Visit the official portal: *https://codel.babcock.edu.ng*\n2️⃣ Click *'Apply Now'* and register your applicant profile.\n3️⃣ Upload credentials (O'Level / WAEC / NECO / RN License if conversion).\n4️⃣ Submit application for expedited online screening.\n\nNeed human guidance? Reply *'Agent'* anytime to speak with an admissions advisor!`;
     }
-    return `📝 *How to Apply — ABU Distance Learning Centre*\n\n1️⃣ Visit the application portal: *https://apply.abudlc.edu.ng*\n2️⃣ Create your application account and select your programme.\n3️⃣ Upload your academic credentials and submit.\n4️⃣ Receive your screening response and admission letter.\n\nNeed human guidance? Reply *'Agent'* anytime to speak with an admissions advisor!`;
+    return `📝 *How to Apply — ABU Distance Learning Centre*\n\n1️⃣ *Create Account:* Visit *https://apply.abudlc.edu.ng* and click *Sign Up*.\n2️⃣ *Upload Credentials:* Complete your profile and upload your O'Level results (and RN License / Degree / HND / NYSC for Direct Entry & Postgraduate).\n3️⃣ *Pay Application Fee:* Pay the *₦10,300* fee via the secure Paystack gateway.\n4️⃣ *Screening & Admission:* Receive your screening outcome and provisional admission letter!\n\nNeed human guidance? Reply *'Agent'* anytime to speak with an admissions advisor!`;
+  }
+
+  // Exam Centers Fast-Path
+  if (
+    lower === 'btn_exam_centers' ||
+    lower === 'exam centers' ||
+    lower === 'examination centers' ||
+    lower === 'exam locations' ||
+    lower === 'where are exams held' ||
+    lower === 'exams' ||
+    lower === 'centers'
+  ) {
+    if (isBabcock) {
+      return `📍 *Babcock University (BU-CODEL) Examination Centers*\n\n• *Physical Centers:* Lagos, Abuja, Port Harcourt, and Ilishan-Remo Main Campus.\n• *Schedule:* Flexible weekend or weekday examination sessions scheduled per semester.\n• *Format:* Computer-Based Testing (CBT) and project assessments.\n\nReply *'Agent'* to speak with an admissions coordinator!`;
+    }
+    return `📍 *ABUDLC Examination & Screening Centers*\n\n🏢 *Physical Exam Centers in Nigeria:*\n• *North:* Zaria (Main Campus), Abuja, Kaduna, Kano, Sokoto, Katsina, Jos, Minna, Bauchi, Gombe, Maiduguri, Yola, Kebbi, Keffi, Ilorin, Lokoja, Dutse, Jalingo.\n• *South / West / East:* Lagos (Mainland & Island), Ibadan, Port Harcourt, Asaba, Akure, Abeokuta, Akwa Ibom, Enugu.\n\n🌍 *International Physical Centers:*\n• Central London (United Kingdom)\n• Jeddah (Saudi Arabia)\n\n💻 *Online Proctored Exams (Abroad):*\n• Available for international students residing in the *UK, USA, and Canada*.\n\n🔍 *Screening Centers:* Lagos, Kano, Sokoto, Port Harcourt, Abuja, Gombe, Kaduna, Asaba, Minna, Zaria (or Remote Online Screening for ₦20,000 at *https://remote.abudlc-edu.ng/*).`;
+  }
+
+  // Fast Track Fast-Path
+  if (
+    lower === 'btn_fast_track' ||
+    lower === 'fast track' ||
+    lower === 'fast-track' ||
+    lower === 'accelerated'
+  ) {
+    if (isBabcock) {
+      return `⏱️ *Babcock (BU-CODEL) Programme Duration*\n\n• *Conversion Degree (BNSc, B.Sc.):* 2 to 3 years (4–6 semesters).\n• *Direct Entry / 100L:* 3 to 4 years.\n• *Flexibility:* Study at your pace while continuing your full-time job!`;
+    }
+    return `⏱️ *ABUDLC Fast-Track & Programme Duration*\n\n• *Automatic Fast-Track:* ABUDLC operates a *3rd semester* within each academic session, allowing you to study continuously without taking an extended break.\n• *MBA Regular:* 4 semesters (~16 months).\n• *MBA Special:* 5 semesters (~20 months).\n• *PGDE / PGDM / MIM / MLCJ / MIAD / MDRM:* 2 semesters (~8 months).\n• *MPH / MPA / MAC:* 3 to 4 semesters.\n• *Undergraduate:* 3 to 4 years (Fast-Track available!).`;
+  }
+
+  // Transfers Fast-Path
+  if (
+    lower === 'btn_transfers' ||
+    lower === 'transfers' ||
+    lower === 'transfer' ||
+    lower === 'intra-university' ||
+    lower === 'inter-university'
+  ) {
+    if (isBabcock) {
+      return `🔄 *Babcock University Transfer Policy*\n\n• Transfer students from NUC-accredited institutions are accepted into relevant levels based on transcript evaluation.\n• Submit official transcript to *Admissions@codel.babcock.edu.ng* for review.`;
+    }
+    return `🔄 *ABU Distance Learning Centre Transfer Policy*\n\n• *Intra-University Transfer (from ABU mainstream):* Minimum CGPA of *1.50* required.\n• *Inter-University Transfer (from other NUC-accredited universities):* Minimum CGPA of *2.40* required.\n• *Eligible Levels:* 200–300 Level (for 4-year programmes) or 200–400 Level (for 5-year programmes).\n• *How to Apply:* Apply online at *https://apply.abudlc.edu.ng/* under the Transfer Application section with your official academic transcripts.`;
   }
 
   return null;
@@ -486,7 +533,17 @@ export default async function handler(req, res) {
     const isComplete = isLeadComplete(lead);
 
     if (!conv) {
-      const initialStage = isComplete ? 'confirming_details' : 'onboarding_name';
+      let initialStage = 'onboarding_name';
+      if (isComplete) {
+        initialStage = 'confirming_details';
+      } else if (lead.name && isValidHumanName(lead.name)) {
+        if (!lead.email || !isValidEmail(lead.email)) {
+          initialStage = 'onboarding_email';
+        } else if (!lead.phone) {
+          initialStage = 'onboarding_phone';
+        }
+      }
+
       const { data: newConv } = await supabase
         .from('conversations')
         .insert({
@@ -876,7 +933,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
     // ── STAGE: INCOMPLETE LEAD ONBOARDING ────────────────────
     // Sub-stage 1: Onboarding Name
-    if (conv.stage === 'onboarding_name' || !lead.name || !isValidHumanName(lead.name)) {
+    if (conv.stage === 'onboarding_name') {
       messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
 
       // Check if user provided valid name or multi-field input
@@ -934,7 +991,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     }
 
     // Sub-stage 2: Onboarding Email
-    if (conv.stage === 'onboarding_email' || !lead.email || !isValidEmail(lead.email)) {
+    else if (conv.stage === 'onboarding_email') {
       messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
 
       const emailVal = extractContactDetails(incomingText).email || (isValidEmail(incomingText) ? incomingText.toLowerCase().trim() : null);
@@ -965,7 +1022,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     }
 
     // Sub-stage 3: Onboarding Phone
-    if (conv.stage === 'onboarding_phone' || !lead.phone) {
+    else if (conv.stage === 'onboarding_phone') {
       messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
 
       if (clickedButtonId === 'phone_enter_different') {
@@ -1157,7 +1214,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         ? chunks.map(c => c.content).join('\n\n---\n\n')
         : 'No specific information found in the knowledge base for this query.';
 
-    const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context)}
+    const systemPrompt = `${buildActiveSystemPrompt(schoolName, lead.name || 'there', context)}
 IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
 
     const messageHistory = messages

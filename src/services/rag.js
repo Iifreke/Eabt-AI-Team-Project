@@ -139,6 +139,7 @@ export async function searchKnowledgeBase(query, schoolId, topK = 5) {
       query_embedding: embedding,
       match_school_id: schoolId,
       match_count: topK,
+      match_threshold: 0.20,
     });
 
     if (error || !data) return [];
