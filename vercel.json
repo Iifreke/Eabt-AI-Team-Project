@@ -11,6 +11,6 @@
       "maxDuration": 30
     }
   },
-  "buildCommand": "echo 'using pre-built deploy/'",
+  "buildCommand": "npm run build && node -e \"import('fs').then(fs => fs.cpSync('admin/dist', 'deploy', { recursive: true }))\"",
   "outputDirectory": "deploy"
 }
