@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
       let query = supabase
         .from('escalations')
-        .select('*, conversations(session_id, stage), leads(name, email, phone), schools(name, slug)');
+        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone), leads(name, email, phone, normalized_phone), schools(name, slug)');
 
       if (status) query = query.eq('status', status);
 

@@ -103,7 +103,7 @@ export default async function handler(req, res) {
 
     // ── Omnichannel WhatsApp Dispatch ─────────────────────────
     // If conversation is from WhatsApp OR user is offline on the web widget
-    const isWhatsAppChannel = conv.channel === 'whatsapp';
+    const isWhatsAppSession = conv.channel === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
     const lastSeenMs = conv.user_last_seen_web ? new Date(conv.user_last_seen_web).getTime() : 0;
     const isWebUserOffline = conv.user_web_online === false || (Date.now() - lastSeenMs > 90 * 1000);
 
@@ -111,7 +111,7 @@ export default async function handler(req, res) {
 
     let whatsappSent = false;
     let whatsappError = null;
-    if ((isWhatsAppChannel || isWebUserOffline) && userPhone) {
+    if ((isWhatsAppSession || isWebUserOffline) && userPhone) {
       const waBody = `*${adminName}* (${schoolName}):\n${message.trim()}`;
 
       // Retrieve originating WhatsApp Phone Number ID if available in conversation messages
@@ -119,9 +119,15 @@ export default async function handler(req, res) {
         .reverse()
         .find(m => m.role === 'user' && (m.phone_number_id || m.schoolSlug));
 
-      const targetPhoneNumberId = lastUserMsg?.phone_number_id;
-      const targetSchoolSlug = lastUserMsg?.schoolSlug || conv.schools?.slug || 'babcock';
+      const schoolSlug = conv.schools?.slug || lastUserMsg?.schoolSlug || 'babcock';
+      const defaultPhoneId = schoolSlug === 'abu'
+        ? (process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494')
+        : (process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291');
 
+      const targetPhoneNumberId = lastUserMsg?.phone_number_id || defaultPhoneId;
+      const targetSchoolSlug = lastUserMsg?.schoolSlug || schoolSlug;
+
+      console.log(`[Admin Reply] Dispatching to WhatsApp recipient ${userPhone} using phoneId ${targetPhoneNumberId}...`);
       const waResult = await sendWhatsAppMessage(userPhone, waBody, {
         phoneNumberId: targetPhoneNumberId,
         schoolSlug: targetSchoolSlug,
@@ -131,6 +137,8 @@ export default async function handler(req, res) {
       whatsappError = waResult.error || null;
       if (!waResult.ok) {
         console.warn('[Admin Reply] WhatsApp dispatch failed:', waResult.error);
+      } else {
+        console.log(`[Admin Reply] WhatsApp message delivered successfully (id: ${waResult.messageId})`);
       }
     }
 
