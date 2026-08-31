@@ -176,7 +176,9 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
       resetAutoResolve();
       if (res?.whatsappSent) {
         setInfoMessage('✓ Delivered to student via WhatsApp');
-        setTimeout(() => setInfoMessage(''), 4000);
+        setTimeout(() => setInfoMessage(''), 5000);
+      } else if (res?.whatsappError) {
+        setError(`Saved to portal, but WhatsApp notice: ${res.whatsappError}`);
       }
     } catch {
       setError('Failed to send. Please try again.');
