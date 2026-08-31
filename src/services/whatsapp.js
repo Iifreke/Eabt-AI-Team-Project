@@ -97,30 +97,42 @@ export async function sendWhatsAppMessage(to, message, options = {}) {
     },
   };
 
-  try {
-    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000),
-    });
+  let attempts = 0;
+  const maxAttempts = 2;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(12000),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      console.error('[WhatsApp Service] Meta API Error:', JSON.stringify(data, null, 2));
-      return { ok: false, error: data?.error?.message || 'Failed to send WhatsApp message' };
+      if (!res.ok) {
+        console.error('[WhatsApp Service] Meta API Error (attempt ' + attempts + '):', JSON.stringify(data, null, 2));
+        if (attempts >= maxAttempts) {
+          return { ok: false, error: data?.error?.message || 'Failed to send WhatsApp message' };
+        }
+        await new Promise(r => setTimeout(r, 600));
+        continue;
+      }
+
+      const messageId = data?.messages?.[0]?.id;
+      console.log('[WhatsApp Service] Message dispatched successfully, id:', messageId, 'phoneId:', phoneNumberId);
+      return { ok: true, messageId };
+    } catch (err) {
+      console.error(`[WhatsApp Service] Network/Dispatch Error (attempt ${attempts}):`, err.message);
+      if (attempts >= maxAttempts) {
+        return { ok: false, error: err.message };
+      }
+      await new Promise(r => setTimeout(r, 600));
     }
-
-    const messageId = data?.messages?.[0]?.id;
-    console.log('[WhatsApp Service] Message dispatched successfully, id:', messageId, 'phoneId:', phoneNumberId);
-    return { ok: true, messageId };
-  } catch (err) {
-    console.error('[WhatsApp Service] Network/Dispatch Error:', err.message);
-    return { ok: false, error: err.message };
   }
 }
 
