@@ -546,21 +546,6 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
     ],
   };
 
-  // If phone is present, add 1-click WhatsApp button
-  const waRecipient = formatWhatsAppRecipient(phone);
-  if (waRecipient) {
-    cliqPayload.buttons.push({
-      label: '📱 WhatsApp Chat',
-      type: '+',
-      action: {
-        type: 'open.url',
-        data: {
-          web: `https://wa.me/${waRecipient}`,
-        },
-      },
-    });
-  }
-
   try {
     const res = await fetchWithRetry(webhookUrl, {
       method: 'POST',
