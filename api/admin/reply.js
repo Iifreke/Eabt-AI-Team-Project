@@ -110,11 +110,25 @@ export default async function handler(req, res) {
     const userPhone = conv.whatsapp_phone || conv.leads?.normalized_phone || conv.leads?.phone;
 
     let whatsappSent = false;
+    let whatsappError = null;
     if ((isWhatsAppChannel || isWebUserOffline) && userPhone) {
       const waBody = `*${adminName}* (${schoolName}):\n${message.trim()}`;
-      const schoolSlug = conv.schools?.slug || 'babcock';
-      const waResult = await sendWhatsAppMessage(userPhone, waBody, { schoolSlug });
+
+      // Retrieve originating WhatsApp Phone Number ID if available in conversation messages
+      const lastUserMsg = [...(Array.isArray(conv.messages) ? conv.messages : [])]
+        .reverse()
+        .find(m => m.role === 'user' && (m.phone_number_id || m.schoolSlug));
+
+      const targetPhoneNumberId = lastUserMsg?.phone_number_id;
+      const targetSchoolSlug = lastUserMsg?.schoolSlug || conv.schools?.slug || 'babcock';
+
+      const waResult = await sendWhatsAppMessage(userPhone, waBody, {
+        phoneNumberId: targetPhoneNumberId,
+        schoolSlug: targetSchoolSlug,
+      });
+
       whatsappSent = waResult.ok;
+      whatsappError = waResult.error || null;
       if (!waResult.ok) {
         console.warn('[Admin Reply] WhatsApp dispatch failed:', waResult.error);
       }
@@ -131,7 +145,7 @@ export default async function handler(req, res) {
       );
     }
 
-    return res.status(200).json({ ok: true, messages, whatsappSent });
+    return res.status(200).json({ ok: true, messages, whatsappSent, whatsappError });
   } catch (error) {
     console.error('admin reply error:', error);
     return res.status(500).json({ error: 'Internal server error' });

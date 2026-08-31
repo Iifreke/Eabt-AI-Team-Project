@@ -572,10 +572,22 @@ export default async function handler(req, res) {
     const messages = Array.isArray(conv.messages) ? conv.messages : [];
     const lowerInput = incomingText.toLowerCase().trim();
     const schoolName = getSchoolDisplayName(school);
+    const phoneId = change?.metadata?.phone_number_id || '';
+
+    const pushUserMessage = (text) => {
+      messages.push({
+        role: 'user',
+        content: text,
+        channel: 'whatsapp',
+        ts: Date.now(),
+        phone_number_id: phoneId,
+        schoolSlug: school.slug,
+      });
+    };
 
     // ── Handle ESCALATED Conversation First ──────────────────
     if (conv.stage === 'escalated') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       await supabase
         .from('conversations')
@@ -622,7 +634,7 @@ export default async function handler(req, res) {
 
     if (wantsChangeDirectly) {
       conv.stage = 'updating_name';
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       const replyPrompt = `No problem! Let's update your contact details.\n\nPlease enter your *Full Name* (or reply *'Keep'* to keep *${lead.name || 'current name'}*):`;
       messages.push({ role: 'assistant', content: replyPrompt, ts: Date.now() });
@@ -650,7 +662,7 @@ export default async function handler(req, res) {
     // If at beginning of chat and details are complete: Must confirm before proceeding
     if (isNewOrRestart && isComplete && conv.stage !== 'confirming_details' && !conv.stage.startsWith('updating_')) {
       conv.stage = 'confirming_details';
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       await supabase
         .from('conversations')
@@ -667,7 +679,7 @@ export default async function handler(req, res) {
 
     // ── STAGE: CONFIRMING DETAILS ────────────────────────────
     if (conv.stage === 'confirming_details') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       const isConfirm =
         clickedButtonId === 'confirm_details' ||
@@ -820,7 +832,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
     // ── STAGE: UPDATING DETAILS (Step-by-Step) ─────────────────
     if (conv.stage === 'updating_name') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       if (lowerInput !== 'keep') {
         const cleanedName = extractCleanName(incomingText) || cleanPersonName(incomingText);
@@ -855,7 +867,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     }
 
     if (conv.stage === 'updating_email') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       if (lowerInput !== 'keep') {
         const extracted = extractContactDetails(incomingText).email || (isValidEmail(incomingText) ? incomingText.toLowerCase().trim() : null);
@@ -888,7 +900,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     }
 
     if (conv.stage === 'updating_phone') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       if (clickedButtonId === 'phone_use_current' || lowerInput === 'same' || lowerInput === 'yes' || lowerInput === '1') {
         lead.phone = normalizedPhone;
@@ -938,7 +950,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     // ── STAGE: INCOMPLETE LEAD ONBOARDING ────────────────────
     // Sub-stage 1: Onboarding Name
     if (conv.stage === 'onboarding_name') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       // Check if user provided valid name or multi-field input
       const multi = extractContactDetails(incomingText);
@@ -999,7 +1011,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
     // Sub-stage 2: Onboarding Email
     else if (conv.stage === 'onboarding_email') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       const emailVal = extractContactDetails(incomingText).email || (isValidEmail(incomingText) ? incomingText.toLowerCase().trim() : null);
 
@@ -1041,7 +1053,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
     // Sub-stage 3: Onboarding Phone
     else if (conv.stage === 'onboarding_phone') {
-      messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+      pushUserMessage(incomingText);
 
       if (clickedButtonId === 'phone_enter_different') {
         const enterDifferentPrompt = `Please enter your preferred contact phone number (e.g. *08012345678*):`;
@@ -1160,7 +1172,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     }
 
     // ── STAGE: ACTIVE (Admissions Q&A, Fast-Path, RAG) ────────
-    messages.push({ role: 'user', content: incomingText, channel: 'whatsapp', ts: Date.now() });
+    pushUserMessage(incomingText);
 
     // 1. FAST-PATH EXECUTION (Sub-50ms instant response for buttons & high-frequency queries)
     const fastReply = getFastPathResponse(clickedButtonId || incomingText, school);
