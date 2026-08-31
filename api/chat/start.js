@@ -104,12 +104,12 @@ export default async function handler(req, res) {
         });
 
       // Send Cliq alert for new prospective student
-      zoho.sendCliqAlert(
+      await zoho.sendCliqAlert(
         school,
         lead,
-        `New prospective student started chatting on the website widget.`,
+        `New prospective student started chatting on the website widget: "${lead.name}" (${lead.email || lead.phone})`,
         { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
-      ).catch(console.error);
+      );
     } else {
       await supabase
         .from('conversations')
@@ -121,8 +121,8 @@ export default async function handler(req, res) {
         .eq('id', existingConv.id);
     }
 
-    // Sync lead to Zoho CRM in the background
-    zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' }).catch(console.error);
+    // Sync lead to Zoho CRM
+    await zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' });
 
     const adminsOnline = await anyAdminOnline(supabase);
 

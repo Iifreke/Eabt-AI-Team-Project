@@ -5,6 +5,54 @@ let cachedToken = null;
 let tokenExpiry = 0;
 
 /**
+ * Robust fetch wrapper with automatic retry and exponential backoff.
+ */
+async function fetchWithRetry(url, options = {}, retries = 3, backoffMs = 500) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      return res;
+    } catch (err) {
+      if (attempt === retries) {
+        throw err;
+      }
+      const wait = backoffMs * Math.pow(2, attempt - 1);
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+}
+
+/**
+ * Resolves standard formatted school details for CRM & Notifications.
+ */
+export function getSchoolFormattedDetails(school) {
+  const slug = (school?.slug || '').toLowerCase().trim();
+  const name = school?.name || '';
+
+  if (slug === 'abu' || name.toLowerCase().includes('abudlc') || name.toLowerCase().includes('ahmadu bello')) {
+    return {
+      slug: 'abu',
+      displayName: 'Ahmadu Bello University (ABU) Distance Learning Centre',
+      companyName: 'Ahmadu Bello University (ABU) Distance Learning Centre',
+    };
+  }
+
+  if (slug === 'babcock' || slug === 'backock' || name.toLowerCase().includes('babcock')) {
+    return {
+      slug: 'babcock',
+      displayName: 'Babcock University (BU-CODEL)',
+      companyName: 'Babcock University (BU-CODEL)',
+    };
+  }
+
+  return {
+    slug: slug || 'general',
+    displayName: name || 'University Distance Learning Support',
+    companyName: name || 'Distance Learning Admissions',
+  };
+}
+
+/**
  * Retrieves or refreshes Zoho CRM OAuth access token.
  */
 export async function getAccessToken() {
@@ -20,113 +68,256 @@ export async function getAccessToken() {
     return null;
   }
 
-  const params = new URLSearchParams({
-    grant_type: 'refresh_token',
-    client_id: clientId,
-    client_secret: clientSecret,
-    refresh_token: refreshToken,
-  });
+  try {
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+    });
 
-  const response = await fetch(`${accountsUrl}/oauth/v2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
+    const response = await fetchWithRetry(`${accountsUrl}/oauth/v2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
 
-  const data = await response.json();
-  if (!response.ok || !data.access_token) {
-    console.error('[Zoho Service] Token refresh failed:', data);
+    const data = await response.json();
+    if (!response.ok || !data.access_token) {
+      console.error('[Zoho Service] Token refresh failed:', data);
+      return null;
+    }
+
+    cachedToken = data.access_token;
+    tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+    return cachedToken;
+  } catch (err) {
+    console.error('[Zoho Service] Error obtaining access token:', err.message);
     return null;
   }
-
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
-  return cachedToken;
 }
 
 /**
- * Creates or updates a Lead in Zoho CRM.
+ * Searches Zoho CRM for an existing Lead by phone or email.
+ */
+export async function searchZohoLeadByContact(phone, email) {
+  const token = await getAccessToken();
+  if (!token) return null;
+
+  try {
+    const normalizedPhone = normalizePhoneNumber(phone) || phone;
+    const searchQueries = [];
+    if (normalizedPhone) searchQueries.push(`phone:equals:${encodeURIComponent(normalizedPhone)}`);
+    if (email) searchQueries.push(`email:equals:${encodeURIComponent(email)}`);
+
+    for (const criteria of searchQueries) {
+      const url = `https://www.zohoapis.com/crm/v2/Leads/search?criteria=(${criteria})`;
+      const res = await fetchWithRetry(url, {
+        method: 'GET',
+        headers: { Authorization: `Zoho-oauthtoken ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const foundLead = data.data?.[0];
+        if (foundLead?.id) {
+          return foundLead.id;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Zoho Service] Lead search error:', err.message);
+  }
+  return null;
+}
+
+/**
+ * Creates or updates a Lead in Zoho CRM and syncs the ID back to Supabase.
  *
  * @param {Object} lead - Supabase lead record
  * @param {Object} school - School metadata
  * @param {Object} [options] - Optional overrides (source, status, summary)
  */
 export async function syncLeadToZoho(lead, school, options = {}) {
+  if (!lead) return null;
+
   try {
     const token = await getAccessToken();
-    if (!token) return;
+    if (!token) return null;
 
-    const nameParts = (lead.name || 'Prospective Student').trim().split(' ');
-    const firstName = nameParts.length > 1 ? nameParts[0] : '';
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : nameParts[0] || 'Student';
-    const normalizedPhone = normalizePhoneNumber(lead.phone) || lead.phone;
+    const schoolInfo = getSchoolFormattedDetails(school);
+    const normalizedPhone = normalizePhoneNumber(lead.phone || lead.normalized_phone) || lead.phone || lead.normalized_phone || '';
 
-    const leadSource = options.source || (lead.channel === 'whatsapp' ? 'WhatsApp Bot' : 'Website Chatbot');
+    // Robust Name Splitting conforming to Zoho CRM mandatory fields
+    const rawName = (lead.name || '').trim();
+    let firstName = '';
+    let lastName = '';
+
+    if (rawName) {
+      const nameParts = rawName.split(/\s+/);
+      if (nameParts.length > 1) {
+        firstName = nameParts[0];
+        lastName = nameParts.slice(1).join(' ');
+      } else {
+        firstName = nameParts[0];
+        lastName = nameParts[0]; // Zoho requires non-empty Last_Name
+      }
+    } else {
+      firstName = lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Web';
+      lastName = normalizedPhone ? `Applicant (${normalizedPhone})` : 'Prospective Student';
+    }
+
+    const leadSource = options.source || (lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_') ? 'WhatsApp Bot' : 'Website Chatbot');
     const leadStatus = options.status || (lead.status === 'escalated' ? 'Escalated' : 'New');
 
-    const payload = {
-      data: [
-        {
-          First_Name: firstName,
-          Last_Name: lastName,
-          Email: lead.email || undefined,
-          Phone: normalizedPhone,
-          Lead_Source: leadSource,
-          Lead_Status: leadStatus,
-          Company: school.name,
-          Description: options.summary || `Admissions inquiry via ${leadSource} for ${school.name}. Phone: ${normalizedPhone}`,
-        },
-      ],
+    let zohoLeadId = lead.zoho_contact_id;
+
+    // If not cached in Supabase, search Zoho to prevent duplicate leads
+    if (!zohoLeadId && (normalizedPhone || lead.email)) {
+      zohoLeadId = await searchZohoLeadByContact(normalizedPhone, lead.email);
+    }
+
+    const description = options.summary ||
+      `Admissions inquiry via ${leadSource} for ${schoolInfo.displayName}.\n` +
+      `Student Name: ${rawName || 'Not provided'}\n` +
+      `Phone: ${normalizedPhone || 'Not provided'}\n` +
+      `Email: ${lead.email || 'Not provided'}\n` +
+      `Channel: ${leadSource}\n` +
+      `Last Activity: ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT`;
+
+    const leadPayload = {
+      First_Name: firstName,
+      Last_Name: lastName,
+      Company: schoolInfo.companyName,
+      Lead_Source: leadSource,
+      Lead_Status: leadStatus,
+      Description: description,
     };
 
-    const url = lead.zoho_contact_id
-      ? `https://www.zohoapis.com/crm/v2/Leads/${lead.zoho_contact_id}`
+    if (lead.email) {
+      leadPayload.Email = lead.email.trim();
+    }
+    if (normalizedPhone) {
+      leadPayload.Phone = normalizedPhone;
+      leadPayload.Mobile = normalizedPhone;
+    }
+
+    const url = zohoLeadId
+      ? `https://www.zohoapis.com/crm/v2/Leads/${zohoLeadId}`
       : 'https://www.zohoapis.com/crm/v2/Leads';
 
-    const method = lead.zoho_contact_id ? 'PUT' : 'POST';
+    const method = zohoLeadId ? 'PUT' : 'POST';
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method,
       headers: {
         Authorization: `Zoho-oauthtoken ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ data: [leadPayload] }),
     });
 
     const result = await response.json();
-    const zohoId = result.data?.[0]?.details?.id;
+    const returnedId = result.data?.[0]?.details?.id || zohoLeadId;
 
-    if (zohoId) {
-      await supabase
-        .from('leads')
-        .update({
-          zoho_contact_id: zohoId,
-          zoho_synced_at: new Date().toISOString(),
-          normalized_phone: normalizedPhone,
-        })
-        .eq('id', lead.id);
+    if (returnedId) {
+      // Update in-memory object
+      lead.zoho_contact_id = returnedId;
+      lead.zoho_synced_at = new Date().toISOString();
+
+      // Persist to Supabase leads table if lead record has an ID
+      if (lead.id) {
+        await supabase
+          .from('leads')
+          .update({
+            zoho_contact_id: returnedId,
+            zoho_synced_at: lead.zoho_synced_at,
+            normalized_phone: normalizedPhone || lead.normalized_phone,
+          })
+          .eq('id', lead.id);
+      }
+      return returnedId;
+    } else {
+      console.error('[Zoho Service] syncLeadToZoho API error response:', JSON.stringify(result));
     }
-    return zohoId;
   } catch (error) {
-    console.error('[Zoho Service] syncLeadToZoho failed:', error.message);
-    // Never crash the caller
+    console.error('[Zoho Service] syncLeadToZoho exception:', error.message);
   }
+  return null;
+}
+
+/**
+ * Formats a clean chronological conversation transcript for Zoho CRM Notes and Tasks.
+ */
+export function formatConversationTranscript(messages = [], lead = {}, school = {}, metadata = {}) {
+  const safeLead = lead || {};
+  const schoolInfo = getSchoolFormattedDetails(school || {});
+  const studentName = safeLead.name || 'Prospective Student';
+  const phone = safeLead.phone || safeLead.normalized_phone || 'Not provided';
+  const email = safeLead.email || 'Not provided';
+  const channel = safeLead.channel === 'whatsapp' || safeLead.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Website Chatbot';
+  const nowWAT = new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' });
+
+  const header = [
+    '========================================',
+    '🎓 ADMISSIONS CONVERSATION TRANSCRIPT',
+    '========================================',
+    `Institution: ${schoolInfo.displayName}`,
+    `Student Name: ${studentName}`,
+    `Phone: ${phone}`,
+    `Email: ${email}`,
+    `Channel: ${channel}`,
+    `Session ID: ${safeLead.session_id || 'N/A'}`,
+    `Date & Time: ${nowWAT} (WAT)`,
+    metadata?.reason ? `Status: Escalated (${metadata.reason})` : 'Status: Active Chat',
+    '========================================\n',
+  ].join('\n');
+
+  const formattedMessages = (Array.isArray(messages) ? messages : [])
+    .filter(m => m && !m.role?.startsWith('__'))
+    .map(m => {
+      let sender = 'Student';
+      if (m.role === 'assistant') sender = 'Maverick (AI Concierge)';
+      else if (m.role === 'admin') sender = `${m.adminName || 'Admissions Officer'} (Staff)`;
+
+      const timeStr = m.ts
+        ? new Date(m.ts).toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit' })
+        : '';
+      const timeTag = timeStr ? `[${timeStr}] ` : '';
+
+      return `${timeTag}${sender}:\n${(m.content || '').trim()}`;
+    })
+    .join('\n\n');
+
+  return `${header}${formattedMessages || '(No message history)'}\n\n========================================`;
 }
 
 /**
  * Attaches a chat transcript or AI conversation summary as a Note under the Zoho Lead.
  *
- * @param {string} zohoLeadId - Zoho CRM Lead ID
+ * @param {string|Object} leadOrZohoId - Zoho CRM Lead ID or Lead object
  * @param {string} title - Note title
  * @param {string} content - Note content (transcript / summary)
+ * @param {Object} [school] - Optional school metadata if auto-sync is needed
  */
-export async function addNoteToLead(zohoLeadId, title, content) {
-  if (!zohoLeadId || !content) return;
+export async function addNoteToLead(leadOrZohoId, title, content, school = {}) {
+  if (!leadOrZohoId || !content) return null;
 
   try {
+    let zohoLeadId = typeof leadOrZohoId === 'string' ? leadOrZohoId : leadOrZohoId?.zoho_contact_id;
+
+    // If passed a lead object without zoho_contact_id, sync the lead first
+    if (!zohoLeadId && typeof leadOrZohoId === 'object') {
+      zohoLeadId = await syncLeadToZoho(leadOrZohoId, school);
+    }
+
+    if (!zohoLeadId) {
+      console.warn('[Zoho Service] addNoteToLead skipped: missing Zoho Lead ID');
+      return null;
+    }
+
     const token = await getAccessToken();
-    if (!token) return;
+    if (!token) return null;
 
     const payload = {
       data: [
@@ -139,7 +330,7 @@ export async function addNoteToLead(zohoLeadId, title, content) {
       ],
     };
 
-    const response = await fetch('https://www.zohoapis.com/crm/v2/Notes', {
+    const response = await fetchWithRetry('https://www.zohoapis.com/crm/v2/Notes', {
       method: 'POST',
       headers: {
         Authorization: `Zoho-oauthtoken ${token}`,
@@ -151,9 +342,12 @@ export async function addNoteToLead(zohoLeadId, title, content) {
     const result = await response.json();
     if (!response.ok) {
       console.error('[Zoho Service] addNoteToLead failed:', result);
+      return null;
     }
+    return result;
   } catch (err) {
     console.error('[Zoho Service] addNoteToLead error:', err.message);
+    return null;
   }
 }
 
@@ -163,30 +357,51 @@ export async function addNoteToLead(zohoLeadId, title, content) {
  * @param {Object} lead - Lead record
  * @param {Object} school - School record
  * @param {string} reason - Escalation reason
- * @param {string} [details] - Conversation summary or context
+ * @param {string} [details] - Escalation details or message context
+ * @param {string} [transcript] - Full conversation transcript to attach as a Note
  */
-export async function createEscalationTask(lead, school, reason, details = '') {
+export async function createEscalationTask(lead, school, reason, details = '', transcript = '') {
   try {
+    const schoolInfo = getSchoolFormattedDetails(school);
     const token = await getAccessToken();
-    if (!token) return;
+    if (!token) return null;
+
+    // Ensure lead is synced to Zoho CRM first so task can be attached
+    let zohoLeadId = lead.zoho_contact_id;
+    if (!zohoLeadId) {
+      zohoLeadId = await syncLeadToZoho(lead, school, { status: 'Escalated' });
+    }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const studentName = lead.name || 'Prospective Student';
+    const studentName = lead.name || lead.phone || lead.normalized_phone || 'Prospective Student';
+    const contactPhone = lead.phone || lead.normalized_phone || 'N/A';
+    const contactEmail = lead.email || 'N/A';
+
+    const taskDescription =
+      `🚨 ESCALATION ALERT — ${schoolInfo.displayName}\n\n` +
+      `Reason: ${reason || 'Human Assistance Requested'}\n` +
+      `Institution: ${schoolInfo.displayName}\n` +
+      `Student Name: ${studentName}\n` +
+      `Phone: ${contactPhone}\n` +
+      `Email: ${contactEmail}\n` +
+      `Channel: ${lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Web Chatbot'}\n` +
+      `Escalation Timestamp: ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT\n\n` +
+      `Context / User Inquiry:\n${details || 'Student requested immediate admissions support.'}`;
 
     const payload = {
       data: [
         {
-          Subject: `🚨 Urgent Chatbot Escalation: ${studentName} (${school.name})`,
+          Subject: `🚨 Urgent Admissions Escalation: ${studentName} (${schoolInfo.displayName})`,
           Due_Date: todayStr,
           Priority: 'High',
           Status: 'Not Started',
-          Description: `Reason: ${reason || 'Human Assistance Requested'}\nSchool: ${school.name}\nStudent Name: ${studentName}\nPhone: ${lead.phone || 'N/A'}\nEmail: ${lead.email || 'N/A'}\n\nSummary:\n${details}`,
-          ...(lead.zoho_contact_id ? { What_Id: lead.zoho_contact_id, $se_module: 'Leads' } : {}),
+          Description: taskDescription,
+          ...(zohoLeadId ? { What_Id: zohoLeadId, $se_module: 'Leads' } : {}),
         },
       ],
     };
 
-    const response = await fetch('https://www.zohoapis.com/crm/v2/Tasks', {
+    const response = await fetchWithRetry('https://www.zohoapis.com/crm/v2/Tasks', {
       method: 'POST',
       headers: {
         Authorization: `Zoho-oauthtoken ${token}`,
@@ -199,8 +414,65 @@ export async function createEscalationTask(lead, school, reason, details = '') {
     if (!response.ok) {
       console.error('[Zoho Service] createEscalationTask failed:', result);
     }
+
+    // Also attach full conversation transcript as a Note under the Lead
+    if (transcript && zohoLeadId) {
+      const noteTitle = `🚨 Escalation Transcript — ${new Date().toLocaleDateString()}`;
+      await addNoteToLead(zohoLeadId, noteTitle, transcript, school);
+    }
+
+    return result;
   } catch (err) {
     console.error('[Zoho Service] createEscalationTask error:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Complete helper to sync Lead, Full Transcript Note, and Escalation Task to Zoho CRM.
+ */
+export async function syncFullConversationToZoho(lead, school, conv, options = {}) {
+  if (!lead || !school || !conv) return null;
+
+  try {
+    const isEscalation = options.isEscalation || conv.stage === 'escalated';
+    const status = isEscalation ? 'Escalated' : (options.status || 'In Progress');
+
+    // 1. Sync Lead Details to Zoho CRM
+    const zohoLeadId = await syncLeadToZoho(lead, school, {
+      status,
+      source: options.source || (conv.channel === 'whatsapp' ? 'WhatsApp Bot' : 'Website Chatbot'),
+      summary: options.summary,
+    });
+
+    // 2. Format and Attach Full Conversation Transcript as Note
+    const transcript = formatConversationTranscript(conv.messages || [], lead, school, {
+      reason: options.reason,
+    });
+
+    const noteTitle = isEscalation
+      ? `🚨 Escalation Transcript (${new Date().toLocaleDateString()})`
+      : `📋 Full Chat Transcript (${new Date().toLocaleDateString()})`;
+
+    if (zohoLeadId) {
+      await addNoteToLead(zohoLeadId, noteTitle, transcript, school);
+    }
+
+    // 3. If Escalated, create High-Priority Task
+    if (isEscalation) {
+      await createEscalationTask(
+        lead,
+        school,
+        options.reason || 'Human Assistance Requested',
+        options.details || 'Student requested admissions advisor.',
+        transcript
+      );
+    }
+
+    return zohoLeadId;
+  } catch (err) {
+    console.error('[Zoho Service] syncFullConversationToZoho error:', err.message);
+    return null;
   }
 }
 
@@ -213,11 +485,15 @@ export async function createEscalationTask(lead, school, reason, details = '') {
  * @param {Object} [options] - Additional metadata (channel, reason, actionUrl)
  */
 export async function sendCliqAlert(school, lead, message, options = {}) {
+  const schoolInfo = getSchoolFormattedDetails(school);
+  const schoolSlug = schoolInfo.slug.toUpperCase();
+
   // Determine webhook URL: school-specific override or general fallback
-  const schoolSlug = school?.slug?.toUpperCase();
   const webhookUrl =
     (schoolSlug && process.env[`ZOHO_CLIQ_WEBHOOK_URL_${schoolSlug}`]) ||
-    (schoolSlug === 'BABCOCK' || schoolSlug === 'BACKOCK' ? (process.env.ZOHO_CLIQ_WEBHOOK_URL_BABCOCK || process.env.ZOHO_CLIQ_WEBHOOK_URL_BACKOCK) : null) ||
+    (schoolSlug === 'BABCOCK' || schoolSlug === 'BACKOCK'
+      ? (process.env.ZOHO_CLIQ_WEBHOOK_URL_BABCOCK || process.env.ZOHO_CLIQ_WEBHOOK_URL_BACKOCK)
+      : null) ||
     process.env.ZOHO_CLIQ_WEBHOOK_URL;
 
   if (!webhookUrl) {
@@ -225,14 +501,14 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
   }
 
   const studentName = lead?.name || 'Prospective Student';
-  const phone = lead?.phone || 'Not provided';
+  const phone = lead?.phone || lead?.normalized_phone || 'Not provided';
   const email = lead?.email || 'Not provided';
-  const sourceChannel = options.channel || (lead?.channel === 'whatsapp' ? 'WhatsApp' : 'Web Chatbot');
+  const sourceChannel = options.channel || (lead?.channel === 'whatsapp' || lead?.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Web Chatbot');
   const appUrl = process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app';
   const chatUrl = options.actionUrl || `${appUrl}/chats`;
 
   const cliqPayload = {
-    text: `🚨 *Lead Alert — ${school?.name || 'School Support'}*`,
+    text: `🚨 *Lead Alert — ${schoolInfo.displayName}*`,
     card: {
       title: `${studentName} (${sourceChannel})`,
       theme: 'modern-inline',
@@ -243,7 +519,7 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
         title: 'Lead Information',
         data: [
           { 'Student Name': studentName },
-          { 'Institution': school?.name || 'Unknown' },
+          { 'Institution': schoolInfo.displayName },
           { 'Channel': sourceChannel },
           { 'Phone': phone },
           { 'Email': email },
@@ -274,7 +550,7 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
   const waRecipient = formatWhatsAppRecipient(phone);
   if (waRecipient) {
     cliqPayload.buttons.push({
-      label: '📱 Message on WhatsApp',
+      label: '📱 WhatsApp Chat',
       type: '+',
       action: {
         type: 'open.url',
@@ -286,11 +562,14 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
   }
 
   try {
-    await fetch(webhookUrl, {
+    const res = await fetchWithRetry(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cliqPayload),
     });
+    if (!res.ok) {
+      console.error('[Zoho Cliq] Webhook returned status:', res.status);
+    }
   } catch (err) {
     console.error('[Zoho Cliq] Alert failed:', err.message);
   }

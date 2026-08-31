@@ -120,13 +120,15 @@ export default async function handler(req, res) {
       }
     }
 
-    // Log admin response to Zoho CRM Notes in background if linked
-    if (conv.leads?.zoho_contact_id) {
-      zoho.addNoteToLead(
-        conv.leads.zoho_contact_id,
+    // Log admin response to Zoho CRM Notes
+    if (conv.leads || conv.lead_id) {
+      const leadObj = conv.leads || { id: conv.lead_id, school_id: conv.school_id };
+      await zoho.addNoteToLead(
+        leadObj,
         `Staff Reply by ${adminName}`,
-        `[${new Date().toLocaleTimeString()}] ${adminName}: ${message.trim()}`
-      ).catch(console.error);
+        `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] ${adminName} (Staff):\n${message.trim()}`,
+        conv.schools || { id: conv.school_id }
+      );
     }
 
     return res.status(200).json({ ok: true, messages, whatsappSent });

@@ -179,13 +179,13 @@ export default async function handler(req, res) {
       if (lead.name && lead.email && lead.phone) {
         newStage = 'active';
         conv.stage = 'active';
-        zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' }).catch(console.error);
-        zoho.sendCliqAlert(
+        await zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' });
+        await zoho.sendCliqAlert(
           school,
           lead,
-          `Visitor completed onboarding on the website widget.`,
+          `Visitor completed onboarding on the website widget: "${lead.name}" (${lead.email || lead.phone})`,
           { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
-        ).catch(console.error);
+        );
       }
 
       messages.push({ role: 'assistant', content: fullResponse, ts: Date.now() });
@@ -253,12 +253,22 @@ export default async function handler(req, res) {
         if (inHours2 && conv.stage !== 'escalated') {
           await supabase.from('escalations').insert({ conversation_id: conv.id, school_id: school.id, lead_id: lead.id, reason: 'user_request' });
           conv.stage = 'escalated';
-          email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason: 'user_request' }).catch(console.error);
-          zoho.createEscalationTask(lead, school, 'Visitor expressed dissatisfaction / requested human', message).catch(console.error);
-          zoho.sendCliqAlert(school, lead, `Visitor expressed dissatisfaction / requested human advisor: "${message}"`, { channel: 'Web Chatbot', reason: 'User Request' }).catch(console.error);
 
           messages.push({ role: 'assistant', content: "No problem! Let me connect you with a support agent who can help further.", ts: Date.now() });
           await supabase.from('conversations').update({ messages, stage: 'escalated', updated_at: new Date().toISOString() }).eq('id', conv.id);
+
+          const fullTranscript = zoho.formatConversationTranscript(messages, lead, school, { reason: 'user_request' });
+
+          await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'Website Chatbot' });
+          await zoho.createEscalationTask(lead, school, 'Visitor expressed dissatisfaction / requested human', message, fullTranscript);
+          await zoho.sendCliqAlert(school, lead, `Visitor expressed dissatisfaction / requested human advisor: "${message}"`, { channel: 'Web Chatbot', reason: 'User Request' });
+
+          try {
+            await email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason: 'user_request' });
+          } catch (e) {
+            console.error('[Web Chat] Escalation email error:', e.message);
+          }
+
           sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], adminsOnline, messages });
         } else {
           messages.push({ role: 'assistant', content: "No problem! Our support team is offline right now (Mon–Fri, 8am–6pm WAT). Please open a ticket or message us on WhatsApp and we'll follow up.", ts: Date.now() });
@@ -318,25 +328,36 @@ export default async function handler(req, res) {
       });
       newStage = 'escalated';
       conv.stage = 'escalated';
-      email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason }).catch(console.error);
+
+      const fullTranscript = zoho.formatConversationTranscript([...messages, { role: 'assistant', content: cleanResponse }], lead, school, { reason });
+
+      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'Website Chatbot' });
 
       // Trigger Zoho CRM Task and Zoho Cliq Alert
-      zoho.createEscalationTask(lead, school, reason, message).catch(console.error);
-      zoho.sendCliqAlert(
+      await zoho.createEscalationTask(lead, school, reason, message, fullTranscript);
+      await zoho.sendCliqAlert(
         school,
         lead,
         `Chatbot escalation: "${message}" (${reason === 'user_request' ? 'Visitor requested human' : 'Knowledge Base Fallback'})`,
         { channel: 'Web Chatbot', reason }
-      ).catch(console.error);
+      );
+
+      try {
+        await email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason });
+      } catch (e) {
+        console.error('[Web Chat] Escalation email error:', e.message);
+      }
     } else if (shouldEscalate && !withinBusinessHours) {
       // Off-hours escalation alert to Cliq and Task for next day follow-up
-      zoho.createEscalationTask(lead, school, 'Off-Hours Escalation', message).catch(console.error);
-      zoho.sendCliqAlert(
+      const fullTranscript = zoho.formatConversationTranscript([...messages, { role: 'assistant', content: cleanResponse }], lead, school, { reason: 'Off-Hours Escalation' });
+      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'Website Chatbot' });
+      await zoho.createEscalationTask(lead, school, 'Off-Hours Escalation', message, fullTranscript);
+      await zoho.sendCliqAlert(
         school,
         lead,
         `Off-hours chatbot escalation from ${lead.name || 'Visitor'}: "${message}"`,
         { channel: 'Web Chatbot', reason: 'Off-Hours Escalation' }
-      ).catch(console.error);
+      );
     }
 
     const askSatisfaction = !shouldEscalate && newStage !== 'escalated';

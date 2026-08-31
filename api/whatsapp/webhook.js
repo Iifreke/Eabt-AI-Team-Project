@@ -497,19 +497,23 @@ export default async function handler(req, res) {
         .insert({
           school_id: school.id,
           session_id: `wa_${rawFrom}`,
-          name: null,
-          phone: null,
+          name: profileName || null,
+          phone: rawFrom,
           normalized_phone: normalizedPhone,
           whatsapp_opt_in: true,
         })
         .select()
         .single();
       lead = newLead;
-    } else if (lead.school_id !== school.id || (!lead.normalized_phone && normalizedPhone)) {
+      if (lead) {
+        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+      }
+    } else if (lead.school_id !== school.id || (!lead.normalized_phone && normalizedPhone) || (!lead.phone && rawFrom)) {
       const { data: updatedLead } = await supabase
         .from('leads')
         .update({
           school_id: school.id,
+          phone: lead.phone || rawFrom,
           normalized_phone: lead.normalized_phone || normalizedPhone,
           updated_at: new Date().toISOString(),
         })
@@ -582,7 +586,7 @@ export default async function handler(req, res) {
         })
         .eq('id', conv.id);
 
-      zoho.sendCliqAlert(
+      await zoho.sendCliqAlert(
         school,
         lead,
         `New WhatsApp message from student: "${incomingText}"`,
@@ -591,7 +595,14 @@ export default async function handler(req, res) {
           reason: 'Escalated Chat Follow-up',
           actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
         }
-      ).catch(console.error);
+      );
+
+      await zoho.addNoteToLead(
+        lead,
+        `WhatsApp Follow-up Message (${new Date().toLocaleDateString()})`,
+        `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] Student:\n${incomingText}`,
+        school
+      );
 
       const hasRecentAdminReply = messages.slice(-4).some(m => m.role === 'admin');
       if (!hasRecentAdminReply) {
@@ -785,7 +796,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', lead.id);
 
-        zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' }).catch(console.error);
+        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
 
         const updateAck = `I've updated your details! Please confirm:`;
         messages.push({ role: 'assistant', content: updateAck, ts: Date.now() });
@@ -816,6 +827,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         if (cleanedName && isValidHumanName(cleanedName)) {
           lead.name = cleanedName;
           await supabase.from('leads').update({ name: lead.name, updated_at: new Date().toISOString() }).eq('id', lead.id);
+          await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
         } else {
           const retryName = `Please enter your *Full Name* (e.g. *John Doe*) or reply *'Keep'* to keep *${lead.name || 'current name'}*:`;
           messages.push({ role: 'assistant', content: retryName, ts: Date.now() });
@@ -850,6 +862,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         if (extracted) {
           lead.email = extracted;
           await supabase.from('leads').update({ email: lead.email, updated_at: new Date().toISOString() }).eq('id', lead.id);
+          await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
         } else {
           const invalidReply = `That doesn't look like a valid email address. Please enter your email (e.g. *name@example.com*) or reply *'Keep'* to keep *${lead.email || 'current email'}*:`;
           await sendWhatsAppMessage(rawFrom, invalidReply, { schoolSlug: school.slug });
@@ -903,7 +916,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', lead.id);
 
-      zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' }).catch(console.error);
+      await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
 
       conv.stage = 'active';
       const successReply = `Thank you, *${lead.name}*! Your details have been updated successfully: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\n${getSchoolWelcomePrompt(school, lead.name)}`;
@@ -950,11 +963,12 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', lead.id);
 
+        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+
         if (lead.email && lead.phone) {
           // All details provided at once!
           conv.stage = 'active';
-          zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' }).catch(console.error);
-          zoho.sendCliqAlert(school, lead, `New student completed registration: "${lead.name}" (${lead.email})`, { channel: 'WhatsApp' }).catch(console.error);
+          await zoho.sendCliqAlert(school, lead, `New student completed registration: "${lead.name}" (${lead.email})`, { channel: 'WhatsApp' });
 
           await supabase.from('conversations').update({ stage: 'active', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
           await sendInteractiveWelcomeMenu(rawFrom, school, `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`);
@@ -992,6 +1006,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       if (emailVal && !isSessionStartMessage(incomingText)) {
         lead.email = emailVal;
         await supabase.from('leads').update({ email: lead.email, updated_at: new Date().toISOString() }).eq('id', lead.id);
+        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
 
         conv.stage = 'onboarding_phone';
         messages.push({
@@ -1085,13 +1100,13 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', lead.id);
 
-      zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' }).catch(console.error);
-      zoho.sendCliqAlert(
+      await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+      await zoho.sendCliqAlert(
         school,
         lead,
         `New student completed WhatsApp onboarding: "${lead.name}" (${lead.email})`,
         { channel: 'WhatsApp', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
-      ).catch(console.error);
+      );
 
       conv.stage = 'active';
 
@@ -1178,31 +1193,6 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         reason: 'user_request',
       });
 
-      zoho.createEscalationTask(
-        lead,
-        school,
-        `WhatsApp visitor requested human advisor for ${schoolName}`,
-        `User Message: "${incomingText}"`
-      ).catch(console.error);
-
-      zoho.sendCliqAlert(
-        school,
-        lead,
-        `Student requested live human assistance on WhatsApp: "${incomingText}"`,
-        {
-          channel: 'WhatsApp',
-          reason: 'User Requested Human',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
-        }
-      ).catch(console.error);
-
-      email.sendEscalationEmail({
-        school,
-        lead,
-        conversation: { ...conv, messages },
-        reason: 'user_request',
-      }).catch(console.error);
-
       const botResponse = getEscalationAckMessage(school);
       messages.push({ role: 'assistant', content: botResponse, ts: Date.now() });
 
@@ -1215,6 +1205,40 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           updated_at: new Date().toISOString(),
         })
         .eq('id', conv.id);
+
+      const fullTranscript = zoho.formatConversationTranscript(messages, lead, school, { reason: 'user_request' });
+
+      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'WhatsApp Bot' });
+
+      await zoho.createEscalationTask(
+        lead,
+        school,
+        `WhatsApp visitor requested human advisor for ${schoolName}`,
+        `User Message: "${incomingText}"`,
+        fullTranscript
+      );
+
+      await zoho.sendCliqAlert(
+        school,
+        lead,
+        `Student requested live human assistance on WhatsApp: "${incomingText}"`,
+        {
+          channel: 'WhatsApp',
+          reason: 'User Requested Human',
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+        }
+      );
+
+      try {
+        await email.sendEscalationEmail({
+          school,
+          lead,
+          conversation: { ...conv, messages },
+          reason: 'user_request',
+        });
+      } catch (emailErr) {
+        console.error('[WhatsApp Webhook] Escalation email error:', emailErr.message);
+      }
 
       await sendWhatsAppMessage(rawFrom, botResponse, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'escalated' });
@@ -1251,31 +1275,6 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         reason: 'failed_attempts',
       });
 
-      zoho.createEscalationTask(
-        lead,
-        school,
-        `WhatsApp AI could not find specific details in ${schoolName} knowledge base`,
-        `Question: "${incomingText}"`
-      ).catch(console.error);
-
-      zoho.sendCliqAlert(
-        school,
-        lead,
-        `AI could not find knowledge base answer for: "${incomingText}". Escalating to ${schoolName} support team.`,
-        {
-          channel: 'WhatsApp',
-          reason: 'Knowledge Base Fallback',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
-        }
-      ).catch(console.error);
-
-      email.sendEscalationEmail({
-        school,
-        lead,
-        conversation: { ...conv, messages },
-        reason: 'failed_attempts',
-      }).catch(console.error);
-
       const combinedReply = `${cleanReply}\n\n` + getEscalationAckMessage(school);
       messages.push({ role: 'assistant', content: combinedReply, ts: Date.now() });
 
@@ -1288,6 +1287,40 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           updated_at: new Date().toISOString(),
         })
         .eq('id', conv.id);
+
+      const fullTranscript = zoho.formatConversationTranscript(messages, lead, school, { reason: 'failed_attempts' });
+
+      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'WhatsApp Bot' });
+
+      await zoho.createEscalationTask(
+        lead,
+        school,
+        `WhatsApp AI could not find specific details in ${schoolName} knowledge base`,
+        `Question: "${incomingText}"`,
+        fullTranscript
+      );
+
+      await zoho.sendCliqAlert(
+        school,
+        lead,
+        `AI could not find knowledge base answer for: "${incomingText}". Escalating to ${schoolName} support team.`,
+        {
+          channel: 'WhatsApp',
+          reason: 'Knowledge Base Fallback',
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+        }
+      );
+
+      try {
+        await email.sendEscalationEmail({
+          school,
+          lead,
+          conversation: { ...conv, messages },
+          reason: 'failed_attempts',
+        });
+      } catch (emailErr) {
+        console.error('[WhatsApp Webhook] Escalation email error:', emailErr.message);
+      }
 
       await sendWhatsAppMessage(rawFrom, combinedReply, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'answered_and_escalated' });
@@ -1307,13 +1340,10 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
     await sendWhatsAppMessage(rawFrom, cleanReply, { schoolSlug: school.slug });
 
-    // Periodically attach summary note to Zoho CRM
-    if (lead.zoho_contact_id && messages.length >= 4 && messages.length % 4 === 0) {
-      const summaryText = messages
-        .slice(-6)
-        .map(m => `${m.role === 'user' ? 'Student' : 'AI'}: ${m.content}`)
-        .join('\n');
-      zoho.addNoteToLead(lead.zoho_contact_id, `WhatsApp Chat Summary (${new Date().toLocaleDateString()})`, summaryText).catch(console.error);
+    // Automatically attach updated full conversation transcript note to Zoho CRM
+    if (messages.length >= 2) {
+      const fullTranscript = zoho.formatConversationTranscript(messages, lead, school);
+      await zoho.addNoteToLead(lead, `WhatsApp Conversation Transcript (${new Date().toLocaleDateString()})`, fullTranscript, school);
     }
 
     return res.status(200).json({ status: 'success' });
