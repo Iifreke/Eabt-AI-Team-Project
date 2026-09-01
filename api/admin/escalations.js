@@ -2,6 +2,7 @@ import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
 import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
+import { sendWhatsAppMessage } from '../../src/services/whatsapp.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
 
       let query = supabase
         .from('escalations')
-        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone), leads(name, email, phone, normalized_phone), schools(name, slug)');
+        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
 
       if (status) query = query.eq('status', status);
 
@@ -58,26 +59,48 @@ export default async function handler(req, res) {
 
       if (error) throw error;
 
-      // When resolved: set conversation stage back to 'active' so the widget
-      // detects it via polling and hands the user back to the AI
+      // When resolved: close out the conversation and notify the user
       if (status === 'resolved' && escalation?.conversation_id) {
         const { data: conv } = await supabase
           .from('conversations')
-          .select('id, messages')
+          .select('id, messages, channel, whatsapp_phone, session_id, school_id, schools(name, slug)')
           .eq('id', escalation.conversation_id)
           .single();
 
         if (conv) {
           const messages = Array.isArray(conv.messages) ? conv.messages : [];
+          const closingText = 'The support agent has ended this session. You can continue asking questions and our AI assistant will help you.';
+
           messages.push({
             role: '__notification',
-            content: 'The support agent has ended this session. You can continue asking questions and our AI assistant will help you.',
+            content: closingText,
             ts: Date.now(),
           });
+
           await supabase
             .from('conversations')
             .update({ stage: 'active', messages, updated_at: new Date().toISOString() })
             .eq('id', escalation.conversation_id);
+
+          // Send WhatsApp closing message if this was a WhatsApp conversation
+          const isWhatsApp = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
+          const userPhone = conv.whatsapp_phone || conv.session_id?.replace('wa_', '');
+
+          if (isWhatsApp && userPhone) {
+            const schoolSlug = conv.schools?.slug || 'babcock';
+            const agentName = resolved_by || 'Support Agent';
+            const schoolName = conv.schools?.name || 'School Support';
+
+            const waGoodbye =
+              `✅ *${agentName}* (${schoolName}) has ended this support session.\n\n` +
+              `Thank you for reaching out! If you have more questions, feel free to message us anytime and our AI assistant will be happy to help. 🎓`;
+
+            try {
+              await sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug });
+            } catch (waErr) {
+              console.warn('[End Chat] WhatsApp goodbye failed:', waErr.message);
+            }
+          }
         }
       }
 
