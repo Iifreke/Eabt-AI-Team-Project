@@ -494,21 +494,7 @@ function ChatRow({ esc, onUpdate }) {
                   )}
                   {(esc.status === 'pending' || esc.status === 'in_progress') && (
                     <button
-                      onClick={async () => {
-                        setSaving(true);
-                        setActionError('');
-                        try {
-                          // Single backend call — resolves escalation, updates conversation,
-                          // sends WhatsApp goodbye. Uses service role so RLS is never a blocker.
-                          await api.endChat(esc.id, profile?.full_name);
-                          onUpdate();
-                        } catch (err) {
-                          console.error(err);
-                          setActionError(err.message || 'Failed to end chat. Please try again.');
-                        } finally {
-                          setSaving(false);
-                        }
-                      }}
+                      onClick={() => update({ status: 'resolved', resolved_by: profile?.full_name || null })}
                       disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
                       {saving ? 'Ending...' : 'End Chat'}
