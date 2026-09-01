@@ -104,7 +104,8 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
   const sessionId = esc.conversations?.session_id;
   const lead = esc.leads;
   const conversation = esc.conversations;
-  const channel = conversation?.channel || (conversation?.whatsapp_phone ? 'whatsapp' : 'web');
+  const isWAConv = conversation?.channel?.toLowerCase() === 'whatsapp' || conversation?.session_id?.startsWith('wa_') || !!conversation?.whatsapp_phone;
+  const channel = isWAConv ? 'whatsapp' : 'web';
   const waUrl = formatWhatsAppLink(lead?.normalized_phone || lead?.phone || conversation?.whatsapp_phone);
 
   const fetchMessages = useCallback(async () => {
@@ -360,14 +361,17 @@ function ChatRow({ esc, onUpdate }) {
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(esc.staff_notes || '');
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const update = async (patch) => {
     setSaving(true);
+    setActionError('');
     try {
       await api.updateEscalation({ id: esc.id, ...patch });
       onUpdate();
     } catch (err) {
       console.error(err);
+      setActionError(err.message || 'Action failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -379,7 +383,8 @@ function ChatRow({ esc, onUpdate }) {
     return '—';
   };
 
-  const channel = esc.conversations?.channel || (esc.conversations?.whatsapp_phone ? 'whatsapp' : 'web');
+  const isWA = esc.conversations?.channel?.toLowerCase() === 'whatsapp' || esc.conversations?.session_id?.startsWith('wa_') || !!esc.conversations?.whatsapp_phone;
+  const channel = isWA ? 'whatsapp' : 'web';
   const waUrl = formatWhatsAppLink(esc.leads?.normalized_phone || esc.leads?.phone || esc.conversations?.whatsapp_phone);
 
   return (
@@ -472,17 +477,20 @@ function ChatRow({ esc, onUpdate }) {
                   placeholder="Add staff notes..."
                 />
 
+                {actionError && (
+                  <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{actionError}</div>
+                )}
                 <div className="flex gap-2 mt-3 flex-wrap">
                   {esc.status === 'pending' && (
                     <button onClick={() => update({ status: 'in_progress', attended_by: profile?.full_name })} disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">
-                      Attend / Serve
+                      {saving ? 'Saving...' : 'Attend / Serve'}
                     </button>
                   )}
                   {(esc.status === 'pending' || esc.status === 'in_progress') && (
                     <button onClick={() => update({ status: 'resolved', resolved_by: profile?.full_name })} disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
-                      End Chat
+                      {saving ? 'Ending...' : 'End Chat'}
                     </button>
                   )}
                   <button onClick={() => update({ staff_notes: notes })} disabled={saving}
