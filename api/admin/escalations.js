@@ -36,8 +36,8 @@ export default async function handler(req, res) {
     }
   }
 
-  // PATCH — update a single escalation
-  if (req.method === 'PATCH') {
+  // PATCH or POST — update a single escalation
+  if (req.method === 'PATCH' || req.method === 'POST') {
     try {
       const { id, status, staff_notes, attended_by, resolved_by, tags } = req.body;
       if (!id) return res.status(400).json({ error: 'Missing id' });

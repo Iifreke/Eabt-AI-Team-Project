@@ -65,7 +65,7 @@ export const api = {
   },
 
   updateEscalation: (data) =>
-    authFetch('/api/admin/escalations', { method: 'PATCH', body: JSON.stringify(data) }),
+    authFetch('/api/admin/escalations', { method: 'POST', body: JSON.stringify(data) }),
 
   replyToConversation: (conversationId, message) =>
     authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
