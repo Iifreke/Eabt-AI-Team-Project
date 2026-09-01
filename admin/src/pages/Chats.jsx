@@ -488,7 +488,21 @@ function ChatRow({ esc, onUpdate }) {
                     </button>
                   )}
                   {(esc.status === 'pending' || esc.status === 'in_progress') && (
-                    <button onClick={() => update({ status: 'resolved', resolved_by: profile?.full_name })} disabled={saving}
+                    <button
+                      onClick={async () => {
+                        setSaving(true);
+                        setActionError('');
+                        try {
+                          await api.endChat(esc.id, profile?.full_name);
+                          onUpdate();
+                        } catch (err) {
+                          console.error(err);
+                          setActionError(err.message || 'Failed to end chat. Please try again.');
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
                       {saving ? 'Ending...' : 'End Chat'}
                     </button>
