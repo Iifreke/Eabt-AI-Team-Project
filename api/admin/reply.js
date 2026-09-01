@@ -142,36 +142,33 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── Zoho CRM Lead Capture + Note ────────────────────────
+    // ── Zoho CRM Lead Capture + Note (non-blocking) ─────────
+    // Wrapped separately so Zoho failures never break the reply —
+    // the message is already saved and WhatsApp was already sent.
     if (conv.leads || conv.lead_id) {
       const leadObj = conv.leads || { id: conv.lead_id, school_id: conv.school_id };
       const schoolObj = conv.schools || { id: conv.school_id };
       const zohoSource = isWhatsAppSession ? 'WhatsApp Bot' : 'Website Chatbot';
 
-      // 1. Ensure lead is created / updated in Zoho with all contact fields
-      await zoho.syncLeadToZoho(leadObj, schoolObj, {
-        source: zohoSource,
-        status: 'In Progress',
-      });
+      (async () => {
+        try {
+          await zoho.syncLeadToZoho(leadObj, schoolObj, { source: zohoSource, status: 'In Progress' });
 
-      // 2. On first admin response, attach the full conversation transcript
-      if (!esc?.first_response_at) {
-        const transcript = zoho.formatConversationTranscript(messages, leadObj, schoolObj, { reason: 'Human handoff' });
-        await zoho.addNoteToLead(
-          leadObj,
-          `📋 Escalation Transcript (${new Date().toLocaleDateString()})`,
-          transcript,
-          schoolObj
-        );
-      }
+          if (!esc?.first_response_at) {
+            const transcript = zoho.formatConversationTranscript(messages, leadObj, schoolObj, { reason: 'Human handoff' });
+            await zoho.addNoteToLead(leadObj, `📋 Escalation Transcript (${new Date().toLocaleDateString()})`, transcript, schoolObj);
+          }
 
-      // 3. Log this admin reply as a note
-      await zoho.addNoteToLead(
-        leadObj,
-        `Staff Reply by ${adminName}`,
-        `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] ${adminName} (Staff):\n${message.trim()}`,
-        schoolObj
-      );
+          await zoho.addNoteToLead(
+            leadObj,
+            `Staff Reply by ${adminName}`,
+            `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] ${adminName} (Staff):\n${message.trim()}`,
+            schoolObj
+          );
+        } catch (zohoErr) {
+          console.error('[Reply] Zoho sync failed (non-fatal):', zohoErr.message);
+        }
+      })();
     }
 
     return res.status(200).json({ ok: true, messages, whatsappSent, whatsappError });

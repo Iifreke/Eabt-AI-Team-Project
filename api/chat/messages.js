@@ -36,7 +36,12 @@ export default async function handler(req, res) {
     } else {
       query = query.eq('id', conversationId);
     }
-    const { data: conv, error } = await query.single();
+    // Use maybeSingle + order so duplicate session_ids (edge case) never throw PGRST116
+    const { data: rows, error } = await query
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    const conv = Array.isArray(rows) ? rows[0] : rows;
 
     if (error || !conv) return res.status(404).json({ error: 'Conversation not found' });
 
