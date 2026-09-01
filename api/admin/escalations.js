@@ -2,7 +2,6 @@ import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
 import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
-import { sendWhatsAppMessage } from '../../src/services/whatsapp.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -96,6 +95,7 @@ export default async function handler(req, res) {
               `Thank you for reaching out! If you have more questions, feel free to message us anytime and our AI assistant will be happy to help. 🎓`;
 
             try {
+              const { sendWhatsAppMessage } = await import('../../src/services/whatsapp.js');
               await sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug });
             } catch (waErr) {
               console.warn('[End Chat] WhatsApp goodbye failed:', waErr.message);
