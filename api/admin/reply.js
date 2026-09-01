@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     // Load conversation with lead and school details
     const { data: conv, error: convErr } = await supabase
       .from('conversations')
-      .select('id, messages, stage, channel, whatsapp_phone, user_web_online, user_last_seen_web, school_id, lead_id, schools(id, name, slug), leads(id, name, phone, normalized_phone, zoho_contact_id)')
+      .select('id, session_id, messages, stage, channel, whatsapp_phone, user_web_online, user_last_seen_web, school_id, lead_id, schools(id, name, slug), leads(id, name, phone, normalized_phone, zoho_contact_id)')
       .eq('id', conversationId)
       .single();
 
@@ -103,7 +103,7 @@ export default async function handler(req, res) {
 
     // ── Omnichannel WhatsApp Dispatch ─────────────────────────
     // If conversation is from WhatsApp OR user is offline on the web widget
-    const isWhatsAppSession = conv.channel === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
+    const isWhatsAppSession = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
     const lastSeenMs = conv.user_last_seen_web ? new Date(conv.user_last_seen_web).getTime() : 0;
     const isWebUserOffline = conv.user_web_online === false || (Date.now() - lastSeenMs > 90 * 1000);
 
