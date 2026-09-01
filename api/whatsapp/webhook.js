@@ -585,43 +585,42 @@ export default async function handler(req, res) {
       });
     };
 
-    // ── Handle ESCALATED Conversation First ──────────────────
+    // ── Handle ESCALATED Conversation ────────────────────────
     if (conv.stage === 'escalated') {
-      pushUserMessage(incomingText);
+      // If a human agent has already replied, stay silent so the human can converse
+      // (mirrors the web widget behaviour: only block AI when a human has taken over)
+      const hasAdminReply = messages.some(m => m.role === 'admin' || m.adminName);
+      if (hasAdminReply) {
+        pushUserMessage(incomingText);
 
-      await supabase
-        .from('conversations')
-        .update({
-          messages,
-          channel: 'whatsapp',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', conv.id);
+        await supabase
+          .from('conversations')
+          .update({ messages, channel: 'whatsapp', updated_at: new Date().toISOString() })
+          .eq('id', conv.id);
 
-      await zoho.sendCliqAlert(
-        school,
-        lead,
-        `New WhatsApp message from student: "${incomingText}"`,
-        {
-          channel: 'WhatsApp',
-          reason: 'Escalated Chat Follow-up',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
-        }
-      );
+        await zoho.sendCliqAlert(
+          school,
+          lead,
+          `New WhatsApp message from student (human handling): "${incomingText}"`,
+          {
+            channel: 'WhatsApp',
+            reason: 'Escalated Chat Follow-up',
+            actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+          }
+        );
 
-      await zoho.addNoteToLead(
-        lead,
-        `WhatsApp Follow-up Message (${new Date().toLocaleDateString()})`,
-        `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] Student:\n${incomingText}`,
-        school
-      );
+        await zoho.addNoteToLead(
+          lead,
+          `WhatsApp Follow-up Message (${new Date().toLocaleDateString()})`,
+          `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] Student:\n${incomingText}`,
+          school
+        );
 
-      const hasRecentAdminReply = messages.slice(-4).some(m => m.role === 'admin');
-      if (!hasRecentAdminReply) {
-        const ackReply = getEscalationAckMessage(school);
-        await sendWhatsAppMessage(rawFrom, ackReply, { schoolSlug: school.slug });
+        return res.status(200).json({ status: 'escalated_human_handling' });
       }
-      return res.status(200).json({ status: 'escalated_message_logged' });
+
+      // No human has replied yet — fall through to AI (same as web widget)
+      // The AI will respond while the escalation is still open
     }
 
     // ── Check for Explicit Request to Change Details Anytime ──
