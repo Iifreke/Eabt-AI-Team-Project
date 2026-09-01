@@ -587,10 +587,10 @@ export default async function handler(req, res) {
 
     // ── Handle ESCALATED Conversation ────────────────────────
     if (conv.stage === 'escalated') {
-      // If a human agent has already replied, stay silent so the human can converse
-      // (mirrors the web widget behaviour: only block AI when a human has taken over)
-      const hasAdminReply = messages.some(m => m.role === 'admin' || m.adminName);
-      if (hasAdminReply) {
+      // Stay silent only if a human replied within the last 6 messages (human is actively handling).
+      // If no recent human reply, AI steps back in so the user isn't left waiting.
+      const hasRecentAdminReply = messages.slice(-6).some(m => m.role === 'admin' || m.adminName);
+      if (hasRecentAdminReply) {
         pushUserMessage(incomingText);
 
         await supabase
