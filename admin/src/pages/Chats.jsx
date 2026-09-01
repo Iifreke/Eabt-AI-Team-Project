@@ -493,7 +493,31 @@ function ChatRow({ esc, onUpdate }) {
                         setSaving(true);
                         setActionError('');
                         try {
-                          await api.endChat(esc.id, profile?.full_name);
+                          const now = new Date().toISOString();
+                          // Update escalation directly via Supabase client
+                          const { error: escErr } = await supabase
+                            .from('escalations')
+                            .update({ status: 'resolved', resolved_by: profile?.full_name || null, updated_at: now })
+                            .eq('id', esc.id);
+                          if (escErr) throw new Error(escErr.message);
+
+                          // Update conversation stage + push closing notification
+                          if (esc.conversation_id) {
+                            const { data: conv } = await supabase
+                              .from('conversations')
+                              .select('id, messages')
+                              .eq('id', esc.conversation_id)
+                              .single();
+                            if (conv) {
+                              const msgs = Array.isArray(conv.messages) ? conv.messages : [];
+                              msgs.push({ role: '__notification', content: 'The support agent has ended this session. You can continue asking questions and our AI assistant will help you.', ts: Date.now() });
+                              await supabase.from('conversations').update({ stage: 'active', messages: msgs, updated_at: now }).eq('id', esc.conversation_id);
+                            }
+                          }
+
+                          // Fire-and-forget WhatsApp goodbye via backend (non-blocking)
+                          api.endChat(esc.id, profile?.full_name).catch(() => {});
+
                           onUpdate();
                         } catch (err) {
                           console.error(err);
