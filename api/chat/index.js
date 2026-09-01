@@ -174,12 +174,18 @@ export default async function handler(req, res) {
         })
         .eq('id', lead.id);
 
+      // Sync to Zoho as soon as name + email are available (phone is a bonus update)
+      // zoho.syncLeadToZoho writes zoho_contact_id back to Supabase, so repeated calls
+      // update the same Zoho record rather than creating duplicates.
+      if (lead.name && lead.email) {
+        await zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' }).catch(() => {});
+      }
+
       // Check if onboarding complete
       let newStage = 'onboarding';
       if (lead.name && lead.email && lead.phone) {
         newStage = 'active';
         conv.stage = 'active';
-        await zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' });
         await zoho.sendCliqAlert(
           school,
           lead,
