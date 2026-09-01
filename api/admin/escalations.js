@@ -54,7 +54,7 @@ export default async function handler(req, res) {
         .update(updates)
         .eq('id', id)
         .select('id, conversation_id')
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
           .from('conversations')
           .select('id, messages, channel, whatsapp_phone, session_id, school_id, schools(name, slug)')
           .eq('id', escalation.conversation_id)
-          .single();
+          .maybeSingle();
 
         if (conv) {
           const messages = Array.isArray(conv.messages) ? conv.messages : [];
