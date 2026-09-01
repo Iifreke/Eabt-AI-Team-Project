@@ -1174,20 +1174,6 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     // ── STAGE: ACTIVE (Admissions Q&A, Fast-Path, RAG) ────────
     pushUserMessage(incomingText);
 
-    // 0. SESSION-START KEYWORDS → show interactive welcome menu
-    if (isSessionStartMessage(incomingText) && !clickedButtonId) {
-      const welcomeHeader = `Hello${lead.name ? `, *${lead.name}*` : ''}! Welcome back to *${schoolName}* Admissions Support! 🎓`;
-      messages.push({ role: 'assistant', content: `${welcomeHeader}\n\nSelect an option below or ask any question:`, ts: Date.now() });
-
-      await supabase
-        .from('conversations')
-        .update({ messages, channel: 'whatsapp', updated_at: new Date().toISOString() })
-        .eq('id', conv.id);
-
-      await sendInteractiveWelcomeMenu(rawFrom, school, welcomeHeader);
-      return res.status(200).json({ status: 'welcome_menu_sent' });
-    }
-
     // 1. FAST-PATH EXECUTION (Sub-50ms instant response for buttons & high-frequency queries)
     const fastReply = getFastPathResponse(clickedButtonId || incomingText, school);
     if (fastReply) {
