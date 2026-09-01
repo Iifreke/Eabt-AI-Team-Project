@@ -587,40 +587,71 @@ export default async function handler(req, res) {
 
     // ── Handle ESCALATED Conversation ────────────────────────
     if (conv.stage === 'escalated') {
-      // Stay silent only if a human replied within the last 6 messages (human is actively handling).
-      // If no recent human reply, AI steps back in so the user isn't left waiting.
-      const hasRecentAdminReply = messages.slice(-6).some(m => m.role === 'admin' || m.adminName);
+      pushUserMessage(incomingText);
+
+      await supabase
+        .from('conversations')
+        .update({ messages, channel: 'whatsapp', updated_at: new Date().toISOString() })
+        .eq('id', conv.id);
+
+      // Always alert Cliq so agent sees every follow-up message
+      await zoho.sendCliqAlert(
+        school,
+        lead,
+        `New WhatsApp message from student: "${incomingText}"`,
+        {
+          channel: 'WhatsApp',
+          reason: 'Escalated Chat Follow-up',
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+        }
+      ).catch(() => {});
+
+      await zoho.addNoteToLead(
+        lead,
+        `WhatsApp Follow-up Message (${new Date().toLocaleDateString()})`,
+        `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] Student:\n${incomingText}`,
+        school
+      ).catch(() => {});
+
+      // If human agent has replied recently, stay silent — human is handling
+      const hasRecentAdminReply = messages.slice(-4).some(m => m.role === 'admin');
       if (hasRecentAdminReply) {
-        pushUserMessage(incomingText);
-
-        await supabase
-          .from('conversations')
-          .update({ messages, channel: 'whatsapp', updated_at: new Date().toISOString() })
-          .eq('id', conv.id);
-
-        await zoho.sendCliqAlert(
-          school,
-          lead,
-          `New WhatsApp message from student (human handling): "${incomingText}"`,
-          {
-            channel: 'WhatsApp',
-            reason: 'Escalated Chat Follow-up',
-            actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
-          }
-        );
-
-        await zoho.addNoteToLead(
-          lead,
-          `WhatsApp Follow-up Message (${new Date().toLocaleDateString()})`,
-          `[${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Lagos' })}] Student:\n${incomingText}`,
-          school
-        );
-
         return res.status(200).json({ status: 'escalated_human_handling' });
       }
 
-      // No human has replied yet — fall through to AI (same as web widget)
-      // The AI will respond while the escalation is still open
+      // No recent human reply — AI steps in so user isn't left waiting
+      try {
+        const escChunks = await searchKnowledgeBase(incomingText, school.id);
+        const escContext = escChunks.length > 0
+          ? escChunks.map(c => c.content).join('\n\n---\n\n')
+          : 'No specific information found in the knowledge base for this query.';
+
+        const escSystemPrompt = `${buildActiveSystemPrompt(schoolName, lead.name || 'there', escContext)}
+IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
+
+        const escHistory = messages
+          .filter(m => !m.role?.startsWith('__'))
+          .slice(-8)
+          .map(m => ({ role: m.role === 'admin' ? 'assistant' : m.role, content: m.content }));
+
+        const escReply = await chat(escSystemPrompt, escHistory);
+        const escCleanReply = stripEscalateToken(escReply);
+
+        messages.push({ role: 'assistant', content: escCleanReply, ts: Date.now() });
+        await supabase
+          .from('conversations')
+          .update({ messages, updated_at: new Date().toISOString() })
+          .eq('id', conv.id);
+
+        await sendWhatsAppMessage(rawFrom, escCleanReply, { schoolSlug: school.slug });
+      } catch (escErr) {
+        console.warn('[WhatsApp Webhook] AI fallback in escalated failed:', escErr.message);
+        // Fallback ack so user isn't left in silence
+        const ack = getEscalationAckMessage(school);
+        await sendWhatsAppMessage(rawFrom, ack, { schoolSlug: school.slug }).catch(() => {});
+      }
+
+      return res.status(200).json({ status: 'escalated_ai_responded' });
     }
 
     // ── Check for Explicit Request to Change Details Anytime ──
