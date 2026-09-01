@@ -2,6 +2,7 @@ import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
 import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
+import { sendWhatsAppMessage } from '../../src/services/whatsapp.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
       if (status === 'resolved' && escalation?.conversation_id) {
         const { data: conv } = await supabase
           .from('conversations')
-          .select('id, messages, channel, whatsapp_phone, session_id, school_id, schools(name, slug)')
+          .select('id, messages, channel, whatsapp_phone, session_id, lead_id, school_id, leads(phone, normalized_phone), schools(name, slug)')
           .eq('id', escalation.conversation_id)
           .maybeSingle();
 
@@ -83,7 +84,7 @@ export default async function handler(req, res) {
 
           // Send WhatsApp closing message if this was a WhatsApp conversation
           const isWhatsApp = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
-          const userPhone = conv.whatsapp_phone || conv.session_id?.replace('wa_', '');
+          const userPhone = conv.whatsapp_phone || conv.leads?.normalized_phone || conv.leads?.phone || conv.session_id?.replace('wa_', '');
 
           if (isWhatsApp && userPhone) {
             const schoolSlug = conv.schools?.slug || 'babcock';
@@ -95,10 +96,14 @@ export default async function handler(req, res) {
               `Thank you for reaching out! If you have more questions, feel free to message us anytime and our AI assistant will be happy to help. 🎓`;
 
             try {
-              const { sendWhatsAppMessage } = await import('../../src/services/whatsapp.js');
-              await sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug });
+              const waResult = await sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug });
+              if (waResult.ok) {
+                console.log(`[Escalation Resolve] WhatsApp goodbye sent to ${userPhone}`);
+              } else {
+                console.warn(`[Escalation Resolve] WhatsApp goodbye failed for ${userPhone}:`, waResult.error);
+              }
             } catch (waErr) {
-              console.warn('[End Chat] WhatsApp goodbye failed:', waErr.message);
+              console.warn('[Escalation Resolve] WhatsApp goodbye error:', waErr.message);
             }
           }
         }
