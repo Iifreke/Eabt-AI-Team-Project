@@ -26,15 +26,17 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') return res.status(405).end();
 
-  const { sessionId } = req.query;
-  if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+  const { sessionId, conversationId } = req.query;
+  if (!sessionId && !conversationId) return res.status(400).json({ error: 'sessionId or conversationId is required' });
 
   try {
-    const { data: conv, error } = await supabase
-      .from('conversations')
-      .select('id, messages, stage, updated_at')
-      .eq('session_id', sessionId)
-      .single();
+    let query = supabase.from('conversations').select('id, messages, stage, updated_at');
+    if (sessionId) {
+      query = query.eq('session_id', sessionId);
+    } else {
+      query = query.eq('id', conversationId);
+    }
+    const { data: conv, error } = await query.single();
 
     if (error || !conv) return res.status(404).json({ error: 'Conversation not found' });
 

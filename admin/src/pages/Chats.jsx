@@ -109,9 +109,14 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
   const waUrl = formatWhatsAppLink(lead?.normalized_phone || lead?.phone || conversation?.whatsapp_phone);
 
   const fetchMessages = useCallback(async () => {
-    if (!sessionId) return;
+    const queryParam = sessionId
+      ? `sessionId=${encodeURIComponent(sessionId)}`
+      : esc.conversation_id
+        ? `conversationId=${encodeURIComponent(esc.conversation_id)}`
+        : null;
+    if (!queryParam) return;
     try {
-      const res = await fetch(`/api/chat/messages?sessionId=${sessionId}`);
+      const res = await fetch(`/api/chat/messages?${queryParam}`);
       const data = await res.json();
       if (Array.isArray(data?.messages)) {
         setMessages(prev => {
@@ -125,7 +130,7 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
     } catch (e) {
       console.error('poll error', e);
     }
-  }, [sessionId, resetAutoResolve]);
+  }, [sessionId, esc.conversation_id, resetAutoResolve]);
 
   useEffect(() => { resetAutoResolve(); }, [resetAutoResolve]);
 
