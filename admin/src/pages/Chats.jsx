@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
@@ -149,198 +150,207 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const matchedShortcuts = shortcutQuery
-    ? shortcuts.filter(s => s.shortcut.toLowerCase().includes(shortcutQuery.slice(1).toLowerCase()) || s.name.toLowerCase().includes(shortcutQuery.slice(1).toLowerCase()))
-    : [];
-
-  const handleReplyChange = (e) => {
-    const val = e.target.value;
-    setReply(val);
-    if (val.startsWith('/')) setShortcutQuery(val);
-    else setShortcutQuery('');
+  const handleTyping = (e) => {
+    setReply(e.target.value);
     api.setTyping(esc.conversation_id, true);
     clearTimeout(typingTimerRef.current);
-    typingTimerRef.current = setTimeout(() => api.setTyping(esc.conversation_id, false), 5000);
+    typingTimerRef.current = setTimeout(() => {
+      api.setTyping(esc.conversation_id, false);
+    }, 2000);
   };
 
-  const applyShortcut = (msg) => {
-    setReply(msg);
-    setShortcutQuery('');
-  };
-
-  const sendReply = async () => {
+  const handleSend = async (e) => {
+    e.preventDefault();
     if (!reply.trim() || sending) return;
-    clearTimeout(typingTimerRef.current);
     setSending(true);
     setError('');
     setInfoMessage('');
+
     try {
-      const res = await api.replyToConversation(esc.conversation_id, reply.trim());
+      const result = await api.replyToConversation(esc.conversation_id, reply.trim());
       setReply('');
-      setShortcutQuery('');
-      await fetchMessages();
+      api.setTyping(esc.conversation_id, false);
       resetAutoResolve();
-      if (res?.whatsappSent) {
-        setInfoMessage('✓ Delivered to student via WhatsApp');
-        setTimeout(() => setInfoMessage(''), 5000);
-      } else if (res?.whatsappError) {
-        setError(`Saved to portal, but WhatsApp notice: ${res.whatsappError}`);
+
+      if (esc.status === 'pending' && profile?.full_name) {
+        await api.updateEscalation({ id: esc.id, status: 'in_progress', attended_by: profile.full_name });
+        onUpdateRef.current?.();
       }
-    } catch {
-      setError('Failed to send. Please try again.');
+
+      if (channel === 'whatsapp') {
+        setInfoMessage('Message sent directly to student via WhatsApp! 📱');
+      } else if (result?.deliveredVia === 'whatsapp') {
+        setInfoMessage('User offline on web — message automatically forwarded to their WhatsApp! 📱');
+      }
+
+      fetchMessages();
+    } catch (err) {
+      setError(err.message || 'Failed to send message');
     } finally {
       setSending(false);
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }
-    if (e.key === 'Escape') setShortcutQuery('');
-  };
-
-  const roleBg = (role) => {
-    if (role === 'user') return 'bg-blue-100 text-blue-800';
-    if (role === 'admin') return 'bg-purple-100 text-purple-800';
-    return 'bg-white border border-gray-200 text-gray-700';
-  };
-
-  const roleLabel = (msg) => {
-    if (msg.role === 'user') return msg.channel === 'whatsapp' ? '📱 Visitor (WhatsApp)' : '🌐 Visitor (Web)';
-    if (msg.role === 'admin') return `🧑‍💼 ${msg.adminName || 'Support Agent'}`;
-    return '🤖 AI Assistant';
-  };
+  const filteredShortcuts = shortcutQuery
+    ? shortcuts.filter(s => s.name.toLowerCase().includes(shortcutQuery.toLowerCase()) || s.shortcut.toLowerCase().includes(shortcutQuery.toLowerCase()))
+    : shortcuts;
 
   return (
-    <div className="mt-4 border border-purple-200 rounded-xl overflow-hidden shadow-sm">
-      <div className="bg-purple-50 px-4 py-2.5 flex items-center justify-between border-b border-purple-200 flex-wrap gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-purple-800 uppercase tracking-wider">🟣 Live Chat</span>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+    <div className="mt-4 border-t border-gray-200 pt-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+            Live Chat
+          </span>
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
             {channel === 'whatsapp' ? '📱 WhatsApp' : '🌐 Web Widget'}
           </span>
-          {lead?.lead_tier && (
-            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.lead_tier === 'HOT' ? 'bg-rose-100 text-rose-700 border border-rose-200' : lead.lead_tier === 'WARM' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-              {lead.lead_tier === 'HOT' ? '🔥 Hot Lead' : lead.lead_tier === 'WARM' ? '⚡ Warm' : '❄️ Cold'}
-            </span>
-          )}
           {getSlaBadge(esc.created_at, esc.status)}
-          {lead?.zoho_contact_id && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-              💼 Zoho Synced
-            </span>
-          )}
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2">
           {waUrl && (
             <a
               href={waUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-300 flex items-center gap-1"
+              className="text-xs text-emerald-700 hover:text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded flex items-center gap-1"
             >
               📱 Message on WhatsApp
             </a>
           )}
-          <span className="text-xs text-purple-500">Live Sync</span>
+          <span className="text-[11px] text-gray-400">Live Sync</span>
         </div>
       </div>
 
-      <div className="bg-gray-50 p-3 space-y-2 overflow-y-auto" style={{ maxHeight: '280px' }}>
-        {messages.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-4">No messages yet. Reply below to start the live conversation.</p>
+      <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 h-72 overflow-y-auto space-y-3 mb-3">
+        {!messages.length ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-400 text-xs gap-1">
+            <span className="text-xl">💬</span>
+            <span>No messages yet in this session.</span>
+          </div>
         ) : (
-          messages.map((msg, i) => (
-            <div key={msg.ts || i} className={`text-xs px-3 py-2 rounded-lg ${roleBg(msg.role)}`}>
-              <div className="font-semibold mb-0.5 flex items-center justify-between">
-                <span>{roleLabel(msg)}</span>
-                {msg.ts && (
-                  <span className="text-gray-400 font-normal">
-                    {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          messages.map((m, i) => {
+            const isUser = m.role === 'user';
+            const isAgent = m.role === 'agent';
+            const isSystem = m.role === '__notification' || m.role === 'system';
+
+            if (isSystem) {
+              return (
+                <div key={i} className="text-center my-2">
+                  <span className="inline-block bg-gray-200 text-gray-600 text-[11px] px-2.5 py-1 rounded-full">
+                    {m.content}
+                  </span>
+                </div>
+              );
+            }
+
+            return (
+              <div key={i} className={`flex flex-col ${isUser ? 'items-start' : 'items-end'}`}>
+                <div className="text-[10px] text-gray-400 mb-0.5 px-1">
+                  {isUser ? (channel === 'whatsapp' ? '📱 Visitor (WhatsApp)' : '👤 Visitor') : isAgent ? `🎧 Staff (${m.agentName || 'Agent'})` : '🤖 AI Assistant'}
+                </div>
+                <div
+                  className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                    isUser
+                      ? 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'
+                      : isAgent
+                      ? 'bg-blue-600 text-white rounded-tr-none shadow-sm'
+                      : 'bg-slate-200 text-gray-800 rounded-tr-none'
+                  }`}
+                >
+                  {m.content}
+                </div>
+                {m.ts && (
+                  <span className="text-[9px] text-gray-400 mt-0.5 px-1">
+                    {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
               </div>
-              <div className="whitespace-pre-wrap">{msg.content}</div>
-              {msg.attachments?.map((att, ai) => (
-                att.type?.startsWith('image/')
-                  ? <img key={ai} src={att.url} alt={att.name} className="mt-1 max-w-xs rounded" />
-                  : att.type?.startsWith('video/')
-                    ? <video key={ai} controls src={att.url} className="mt-1 max-w-xs rounded" />
-                    : att.type?.startsWith('audio/')
-                      ? <audio key={ai} controls src={att.url} className="mt-1 max-w-xs" />
-                      : <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="mt-1 text-xs underline flex items-center gap-1">📄 {att.name}</a>
-              ))}
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={bottomRef} />
       </div>
 
-      {esc.status !== 'resolved' && (
-        <div className="p-3 bg-white border-t border-purple-100 relative">
-          {error && <div className="text-xs text-red-600 mb-2">{error}</div>}
-          {infoMessage && <div className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded mb-2 font-medium">{infoMessage}</div>}
-
-          {matchedShortcuts.length > 0 && (
-            <div className="absolute bottom-full left-3 right-3 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
-              {matchedShortcuts.slice(0, 6).map(s => (
-                <button key={s.id} onClick={() => applyShortcut(s.message)}
-                  className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center gap-2 border-b border-gray-50 last:border-0">
-                  <span className="font-mono text-blue-600">{s.shortcut}</span>
-                  <span className="text-gray-500 truncate">{s.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <textarea
-              value={reply}
-              onChange={handleReplyChange}
-              onKeyDown={handleKeyDown}
-              rows={2}
-              className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-              placeholder="Type your reply to the visitor... (Type '/' for saved shortcuts, Enter to send)"
-            />
-            <button
-              onClick={sendReply}
-              disabled={sending || !reply.trim()}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold self-end transition-colors"
-            >
-              {sending ? 'Sending...' : 'Send'}
-            </button>
-          </div>
+      {infoMessage && (
+        <div className="mb-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2.5 py-1.5 flex items-center justify-between">
+          <span>{infoMessage}</span>
+          <button onClick={() => setInfoMessage('')} className="text-emerald-800 font-bold ml-2">×</button>
         </div>
       )}
+
+      {error && (
+        <div className="mb-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded px-2.5 py-1.5 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError('')} className="text-rose-800 font-bold ml-2">×</button>
+        </div>
+      )}
+
+      {shortcuts.length > 0 && (
+        <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] text-gray-400 font-medium">⚡ Quick Replies:</span>
+          {filteredShortcuts.slice(0, 4).map(s => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setReply(s.content)}
+              className="text-[11px] bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-300 rounded px-2 py-0.5 transition-colors"
+              title={s.content}
+            >
+              {s.shortcut}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={handleSend} className="flex gap-2">
+        <input
+          type="text"
+          value={reply}
+          onChange={handleTyping}
+          placeholder={channel === 'whatsapp' ? 'Reply directly to student via WhatsApp...' : 'Reply to visitor in live chat...'}
+          className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={sending}
+        />
+        <button
+          type="submit"
+          disabled={sending || !reply.trim()}
+          className="px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+        >
+          {sending ? 'Sending...' : 'Send'}
+        </button>
+      </form>
     </div>
   );
 });
 
-// ── Tags editor ──────────────────────────────────────────────────
-function TagsEditor({ tags, onSave }) {
+// ── Tags Editor ──────────────────────────────────────────────────
+function TagsEditor({ tags = [], onSave }) {
+  const [current, setCurrent] = useState(tags);
   const [input, setInput] = useState('');
-  const [current, setCurrent] = useState(tags || []);
 
   const addTag = () => {
-    const t = input.trim().toLowerCase();
-    if (t && !current.includes(t)) {
-      const next = [...current, t];
-      setCurrent(next);
-      onSave(next);
-    }
+    const trimmed = input.trim().toLowerCase();
+    if (!trimmed || current.includes(trimmed)) return;
+    const updated = [...current, trimmed];
+    setCurrent(updated);
     setInput('');
+    onSave(updated);
   };
 
   const removeTag = (t) => {
-    const next = current.filter(x => x !== t);
-    setCurrent(next);
-    onSave(next);
+    const updated = current.filter(x => x !== t);
+    setCurrent(updated);
+    onSave(updated);
   };
 
   return (
     <div>
       <div className="flex flex-wrap gap-1 mb-2">
         {current.map(t => (
-          <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
+          <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs">
             {t}
             <button onClick={() => removeTag(t)} className="hover:text-red-600 leading-none">×</button>
           </span>
@@ -361,12 +371,18 @@ function TagsEditor({ tags, onSave }) {
 }
 
 // ── Chat Row ─────────────────────────────────────────────────────
-function ChatRow({ esc, onUpdate }) {
+function ChatRow({ esc, onUpdate, defaultExpanded = false }) {
   const { profile } = useUser();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [notes, setNotes] = useState(esc.staff_notes || '');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   const update = async (patch) => {
     setSaving(true);
@@ -399,7 +415,7 @@ function ChatRow({ esc, onUpdate }) {
   return (
     <>
       <tr
-        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+        className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${defaultExpanded ? 'bg-blue-50/50' : ''}`}
         onClick={() => setExpanded(e => !e)}
       >
         <td className="px-5 py-3 font-medium">
@@ -525,6 +541,12 @@ function ChatRow({ esc, onUpdate }) {
 export default function Chats() {
   const { selectedSchool } = useSchool();
   const { pendingCount, refresh: refreshBadgeCount } = useEscalation();
+  const { chatId: routeChatId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const targetChatId = routeChatId || searchParams.get('id') || searchParams.get('chatId') || searchParams.get('escalationId') || searchParams.get('sessionId') || searchParams.get('leadId');
+
   const [escalations, setEscalations] = useState([]);
   const [status, setStatus] = useState('all');
   const [tagFilter, setTagFilter] = useState('');
@@ -535,16 +557,47 @@ export default function Chats() {
     setLoading(true);
     try {
       const params = {};
-      if (selectedSchool !== 'all') params.schoolId = selectedSchool;
-      if (status !== 'all') params.status = status;
+      // If focusing on a specific chat, fetch across all schools/statuses to ensure it's found
+      if (!targetChatId) {
+        if (selectedSchool !== 'all') params.schoolId = selectedSchool;
+        if (status !== 'all') params.status = status;
+      }
       const data = await api.escalations(params);
-      setEscalations(data.escalations || []);
+      let list = data.escalations || [];
+
+      // If targetChatId provided but not in escalations, try to fetch the single conversation
+      if (targetChatId && !list.some(e => e.id === targetChatId || e.conversation_id === targetChatId || e.conversations?.id === targetChatId || e.conversations?.session_id === targetChatId || e.lead_id === targetChatId)) {
+        try {
+          const single = await api.conversation(targetChatId);
+          if (single?.id) {
+            const syntheticEsc = {
+              id: single.escalation?.id || `conv_${single.id}`,
+              conversation_id: single.id,
+              conversations: single,
+              leads: single.leads,
+              schools: single.schools,
+              status: single.escalation?.status || single.stage || 'active',
+              reason: single.escalation?.reason || 'Live Direct Link',
+              staff_notes: single.escalation?.staff_notes || '',
+              attended_by: single.escalation?.attended_by || null,
+              resolved_by: single.escalation?.resolved_by || null,
+              tags: single.escalation?.tags || single.leads?.intent_tags || [],
+              created_at: single.created_at,
+            };
+            list = [syntheticEsc, ...list];
+          }
+        } catch (sErr) {
+          console.warn('Single conversation fetch fallback:', sErr.message);
+        }
+      }
+
+      setEscalations(list);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [status, selectedSchool]);
+  }, [status, selectedSchool, targetChatId]);
 
   // Combined update: refresh both the list and the sidebar badge immediately
   const handleUpdate = useCallback(() => {
@@ -561,7 +614,22 @@ export default function Chats() {
     prevPendingRef.current = pendingCount;
   }, [pendingCount, fetchEscalations]);
 
-  const displayed = tagFilter
+  const targetEsc = targetChatId
+    ? escalations.find(e =>
+        e.id === targetChatId ||
+        e.conversation_id === targetChatId ||
+        e.conversations?.id === targetChatId ||
+        e.conversations?.session_id === targetChatId ||
+        e.lead_id === targetChatId ||
+        e.leads?.id === targetChatId ||
+        e.leads?.phone === targetChatId ||
+        e.leads?.normalized_phone === targetChatId
+      )
+    : null;
+
+  const displayed = targetEsc
+    ? [targetEsc]
+    : tagFilter
     ? escalations.filter(e => (e.tags || []).includes(tagFilter.toLowerCase()))
     : escalations;
 
@@ -573,26 +641,53 @@ export default function Chats() {
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Chats & Escalations</h1>
         <p className="text-gray-500 text-sm mb-6">Manage live conversations from Web & WhatsApp, attend leads, and reply in real-time</p>
 
-        <div className="flex flex-wrap gap-2 mb-5 items-center">
-          {STATUSES.map(s => (
-            <button key={s} onClick={() => setStatus(s)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                status === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
-              }`}>
-              {s === 'all' ? 'All' : STATUS_LABEL[s] || s}
-              {s === 'pending' && pendingCount > 0 && (
-                <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{pendingCount}</span>
-              )}
+        {targetEsc && (
+          <div className="mb-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🎯</span>
+              <div>
+                <div className="text-sm font-bold text-blue-900">
+                  Direct Live Chat: {targetEsc.leads?.name || 'Visitor'}
+                </div>
+                <div className="text-xs text-blue-600 font-mono">
+                  Chat ID: {targetChatId} • Channel: {targetEsc.conversations?.channel?.toUpperCase() || (targetEsc.conversations?.session_id?.startsWith('wa_') ? 'WHATSAPP' : 'WEB')} • School: {targetEsc.schools?.name || 'School'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (routeChatId) navigate('/chats');
+                else setSearchParams({});
+              }}
+              className="text-xs font-semibold px-3.5 py-2 bg-white text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-300 rounded-lg shadow-sm transition-all"
+            >
+              ← View All Available Chats
             </button>
-          ))}
+          </div>
+        )}
 
-          <input
-            value={tagFilter}
-            onChange={e => setTagFilter(e.target.value)}
-            placeholder="Filter by tag..."
-            className="ml-auto text-sm border border-gray-300 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-        </div>
+        {!targetEsc && (
+          <div className="flex flex-wrap gap-2 mb-5 items-center">
+            {STATUSES.map(s => (
+              <button key={s} onClick={() => setStatus(s)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+                  status === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}>
+                {s === 'all' ? 'All' : STATUS_LABEL[s] || s}
+                {s === 'pending' && pendingCount > 0 && (
+                  <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{pendingCount}</span>
+                )}
+              </button>
+            ))}
+
+            <input
+              value={tagFilter}
+              onChange={e => setTagFilter(e.target.value)}
+              placeholder="Filter by tag..."
+              className="ml-auto text-sm border border-gray-300 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           {loading ? (
@@ -617,7 +712,12 @@ export default function Chats() {
               </thead>
               <tbody>
                 {displayed.map(esc => (
-                  <ChatRow key={esc.id} esc={esc} onUpdate={handleUpdate} />
+                  <ChatRow
+                    key={esc.id}
+                    esc={esc}
+                    onUpdate={handleUpdate}
+                    defaultExpanded={!!targetEsc}
+                  />
                 ))}
               </tbody>
             </table>

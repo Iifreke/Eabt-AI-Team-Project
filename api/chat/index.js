@@ -192,7 +192,11 @@ export default async function handler(req, res) {
           school,
           lead,
           `Visitor completed onboarding on the website widget: "${lead.name}" (${lead.email || lead.phone})`,
-          { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+          {
+            channel: 'Web Chatbot',
+            chatId: conv.id,
+            actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+          }
         );
       }
 
@@ -269,7 +273,17 @@ export default async function handler(req, res) {
 
           await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'Website Chatbot' });
           await zoho.createEscalationTask(lead, school, 'Visitor expressed dissatisfaction / requested human', message, fullTranscript);
-          await zoho.sendCliqAlert(school, lead, `Visitor expressed dissatisfaction / requested human advisor: "${message}"`, { channel: 'Web Chatbot', reason: 'User Request' });
+          await zoho.sendCliqAlert(
+            school,
+            lead,
+            `Visitor expressed dissatisfaction / requested human advisor: "${message}"`,
+            {
+              channel: 'Web Chatbot',
+              reason: 'User Request',
+              chatId: conv.id,
+              actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+            }
+          );
 
           try {
             await email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason: 'user_request' });
@@ -347,7 +361,12 @@ export default async function handler(req, res) {
         school,
         lead,
         `Chatbot escalation: "${message}" (${reason === 'user_request' ? 'Visitor requested human' : 'Knowledge Base Fallback'})`,
-        { channel: 'Web Chatbot', reason }
+        {
+          channel: 'Web Chatbot',
+          reason,
+          chatId: conv.id,
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+        }
       );
 
       try {
@@ -364,7 +383,12 @@ export default async function handler(req, res) {
         school,
         lead,
         `Off-hours chatbot escalation from ${lead.name || 'Visitor'}: "${message}"`,
-        { channel: 'Web Chatbot', reason: 'Off-Hours Escalation' }
+        {
+          channel: 'Web Chatbot',
+          reason: 'Off-Hours Escalation',
+          chatId: conv.id,
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+        }
       );
     }
 

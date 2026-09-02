@@ -234,12 +234,17 @@ export async function syncLeadToZoho(lead, school, options = {}) {
       zohoLeadId = await searchZohoLeadByContact(normalizedPhone, lead.email);
     }
 
+    const appUrl = process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app';
+    const specificChatId = options.chatId || options.conversationId || options.escalationId || lead.session_id || lead.id;
+    const directChatUrl = specificChatId ? `${appUrl}/chats?id=${encodeURIComponent(specificChatId)}` : `${appUrl}/chats`;
+
     const description = options.summary ||
       `Admissions inquiry via ${leadSource} for ${schoolInfo.displayName}.\n` +
       `Student Name: ${rawName || 'Not provided'}\n` +
       `Phone: ${normalizedPhone || 'Not provided'}\n` +
       `Email: ${lead.email || 'Not provided'}\n` +
       `Channel: ${leadSource}\n` +
+      `Direct Live Chat: ${directChatUrl}\n` +
       `Last Activity: ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT`;
 
     // Construct rich Zoho tags for clear CRM segmentation & filtering
@@ -665,7 +670,8 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
   const email = lead?.email || 'Not provided';
   const sourceChannel = options.channel || (lead?.channel === 'whatsapp' || lead?.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Web Chatbot');
   const appUrl = process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app';
-  const chatUrl = options.actionUrl || `${appUrl}/chats`;
+  const specificChatId = options.chatId || options.conversationId || options.escalationId || lead?.session_id || lead?.id;
+  const chatUrl = options.actionUrl || (specificChatId ? `${appUrl}/chats?id=${encodeURIComponent(specificChatId)}` : `${appUrl}/chats`);
 
   const cliqPayload = {
     text: `🚨 *Lead Alert — ${schoolInfo.displayName}*`,

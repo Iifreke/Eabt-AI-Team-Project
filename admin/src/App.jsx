@@ -31,6 +31,7 @@ export default function App() {
 
         <Route path="/dashboard" element={<ProtectedRoute superAdminOnly><Dashboard /></ProtectedRoute>} />
         <Route path="/chats" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
+        <Route path="/chats/:chatId" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
         <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
         <Route path="/contacts" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />

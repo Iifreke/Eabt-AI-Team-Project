@@ -124,7 +124,11 @@ export default async function handler(req, res) {
         school,
         lead,
         `New prospective student started chatting on the website widget: "${lead.name}" (${lead.email || lead.phone})`,
-        { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+        {
+          channel: 'Web Chatbot',
+          chatId: sessionId,
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${sessionId}`,
+        }
       );
     } else {
       await supabase

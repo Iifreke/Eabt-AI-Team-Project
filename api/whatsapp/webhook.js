@@ -643,7 +643,8 @@ export default async function handler(req, res) {
         {
           channel: 'WhatsApp',
           reason: 'Escalated Chat Follow-up',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+          chatId: conv.id,
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
         }
       ).catch(() => {});
 
@@ -1237,7 +1238,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         school,
         lead,
         `New student completed WhatsApp onboarding: "${lead.name}" (${lead.email})`,
-        { channel: 'WhatsApp', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+        { channel: 'WhatsApp', chatId: conv.id, actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}` }
       );
 
       conv.stage = 'active';
@@ -1357,7 +1358,8 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         {
           channel: 'WhatsApp',
           reason: 'User Requested Human',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+          chatId: conv.id,
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
         }
       );
 
@@ -1439,7 +1441,8 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         {
           channel: 'WhatsApp',
           reason: 'Knowledge Base Fallback',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+          chatId: conv.id,
+          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
         }
       );
 
