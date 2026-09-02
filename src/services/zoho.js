@@ -98,37 +98,90 @@ export async function getAccessToken() {
 }
 
 /**
- * Searches Zoho CRM for an existing Lead by phone or email.
+ * Finds and retrieves an existing Lead profile from Zoho CRM by phone or email.
+ * Returns { id, name, email, phone, company, leadSource, leadStatus, raw } or null.
  */
-export async function searchZohoLeadByContact(phone, email) {
+export async function findZohoLead(phone, email) {
   const token = await getAccessToken();
   if (!token) return null;
 
   try {
-    const normalizedPhone = normalizePhoneNumber(phone) || phone;
-    const searchQueries = [];
-    if (normalizedPhone) searchQueries.push(`phone:equals:${encodeURIComponent(normalizedPhone)}`);
-    if (email) searchQueries.push(`email:equals:${encodeURIComponent(email)}`);
+    const candidates = [];
+    const normalized = normalizePhoneNumber(phone);
+    if (normalized) candidates.push(normalized);
+    if (phone && phone !== normalized) candidates.push(phone);
+    
+    // Also try local 0-prefixed version if +234
+    if (normalized && normalized.startsWith('+234')) {
+      candidates.push('0' + normalized.slice(4));
+    }
 
-    for (const criteria of searchQueries) {
-      const url = `https://www.zohoapis.com/crm/v2/Leads/search?criteria=(${criteria})`;
+    // 1. Search by Phone variants
+    for (const p of candidates) {
+      if (!p || p.length < 5) continue;
+      const url = `https://www.zohoapis.com/crm/v2/Leads/search?phone=${encodeURIComponent(p)}`;
       const res = await fetchWithRetry(url, {
         method: 'GET',
         headers: { Authorization: `Zoho-oauthtoken ${token}` },
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const foundLead = data.data?.[0];
-        if (foundLead?.id) {
-          return foundLead.id;
+      if (res && res.status !== 204 && res.ok) {
+        const data = await res.json().catch(() => null);
+        const found = data?.data?.[0];
+        if (found?.id) {
+          const fullName = (found.Full_Name || `${found.First_Name || ''} ${found.Last_Name || ''}`).trim();
+          return {
+            id: String(found.id),
+            name: fullName && !fullName.toLowerCase().includes('applicant') && !fullName.toLowerCase().includes('prospective') ? fullName : (found.Full_Name || ''),
+            email: found.Email || null,
+            phone: found.Phone || found.Mobile || normalized || phone || null,
+            company: found.Company || null,
+            leadSource: found.Lead_Source || null,
+            leadStatus: found.Lead_Status || null,
+            raw: found,
+          };
+        }
+      }
+    }
+
+    // 2. Search by Email
+    if (email && email.includes('@')) {
+      const url = `https://www.zohoapis.com/crm/v2/Leads/search?email=${encodeURIComponent(email.trim())}`;
+      const res = await fetchWithRetry(url, {
+        method: 'GET',
+        headers: { Authorization: `Zoho-oauthtoken ${token}` },
+      });
+
+      if (res && res.status !== 204 && res.ok) {
+        const data = await res.json().catch(() => null);
+        const found = data?.data?.[0];
+        if (found?.id) {
+          const fullName = (found.Full_Name || `${found.First_Name || ''} ${found.Last_Name || ''}`).trim();
+          return {
+            id: String(found.id),
+            name: fullName && !fullName.toLowerCase().includes('applicant') && !fullName.toLowerCase().includes('prospective') ? fullName : (found.Full_Name || ''),
+            email: found.Email || email.trim(),
+            phone: found.Phone || found.Mobile || null,
+            company: found.Company || null,
+            leadSource: found.Lead_Source || null,
+            leadStatus: found.Lead_Status || null,
+            raw: found,
+          };
         }
       }
     }
   } catch (err) {
-    console.warn('[Zoho Service] Lead search error:', err.message);
+    console.warn('[Zoho Service] findZohoLead error:', err.message);
   }
   return null;
+}
+
+/**
+ * Searches Zoho CRM for an existing Lead ID by phone or email.
+ */
+export async function searchZohoLeadByContact(phone, email) {
+  const found = await findZohoLead(phone, email);
+  return found?.id || null;
 }
 
 /**
@@ -167,7 +220,11 @@ export async function syncLeadToZoho(lead, school, options = {}) {
       lastName = normalizedPhone ? `Applicant (${normalizedPhone})` : 'Prospective Student';
     }
 
-    const leadSource = options.source || (lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_') ? 'WhatsApp Bot' : 'Website Chatbot');
+    const schoolSuffix = schoolInfo.slug.toUpperCase() === 'ABU' ? ' (ABU)' : ' (Babcock)';
+    let leadSource = options.source || (lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_') ? 'WhatsApp Bot' : 'Website Chatbot');
+    if (!leadSource.includes('(') && !leadSource.includes('ABU') && !leadSource.includes('Babcock')) {
+      leadSource += schoolSuffix;
+    }
     const leadStatus = options.status || (lead.status === 'escalated' ? 'Escalated' : 'New');
 
     let zohoLeadId = lead.zoho_contact_id;
@@ -185,6 +242,22 @@ export async function syncLeadToZoho(lead, school, options = {}) {
       `Channel: ${leadSource}\n` +
       `Last Activity: ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT`;
 
+    // Construct rich Zoho tags for clear CRM segmentation & filtering
+    const tagsList = [];
+    const schoolTag = schoolInfo.slug.toUpperCase() === 'ABU' ? 'ABUDLC' : 'Babcock';
+    tagsList.push({ name: schoolTag });
+    tagsList.push({ name: (lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_')) ? 'WhatsApp' : 'Website Chat' });
+
+    if (options.tags && Array.isArray(options.tags)) {
+      options.tags.forEach(t => {
+        if (t && typeof t === 'string' && !tagsList.some(x => x.name.toLowerCase() === t.toLowerCase())) {
+          tagsList.push({ name: t });
+        }
+      });
+    } else if (lead.lead_tier) {
+      tagsList.push({ name: lead.lead_tier === 'HOT' ? 'Hot Lead' : lead.lead_tier === 'WARM' ? 'Warm Lead' : 'Cold Lead' });
+    }
+
     const leadPayload = {
       First_Name: firstName,
       Last_Name: lastName,
@@ -192,6 +265,7 @@ export async function syncLeadToZoho(lead, school, options = {}) {
       Lead_Source: leadSource,
       Lead_Status: leadStatus,
       Description: description,
+      Tag: tagsList,
     };
 
     if (lead.email) {
@@ -244,6 +318,92 @@ export async function syncLeadToZoho(lead, school, options = {}) {
     console.error('[Zoho Service] syncLeadToZoho exception:', error.message);
   }
   return null;
+}
+
+/**
+ * Unified helper to save/update a lead in Supabase and synchronize with Zoho CRM.
+ * Handles phone normalization, Zoho search, dual persistence, and tagging by school.
+ */
+export async function saveAndSyncLead({
+  school,
+  sessionId,
+  name,
+  email,
+  phone,
+  channel = 'whatsapp',
+  options = {},
+}) {
+  try {
+    const normalizedPhone = normalizePhoneNumber(phone) || phone || '';
+    const schoolInfo = getSchoolFormattedDetails(school);
+
+    // 1. Check if lead already exists in Supabase
+    const conditions = [];
+    if (sessionId) conditions.push(`session_id.eq.${sessionId}`);
+    if (normalizedPhone) conditions.push(`normalized_phone.eq.${normalizedPhone}`);
+    if (phone && phone !== normalizedPhone) conditions.push(`phone.eq.${phone}`);
+    if (email) conditions.push(`email.eq.${email}`);
+
+    let lead = null;
+    if (conditions.length > 0) {
+      const { data: existing } = await supabase
+        .from('leads')
+        .select('*')
+        .or(conditions.join(','))
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lead = existing;
+    }
+
+    const updates = {
+      school_id: school?.id || lead?.school_id,
+      session_id: sessionId || lead?.session_id,
+      name: name || lead?.name,
+      email: email || lead?.email,
+      phone: phone || lead?.phone,
+      normalized_phone: normalizedPhone || lead?.normalized_phone,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (lead) {
+      const { data: updated, error } = await supabase
+        .from('leads')
+        .update(updates)
+        .eq('id', lead.id)
+        .select()
+        .single();
+      if (!error && updated) lead = updated;
+    } else {
+      const { data: created, error } = await supabase
+        .from('leads')
+        .insert({
+          ...updates,
+          whatsapp_opt_in: channel === 'whatsapp',
+        })
+        .select()
+        .single();
+      if (!error && created) lead = created;
+    }
+
+    // 2. Sync to Zoho CRM
+    if (lead) {
+      const defaultSource = channel === 'whatsapp'
+        ? `WhatsApp Bot (${schoolInfo.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`
+        : `Website Chatbot (${schoolInfo.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`;
+
+      await syncLeadToZoho(lead, school, {
+        source: options.source || defaultSource,
+        status: options.status,
+        summary: options.summary,
+      });
+    }
+
+    return lead;
+  } catch (err) {
+    console.error('[Zoho Service] saveAndSyncLead error:', err.message);
+    return null;
+  }
 }
 
 /**

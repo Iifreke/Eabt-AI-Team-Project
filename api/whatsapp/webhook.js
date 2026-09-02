@@ -148,15 +148,26 @@ function getSchoolWelcomePrompt(school, leadName) {
 
 async function sendConfirmationPrompt(to, lead, school) {
   const schoolName = getSchoolDisplayName(school);
-  const name = lead.name || 'Student';
+  const name = lead.name || 'Prospective Student';
   const emailVal = lead.email || 'Not provided';
   const phoneVal = lead.phone || lead.normalized_phone || `+${to}`;
 
-  const bodyText = `Welcome to *${schoolName}*! 🎓\n\nPlease confirm your contact details before we proceed:\n• *Name:* ${name}\n• *Email:* ${emailVal}\n• *Phone:* ${phoneVal}\n\nReply *1* (or click *Confirm & Proceed*) to continue.\nReply *2* (or click *Change Details*) to update your information.`;
+  const bodyText =
+    `Welcome to *${schoolName}*! 🎓\n\n` +
+    `We found your profile on our admissions system:\n` +
+    `• *Name:* ${name}\n` +
+    `• *Email:* ${emailVal}\n` +
+    `• *Phone:* ${phoneVal}\n\n` +
+    `Would you like to:\n` +
+    `1️⃣ *Proceed* with these details\n` +
+    `2️⃣ *Edit / Correct* your details\n` +
+    `3️⃣ *Start Afresh* with new details\n\n` +
+    `Reply *1* (or click *Proceed*), Reply *2* (or click *Edit Details*), or Reply *3* (or click *Start Afresh*):`;
 
   const buttons = [
-    { id: 'confirm_details', title: 'Confirm & Proceed' },
-    { id: 'change_details', title: 'Change Details' },
+    { id: 'confirm_details', title: 'Proceed' },
+    { id: 'change_details', title: 'Edit Details' },
+    { id: 'start_afresh', title: 'Start Afresh' },
   ];
 
   return await sendWhatsAppButtons(to, bodyText, buttons, { schoolSlug: school.slug });
@@ -478,7 +489,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'media_prompt_sent' });
     }
 
-    // ── Load or Create Lead Record ───────────────────────────
+    // ── Load or Create Lead Record (Checking both Supabase & Zoho) ──
     const waLeadConditions = [`session_id.eq.wa_${rawFrom}`];
     if (normalizedPhone) waLeadConditions.push(`normalized_phone.eq.${normalizedPhone}`);
     if (rawFrom) waLeadConditions.push(`phone.eq.${rawFrom}`);
@@ -491,36 +502,66 @@ export default async function handler(req, res) {
       .limit(1)
       .maybeSingle();
 
+    // Verify if lead exists on Zoho CRM
+    let zohoLead = null;
+    try {
+      zohoLead = await zoho.findZohoLead(rawFrom, lead?.email);
+    } catch (zErr) {
+      console.warn('[WhatsApp Webhook] Zoho search warning:', zErr.message);
+    }
+
     if (!lead) {
       const { data: newLead } = await supabase
         .from('leads')
         .insert({
           school_id: school.id,
           session_id: `wa_${rawFrom}`,
-          name: profileName || null,
+          name: (zohoLead?.name && !isPlaceholderName(zohoLead.name)) ? zohoLead.name : (profileName || null),
+          email: zohoLead?.email || null,
           phone: rawFrom,
           normalized_phone: normalizedPhone,
+          zoho_contact_id: zohoLead?.id || null,
+          zoho_synced_at: zohoLead?.id ? new Date().toISOString() : null,
           whatsapp_opt_in: true,
         })
         .select()
         .single();
       lead = newLead;
-      if (lead) {
-        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+      if (lead && !zohoLead?.id) {
+        await zoho.syncLeadToZoho(lead, school, { source: `WhatsApp Bot (${school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})` });
       }
-    } else if (lead.school_id !== school.id || (!lead.normalized_phone && normalizedPhone) || (!lead.phone && rawFrom)) {
-      const { data: updatedLead } = await supabase
-        .from('leads')
-        .update({
-          school_id: school.id,
-          phone: lead.phone || rawFrom,
-          normalized_phone: lead.normalized_phone || normalizedPhone,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', lead.id)
-        .select()
-        .single();
-      lead = updatedLead;
+    } else {
+      const updates = {};
+      if (zohoLead?.id && !lead.zoho_contact_id) {
+        updates.zoho_contact_id = zohoLead.id;
+        updates.zoho_synced_at = new Date().toISOString();
+      }
+      if (zohoLead?.name && (!lead.name || isPlaceholderName(lead.name))) {
+        updates.name = zohoLead.name;
+      }
+      if (zohoLead?.email && !lead.email) {
+        updates.email = zohoLead.email;
+      }
+      if (lead.school_id !== school.id) {
+        updates.school_id = school.id;
+      }
+      if (!lead.normalized_phone && normalizedPhone) {
+        updates.normalized_phone = normalizedPhone;
+      }
+      if (!lead.phone && rawFrom) {
+        updates.phone = rawFrom;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updates.updated_at = new Date().toISOString();
+        const { data: updatedLead } = await supabase
+          .from('leads')
+          .update(updates)
+          .eq('id', lead.id)
+          .select()
+          .single();
+        if (updatedLead) lead = updatedLead;
+      }
     }
 
     // ── Load or Create Conversation ──────────────────────────
@@ -687,6 +728,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       messages.length === 0 ||
       conv.stage === 'resolved' ||
       conv.stage === 'confirming_details' ||
+      isSessionStartMessage(incomingText) ||
       isSessionStale(conv);
 
     // If at beginning of chat and details are complete: Must confirm before proceeding
@@ -707,7 +749,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       return res.status(200).json({ status: 'confirmation_prompt_sent' });
     }
 
-    // ── STAGE: CONFIRMING DETAILS ────────────────────────────
+    // ── STAGE: CONFIRMING DETAILS (Zoho Verification) ───────
     if (conv.stage === 'confirming_details') {
       pushUserMessage(incomingText);
 
@@ -733,16 +775,64 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         lowerInput === '2' ||
         lowerInput === 'change' ||
         lowerInput === 'change details' ||
+        lowerInput === 'edit' ||
+        lowerInput === 'edit details' ||
+        lowerInput === 'correct' ||
         lowerInput === 'update' ||
         lowerInput === 'update details' ||
-        lowerInput === 'edit' ||
         lowerInput === 'modify' ||
-        lowerInput === 'no' ||
         lowerInput === 'different' ||
         lowerInput === 'wrong';
 
+      const isStartAfresh =
+        clickedButtonId === 'start_afresh' ||
+        lowerInput === '3' ||
+        lowerInput === 'start afresh' ||
+        lowerInput === 'afresh' ||
+        lowerInput === 'restart' ||
+        lowerInput === 'reset' ||
+        lowerInput === 'new' ||
+        lowerInput === 'start over' ||
+        lowerInput === 'fresh' ||
+        lowerInput === 'start fresh';
+
+      if (isStartAfresh) {
+        // Reset lead profile and start onboarding afresh
+        lead.name = null;
+        lead.email = null;
+        await supabase
+          .from('leads')
+          .update({
+            name: null,
+            email: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', lead.id);
+
+        conv.stage = 'onboarding_name';
+        const freshWelcomePrompt = `Welcome to *${schoolName}* Admissions Support! 🎓\n\nI am Maverick, your admissions concierge.\n\nLet's get your details set up afresh. Before we proceed with your inquiry, could you please tell me your *Full Name*?`;
+        messages.push({ role: 'assistant', content: freshWelcomePrompt, ts: Date.now() });
+
+        await supabase
+          .from('conversations')
+          .update({
+            stage: 'onboarding_name',
+            messages,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conv.id);
+
+        await sendWhatsAppMessage(rawFrom, freshWelcomePrompt, { schoolSlug: school.slug });
+        return res.status(200).json({ status: 'start_afresh_initiated' });
+      }
+
       if (isConfirm) {
         conv.stage = 'active';
+
+        // Ensure lead is synced to Zoho with current school tag
+        await zoho.syncLeadToZoho(lead, school, {
+          source: `WhatsApp Bot (${school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`,
+        });
 
         const questionSnippet = incomingText
           .replace(/^(1|confirm|yes|proceed|correct|ok|okay|sure|looks good|all good)[., ]*/i, '')

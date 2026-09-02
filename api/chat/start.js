@@ -36,6 +36,14 @@ export default async function handler(req, res) {
     let lead = existingLeads?.[0] || null;
     let existingConv = null;
 
+    // Check Zoho CRM for existing lead
+    let zohoLead = null;
+    try {
+      zohoLead = await zoho.findZohoLead(normalizedPhone, email);
+    } catch (zErr) {
+      console.warn('[Web Chat Start] Zoho search warning:', zErr.message);
+    }
+
     if (lead) {
       const { data: conv } = await supabase
         .from('conversations')
@@ -46,19 +54,25 @@ export default async function handler(req, res) {
         .maybeSingle();
       existingConv = conv;
 
+      const updates = {
+        name,
+        email,
+        phone,
+        normalized_phone: normalizedPhone,
+        updated_at: new Date().toISOString(),
+      };
+      if (zohoLead?.id && !lead.zoho_contact_id) {
+        updates.zoho_contact_id = zohoLead.id;
+        updates.zoho_synced_at = new Date().toISOString();
+      }
+
       const { data: updated } = await supabase
         .from('leads')
-        .update({
-          name,
-          email,
-          phone,
-          normalized_phone: normalizedPhone,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', lead.id)
         .select()
         .single();
-      lead = updated;
+      lead = updated || lead;
     } else {
       const { data: newLead } = await supabase
         .from('leads')
@@ -69,6 +83,8 @@ export default async function handler(req, res) {
           email,
           phone,
           normalized_phone: normalizedPhone,
+          zoho_contact_id: zohoLead?.id || null,
+          zoho_synced_at: zohoLead?.id ? new Date().toISOString() : null,
         })
         .select()
         .single();

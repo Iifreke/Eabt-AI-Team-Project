@@ -372,7 +372,11 @@ function ChatRow({ esc, onUpdate }) {
     setSaving(true);
     setActionError('');
     try {
-      await api.updateEscalation({ id: esc.id, ...patch });
+      if (patch.status === 'resolved') {
+        await api.endChat(esc.id, patch.resolved_by || profile?.full_name || null);
+      } else {
+        await api.updateEscalation({ id: esc.id, ...patch });
+      }
       onUpdate();
     } catch (err) {
       console.error(err);

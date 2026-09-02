@@ -4,14 +4,17 @@ import supabase from '../../src/db/supabase.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
-  if (req.method !== 'POST') return res.status(405).end();
+  if (req.method !== 'POST' && req.method !== 'PATCH' && req.method !== 'PUT') {
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
+  }
 
   const user = await requireAuth(req, res);
   if (!user) return;
 
   try {
-    const { escalationId, resolvedBy } = req.body;
-    if (!escalationId) return res.status(400).json({ error: 'escalationId required' });
+    const escalationId = req.body?.escalationId || req.body?.id;
+    const resolvedBy = req.body?.resolvedBy || req.body?.resolved_by;
+    if (!escalationId) return res.status(400).json({ error: 'escalationId or id required' });
 
     // 1. Mark escalation as resolved
     const { data: escalation, error: escErr } = await supabase
@@ -22,18 +25,18 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', escalationId)
-      .select('id, conversation_id')
-      .single();
+      .select('id, conversation_id, school_id, lead_id')
+      .maybeSingle();
 
     if (escErr) throw escErr;
 
-    // 2. Update conversation + send WhatsApp goodbye
+    // 2. Update conversation + send WhatsApp goodbye + sync to Zoho
     if (escalation?.conversation_id) {
       const { data: conv } = await supabase
         .from('conversations')
-        .select('id, messages, channel, whatsapp_phone, session_id, schools(name, slug)')
+        .select('id, messages, channel, whatsapp_phone, session_id, lead_id, school_id, leads(id, name, email, phone, normalized_phone, zoho_contact_id), schools(id, name, slug)')
         .eq('id', escalation.conversation_id)
-        .single();
+        .maybeSingle();
 
       if (conv) {
         const messages = Array.isArray(conv.messages) ? conv.messages : [];
@@ -48,9 +51,25 @@ export default async function handler(req, res) {
           .update({ stage: 'active', messages, updated_at: new Date().toISOString() })
           .eq('id', escalation.conversation_id);
 
+        // Sync resolved status and closing note to Zoho CRM
+        if (conv.leads && conv.schools) {
+          try {
+            const { addNoteToLead, syncLeadToZoho } = await import('../../src/services/zoho.js');
+            await syncLeadToZoho(conv.leads, conv.schools, { status: 'Closed' });
+            await addNoteToLead(
+              conv.leads,
+              `Support Session Ended (${new Date().toLocaleDateString()})`,
+              `Support agent ${resolvedBy || 'Staff'} ended this support session on ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT.`,
+              conv.schools
+            );
+          } catch (zErr) {
+            console.warn('[End Chat] Zoho sync warning:', zErr.message);
+          }
+        }
+
         // Send WhatsApp goodbye message
         const isWhatsApp = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
-        const userPhone = conv.whatsapp_phone || conv.session_id?.replace('wa_', '');
+        const userPhone = conv.whatsapp_phone || conv.leads?.normalized_phone || conv.leads?.phone || conv.session_id?.replace('wa_', '');
 
         if (isWhatsApp && userPhone) {
           try {
@@ -71,9 +90,9 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, escalation });
   } catch (error) {
     console.error('end-chat error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
