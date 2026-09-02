@@ -141,8 +141,19 @@ export default async function handler(req, res) {
         .eq('id', existingConv.id);
     }
 
-    // Sync lead to Zoho CRM
-    await zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' });
+    // Sync lead to Zoho CRM immediately with full details and direct chat link
+    try {
+      const syncedZohoId = await zoho.syncLeadToZoho(lead, school, {
+        source: `Website Chatbot (${school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`,
+        chatId: sessionId,
+      });
+      if (syncedZohoId) {
+        lead.zoho_contact_id = syncedZohoId;
+        lead.zoho_synced_at = new Date().toISOString();
+      }
+    } catch (zErr) {
+      console.error('[Web Chat Start] Zoho lead sync error:', zErr.message);
+    }
 
     const adminsOnline = await anyAdminOnline(supabase);
 

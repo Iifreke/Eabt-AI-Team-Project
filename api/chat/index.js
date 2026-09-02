@@ -113,6 +113,14 @@ export default async function handler(req, res) {
       conv.lead_id = lead.id;
     }
 
+    // Auto-sync lead to Zoho CRM if not yet synced
+    if ((lead.name || lead.email || lead.phone) && !lead.zoho_contact_id) {
+      zoho.syncLeadToZoho(lead, school, {
+        source: `Website Chatbot (${school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`,
+        chatId: conv.id,
+      }).catch(zErr => console.warn('[Web Chat] Auto Zoho sync warning:', zErr.message));
+    }
+
     // Extract text from any readable attachments
     const attachmentText = await extractAttachmentText(attachments);
     const messageWithAttachments = attachmentText
