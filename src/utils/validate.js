@@ -53,3 +53,11 @@ export function isWithinBusinessHours() {
   return day >= 1 && day <= 5 && hour >= 8 && hour < 18;
 }
 
+/**
+ * Validates whether an email string matches a standard valid RFC email format.
+ */
+export function isValidEmail(emailStr) {
+  if (!emailStr || typeof emailStr !== 'string') return false;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailStr.trim());
+}
+

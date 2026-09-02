@@ -1,6 +1,6 @@
 import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
-import { resolveSchoolId, getSchool } from '../../src/utils/validate.js';
+import { resolveSchoolId, getSchool, isValidEmail } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 import { sendTicketEmail, sendTicketReplyEmail, sendTicketConfirmationEmail } from '../../src/services/email.js';
 
@@ -13,6 +13,10 @@ export default async function handler(req, res) {
       const { schoolId, name, email, phone, subject, message } = req.body;
       if (!name || !email || !subject || !message) {
         return res.status(400).json({ error: 'name, email, subject and message are required' });
+      }
+
+      if (!isValidEmail(email)) {
+        return res.status(400).json({ error: 'Please provide a valid email address so our admissions team can reply to you.' });
       }
 
       let school_id = null;

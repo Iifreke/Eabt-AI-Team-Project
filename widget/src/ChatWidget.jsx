@@ -197,13 +197,15 @@ export default function ChatWidget({ config }) {
 
   function handleSchoolSelect(school) { setSelectedSchool(school); setStep('form'); }
 
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
   async function handleFormSubmit(e) {
     e.preventDefault();
     const name = form.name.trim();
     const email = form.email.trim();
     const phone = form.phone.trim();
     if (!name) { setFormError('Please enter your full name.'); return; }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFormError('Please enter a valid email address.'); return; }
+    if (!email || !emailRegex.test(email)) { setFormError('Please enter a valid email address (e.g. name@example.com).'); return; }
     if (!phone || phone.length < 8) { setFormError('Please enter a valid phone number.'); return; }
     setFormError('');
     setFormLoading(true);
@@ -216,10 +218,16 @@ export default function ChatWidget({ config }) {
 
   async function handleTicketSubmit(e) {
     e.preventDefault();
+    const name = (form.name || ticketForm.name || '').trim();
+    const email = (form.email || ticketForm.email || '').trim();
+    const phone = (form.phone || ticketForm.phone || '').trim();
     const subject = ticketForm.subject.trim();
     const message = ticketForm.message.trim();
+
+    if (!name) { setTicketError('Please enter your full name.'); return; }
+    if (!email || !emailRegex.test(email)) { setTicketError('Please enter a valid email address (e.g. name@example.com).'); return; }
     if (!subject) { setTicketError('Please enter a subject.'); return; }
-    if (!message) { setTicketError('Please describe your issue.'); return; }
+    if (!message) { setTicketError('Please describe your question or issue.'); return; }
     setTicketError('');
     setTicketLoading(true);
     try {
@@ -228,9 +236,9 @@ export default function ChatWidget({ config }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           schoolId: selectedSchool?.id,
-          name: form.name || 'Visitor',
-          email: form.email || '',
-          phone: form.phone || '',
+          name,
+          email,
+          phone,
           subject,
           message,
         }),
@@ -521,6 +529,30 @@ export default function ChatWidget({ config }) {
           <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
             <form onSubmit={handleTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {!form.name && (
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Full Name</label>
+                  <input type="text" placeholder="e.g. Amina Bello" value={ticketForm.name || ''}
+                    onChange={e => setTicketForm(f => ({ ...f, name: e.target.value }))} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
+                </div>
+              )}
+              {!form.email && (
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Email Address</label>
+                  <input type="email" placeholder="e.g. student@gmail.com" value={ticketForm.email || ''}
+                    onChange={e => setTicketForm(f => ({ ...f, email: e.target.value }))} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} required />
+                </div>
+              )}
+              {!form.phone && (
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Phone Number (Optional)</label>
+                  <input type="tel" placeholder="e.g. 08012345678" value={ticketForm.phone || ''}
+                    onChange={e => setTicketForm(f => ({ ...f, phone: e.target.value }))} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = primaryColor} onBlur={e => e.target.style.borderColor = '#ddd'} />
+                </div>
+              )}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Subject</label>
                 <input type="text" placeholder="e.g. Admission requirements" value={ticketForm.subject}

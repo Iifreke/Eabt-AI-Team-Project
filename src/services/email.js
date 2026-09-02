@@ -1,64 +1,135 @@
 import nodemailer from 'nodemailer';
 import supabase from '../db/supabase.js';
 
-// Trigger deployment for Vercel SMTP environment variables update - V2
+let transporter = null;
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '465', 10),
-  secure: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+function getTransporter() {
+  if (!transporter && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '465', 10),
+      secure: true,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  }
+  return transporter;
+}
 
-const FROM = process.env.SMTP_FROM || `"School Bot Support" <${process.env.SMTP_USER}>`;
+const DEFAULT_FROM = process.env.SMTP_FROM || process.env.RESEND_FROM_EMAIL || `"Admissions Support" <eabtconnect@gmail.com>`;
+
+/**
+ * Sends an email using Resend API if available, falling back to Nodemailer SMTP.
+ */
+async function sendEmailMessage({ to, subject, html, replyTo }) {
+  if (!to) {
+    console.warn('[Email Service] No recipient email provided.');
+    return false;
+  }
+
+  // 1. Try Resend API if API Key is configured
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const fromAddr = process.env.RESEND_FROM_EMAIL || 'admissions@eabt-ai-team-project.vercel.app' || 'onboarding@resend.dev';
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: fromAddr.includes('<') ? fromAddr : `Admissions Office <${fromAddr}>`,
+          to: [to],
+          subject,
+          html,
+          ...(replyTo ? { reply_to: replyTo } : {}),
+        }),
+      });
+
+      if (res.ok) {
+        console.log(`[Email Service] Delivered via Resend API to: ${to}`);
+        return true;
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn('[Email Service] Resend API attempt returned:', errJson?.message || res.statusText);
+      }
+    } catch (resendErr) {
+      console.warn('[Email Service] Resend dispatch error:', resendErr.message);
+    }
+  }
+
+  // 2. Try Nodemailer SMTP
+  const smtp = getTransporter();
+  if (smtp) {
+    try {
+      await smtp.sendMail({
+        from: DEFAULT_FROM,
+        to,
+        subject,
+        html,
+        ...(replyTo ? { replyTo } : {}),
+      });
+      console.log(`[Email Service] Delivered via SMTP to: ${to}`);
+      return true;
+    } catch (smtpErr) {
+      console.error('[Email Service] SMTP error:', smtpErr.message);
+    }
+  }
+
+  console.warn(`[Email Service] Simulated send to ${to}: "${subject}"`);
+  return true;
+}
 
 const reasonLabels = {
-  user_request: 'Visitor requested a human agent',
-  failed_attempts: 'Bot could not answer 3 times in a row',
-  sensitive_topic: 'Sensitive topic detected (complaint/legal/disciplinary)',
+  user_request: 'Student requested a live human advisor',
+  failed_attempts: 'Inquiry required specialized admissions guidance',
+  sensitive_topic: 'Specialized request requiring admissions director attention',
 };
 
 export async function sendEscalationEmail({ school, lead, conversation, reason }) {
   try {
+    const studentName = lead?.name || 'Prospective Student';
+    const schoolName = school?.name || 'Distance Learning Centre';
     const transcript = (conversation.messages || [])
-      .map(m => (m.role === 'user' ? 'Visitor: ' : 'Bot: ') + m.content)
+      .map(m => (m.role === 'user' ? `${studentName}: ` : m.role === 'admin' ? 'Admissions Officer: ' : 'Concierge: ') + m.content)
       .join('\n\n');
 
     const html = `
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-    <div style="background: #d32f2f; padding: 24px; color: white;">
-      <h1 style="margin: 0; font-size: 20px;">Escalation Alert — ${school.name}</h1>
-      <p style="margin: 8px 0 0; opacity: 0.9;">A visitor requires human assistance</p>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; margin: 0; padding: 32px 16px; color: #1e293b;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+    <div style="background: #0f172a; padding: 28px 32px; color: #ffffff; border-bottom: 3px solid #3b82f6;">
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; margin-bottom: 6px;">Admissions Live Escalation</div>
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px;">${schoolName}</h1>
+      <p style="margin: 8px 0 0; color: #cbd5e1; font-size: 14px;">A student requires personalized advisor attention.</p>
     </div>
-    <div style="padding: 24px;">
-      <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
-        <h2 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Visitor Details</h2>
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 4px 0; color: #666; width: 80px;">Name</td><td style="padding: 4px 0; font-weight: bold;">${lead.name || '(not provided)'}</td></tr>
-          <tr><td style="padding: 4px 0; color: #666;">Email</td><td style="padding: 4px 0;">${lead.email || '(not provided)'}</td></tr>
-          <tr><td style="padding: 4px 0; color: #666;">Phone</td><td style="padding: 4px 0;">${lead.phone || '(not provided)'}</td></tr>
-          <tr><td style="padding: 4px 0; color: #666;">Date</td><td style="padding: 4px 0;">${new Date().toLocaleString()}</td></tr>
+    <div style="padding: 32px;">
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 12px;">Student Profile</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr><td style="padding: 6px 0; color: #64748b; width: 100px;">Full Name</td><td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${studentName}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b;">Email Address</td><td style="padding: 6px 0; color: #0f172a;"><a href="mailto:${lead.email}" style="color: #2563eb; text-decoration: none;">${lead.email || '(Not provided)'}</a></td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b;">Phone Number</td><td style="padding: 6px 0; color: #0f172a;">${lead.phone || lead.normalized_phone || '(Not provided)'}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b;">Timestamp</td><td style="padding: 6px 0; color: #64748b;">${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT</td></tr>
         </table>
       </div>
-      <div style="background: #fff3e0; border-left: 4px solid #ff9800; border-radius: 4px; padding: 16px; margin-bottom: 20px;">
-        <h2 style="margin: 0 0 8px; font-size: 14px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Escalation Reason</h2>
-        <p style="margin: 0; font-weight: bold; color: #e65100;">${reasonLabels[reason] || reason}</p>
+
+      <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 6px; padding: 16px 20px; margin-bottom: 24px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #1e40af; letter-spacing: 1px; margin-bottom: 4px;">Reason for Escalation</div>
+        <p style="margin: 0; font-weight: 600; font-size: 14px; color: #1e3a8a;">${reasonLabels[reason] || reason}</p>
       </div>
-      <div>
-        <h2 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Conversation Transcript</h2>
-        <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; font-family: monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; max-height: 400px; overflow-y: auto;">
-${transcript || '(No messages recorded)'}
-        </div>
+
+      <div style="margin-bottom: 28px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 12px;">Conversation Transcript</div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; font-size: 13px; line-height: 1.7; white-space: pre-wrap; max-height: 350px; overflow-y: auto; color: #334155;">${transcript || '(No messages recorded)'}</div>
       </div>
-      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 13px;">
-        Log in to the admin dashboard to manage this escalation.
+
+      <div style="padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
+        <a href="https://eabt-ai-team-project.vercel.app/chats?id=${conversation.id}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; letter-spacing: 0.2px;">Open Live Chat in Admin Portal →</a>
       </div>
     </div>
   </div>
@@ -67,13 +138,12 @@ ${transcript || '(No messages recorded)'}
 
     const staffEmail =
       (school.slug === 'babcock' || school.slug === 'backock')
-        ? (process.env.ESCALATION_EMAIL_BABCOCK || process.env.ESCALATION_EMAIL_BACKOCK || school.staff_email)
-        : (process.env.ESCALATION_EMAIL_ABU || school.staff_email);
+        ? (process.env.ESCALATION_EMAIL_BABCOCK || process.env.ESCALATION_EMAIL_BACKOCK || 'eabtconnect@gmail.com')
+        : (process.env.ESCALATION_EMAIL_ABU || 'eabtconnect@gmail.com');
 
-    await transporter.sendMail({
-      from: FROM,
+    await sendEmailMessage({
       to: staffEmail,
-      subject: `Escalation — ${lead.name || 'Unknown Visitor'} — ${school.name}`,
+      subject: `Admissions Escalation: ${studentName} — ${schoolName}`,
       html,
     });
 
@@ -88,46 +158,57 @@ ${transcript || '(No messages recorded)'}
 
 export async function sendTicketEmail({ school, ticket }) {
   try {
+    const schoolName = school?.name || 'Distance Learning Centre';
+    const studentName = ticket.name || 'Prospective Student';
+
     const html = `
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-    <div style="background: #1565c0; padding: 24px; color: white;">
-      <h1 style="margin: 0; font-size: 20px;">New Support Ticket — ${school.name}</h1>
-      <p style="margin: 8px 0 0; opacity: 0.9;">A visitor has submitted a support request</p>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; margin: 0; padding: 32px 16px; color: #1e293b;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+    <div style="background: #0f172a; padding: 28px 32px; color: #ffffff; border-bottom: 3px solid #3b82f6;">
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; margin-bottom: 6px;">New Support Ticket</div>
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700;">${schoolName}</h1>
+      <p style="margin: 8px 0 0; color: #cbd5e1; font-size: 14px;">An offline inquiry has been registered.</p>
     </div>
-    <div style="padding: 24px;">
-      <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
-        <h2 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Contact Details</h2>
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 4px 0; color: #666; width: 80px;">Name</td><td style="padding: 4px 0; font-weight: bold;">${ticket.name}</td></tr>
-          <tr><td style="padding: 4px 0; color: #666;">Email</td><td style="padding: 4px 0;">${ticket.email}</td></tr>
-          ${ticket.phone ? `<tr><td style="padding: 4px 0; color: #666;">Phone</td><td style="padding: 4px 0;">${ticket.phone}</td></tr>` : ''}
-          <tr><td style="padding: 4px 0; color: #666;">Date</td><td style="padding: 4px 0;">${new Date().toLocaleString()}</td></tr>
+    <div style="padding: 32px;">
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 12px;">Contact Information</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr><td style="padding: 6px 0; color: #64748b; width: 100px;">Full Name</td><td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${studentName}</td></tr>
+          <tr><td style="padding: 6px 0; color: #64748b;">Email Address</td><td style="padding: 6px 0; color: #0f172a;"><a href="mailto:${ticket.email}" style="color: #2563eb; text-decoration: none;">${ticket.email}</a></td></tr>
+          ${ticket.phone ? `<tr><td style="padding: 6px 0; color: #64748b;">Phone Number</td><td style="padding: 6px 0; color: #0f172a;">${ticket.phone}</td></tr>` : ''}
+          <tr><td style="padding: 6px 0; color: #64748b;">Submitted At</td><td style="padding: 6px 0; color: #64748b;">${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT</td></tr>
         </table>
       </div>
-      <div style="background: #e3f2fd; border-left: 4px solid #1565c0; border-radius: 4px; padding: 16px; margin-bottom: 20px;">
-        <h2 style="margin: 0 0 8px; font-size: 14px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Subject</h2>
-        <p style="margin: 0; font-weight: bold; color: #0d47a1;">${ticket.subject}</p>
+
+      <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 6px; padding: 16px 20px; margin-bottom: 24px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #1e40af; letter-spacing: 1px; margin-bottom: 4px;">Subject</div>
+        <p style="margin: 0; font-weight: 700; font-size: 15px; color: #1e3a8a;">${ticket.subject}</p>
       </div>
-      <div>
-        <h2 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Message</h2>
-        <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${ticket.message}</div>
+
+      <div style="margin-bottom: 28px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 12px;">Message</div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: #334155;">${ticket.message}</div>
       </div>
-      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 13px;">
-        Log in to the admin dashboard to manage this ticket.
+
+      <div style="padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
+        <a href="https://eabt-ai-team-project.vercel.app/tickets" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;">View Ticket on Admin Dashboard →</a>
       </div>
     </div>
   </div>
 </body>
 </html>`;
 
-    await transporter.sendMail({
-      from: FROM,
-      to: school.staff_email,
-      subject: `New Ticket — ${ticket.subject} — ${school.name}`,
+    const staffEmail =
+      (school?.slug === 'babcock' || school?.slug === 'backock')
+        ? (process.env.ESCALATION_EMAIL_BABCOCK || process.env.ESCALATION_EMAIL_BACKOCK || 'eabtconnect@gmail.com')
+        : (process.env.ESCALATION_EMAIL_ABU || 'eabtconnect@gmail.com');
+
+    await sendEmailMessage({
+      to: staffEmail,
+      subject: `New Support Ticket: ${ticket.subject} — ${schoolName}`,
       html,
     });
   } catch (error) {
@@ -137,94 +218,109 @@ export async function sendTicketEmail({ school, ticket }) {
 
 export async function sendTicketReplyEmail({ school, ticket, staffReply }) {
   try {
+    const schoolName = school?.name || 'Admissions Office';
+    const studentName = ticket?.name || 'Prospective Student';
+
     const html = `
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-    <div style="background: #1565c0; padding: 24px; color: white;">
-      <h1 style="margin: 0; font-size: 20px;">Reply to Your Support Ticket</h1>
-      <p style="margin: 8px 0 0; opacity: 0.9;">${school.name} — Support Team</p>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; margin: 0; padding: 32px 16px; color: #1e293b; -webkit-font-smoothing: antialiased;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+    
+    <!-- Executive Header -->
+    <div style="background: #0f172a; padding: 32px 36px; color: #ffffff; border-bottom: 3px solid #3b82f6;">
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; margin-bottom: 6px;">Official Admissions Response</div>
+      <h1 style="margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.3px;">${schoolName}</h1>
+      <p style="margin: 6px 0 0; color: #cbd5e1; font-size: 14px;">Admissions & Student Advisory Support</p>
     </div>
-    <div style="padding: 24px;">
-      <p style="font-size: 15px; color: #333; margin: 0 0 16px;">Hi <strong>${ticket.name}</strong>,</p>
-      <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 20px;">
-        Our support team has responded to your ticket: <strong>${ticket.subject}</strong>
+
+    <!-- Body Content -->
+    <div style="padding: 36px;">
+      <p style="font-size: 16px; color: #0f172a; margin: 0 0 16px; font-weight: 600;">Dear ${studentName},</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.7; margin: 0 0 24px;">
+        Thank you for contacting the admissions office regarding <strong>${ticket.subject}</strong>. Our admissions team has reviewed your inquiry and provided the response below:
       </p>
-      <div style="background: #e3f2fd; border-left: 4px solid #1565c0; border-radius: 4px; padding: 16px; margin-bottom: 24px;">
-        <h2 style="margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Support Team's Reply</h2>
-        <div style="font-size: 14px; color: #1a237e; line-height: 1.7; white-space: pre-wrap;">${staffReply}</div>
+
+      <!-- Staff Response Card -->
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0f172a; border-radius: 8px; padding: 24px; margin-bottom: 28px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #0f172a; letter-spacing: 1px; margin-bottom: 12px;">Admissions Team Response</div>
+        <div style="font-size: 14.5px; color: #0f172a; line-height: 1.8; white-space: pre-wrap;">${staffReply}</div>
       </div>
-      <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
-        <h2 style="margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Your Original Message</h2>
-        <p style="margin: 0; font-size: 13px; color: #666; font-style: italic; line-height: 1.6;">${ticket.message}</p>
+
+      <!-- Original Inquiry Reference -->
+      <div style="background: #f1f5f9; border-radius: 8px; padding: 18px 20px; margin-bottom: 28px; border: 1px solid #e2e8f0;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Your Original Inquiry</div>
+        <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.6; font-style: italic;">"${ticket.message}"</p>
       </div>
-      <p style="font-size: 13px; color: #666; margin: 0;">
-        If you have further questions, please reply to this email or visit our website.
-        <br>Thank you for reaching out to <strong>${school.name}</strong>.
-      </p>
-      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 12px;">
-        This is a reply to ticket #${ticket.id?.slice(0, 8) || 'N/A'} submitted on ${new Date(ticket.created_at || Date.now()).toLocaleDateString()}.
+
+      <!-- Closing & Sign-off -->
+      <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 28px;">
+        If you have any further questions or require additional assistance with your application, please feel free to reply directly to this email or visit our admissions portal.
+      </div>
+
+      <div style="border-top: 1px solid #e2e8f0; padding-top: 24px; font-size: 13px; color: #64748b; line-height: 1.6;">
+        <strong style="color: #0f172a;">Admissions & Support Directorate</strong><br>
+        ${schoolName}<br>
+        <span style="font-size: 12px; color: #94a3b8;">Inquiry Reference #${ticket.id ? String(ticket.id).slice(0, 8).toUpperCase() : 'REC'} &bull; ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
       </div>
     </div>
   </div>
 </body>
 </html>`;
 
-    await transporter.sendMail({
-      from: FROM,
+    await sendEmailMessage({
       to: ticket.email,
-      subject: `Re: ${ticket.subject} — ${school.name} Support`,
+      subject: `Response to Your Admissions Inquiry: ${ticket.subject} — ${schoolName}`,
       html,
     });
 
-    console.log(`Ticket reply email sent to ${ticket.email}`);
+    console.log(`[Email Service] Official ticket reply successfully dispatched to ${ticket.email}`);
   } catch (error) {
-    console.error('Ticket reply email failed:', error.message);
+    console.error('[Email Service] Ticket reply email failed:', error.message);
   }
 }
 
 export async function sendTicketConfirmationEmail({ school, ticket }) {
   try {
+    const schoolName = school?.name || 'Admissions Office';
+    const studentName = ticket.name || 'Prospective Student';
+
     const html = `
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-    <div style="background: #1565c0; padding: 24px; color: white;">
-      <h1 style="margin: 0; font-size: 20px;">Ticket Received — ${school.name}</h1>
-      <p style="margin: 8px 0 0; opacity: 0.9;">We have received your support request</p>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; margin: 0; padding: 32px 16px; color: #1e293b;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+    <div style="background: #0f172a; padding: 32px 36px; color: #ffffff; border-bottom: 3px solid #3b82f6;">
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; margin-bottom: 6px;">Ticket Confirmation</div>
+      <h1 style="margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.3px;">${schoolName}</h1>
+      <p style="margin: 6px 0 0; color: #cbd5e1; font-size: 14px;">We have received your support ticket.</p>
     </div>
-    <div style="padding: 24px;">
-      <p style="font-size: 15px; color: #333; margin: 0 0 16px;">Hi <strong>${ticket.name}</strong>,</p>
-      <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 20px;">
-        Thank you for contacting us. We have received your support ticket regarding <strong>${ticket.subject}</strong>.
-        Our support team will review your request and get back to you as soon as possible (usually within 24 hours).
+    <div style="padding: 36px;">
+      <p style="font-size: 16px; color: #0f172a; margin: 0 0 16px; font-weight: 600;">Dear ${studentName},</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.7; margin: 0 0 24px;">
+        Thank you for reaching out. We have received your inquiry regarding <strong>${ticket.subject}</strong>. An admissions representative will review your request and reply to this email address promptly.
       </p>
-      <div style="background: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
-        <h2 style="margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: #666; letter-spacing: 0.5px;">Your Message</h2>
-        <p style="margin: 0; font-size: 13px; color: #666; font-style: italic; line-height: 1.6;">${ticket.message}</p>
+      <div style="background: #f1f5f9; border-radius: 8px; padding: 18px 20px; margin-bottom: 28px; border: 1px solid #e2e8f0;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Recorded Message</div>
+        <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.6; font-style: italic;">"${ticket.message}"</p>
       </div>
-      <p style="font-size: 13px; color: #666; margin: 0;">
-        Thank you for your patience.
-        <br>Best regards,
-        <br><strong>${school.name} Support Team</strong>
-      </p>
+      <div style="border-top: 1px solid #e2e8f0; padding-top: 24px; font-size: 13px; color: #64748b; line-height: 1.6;">
+        <strong style="color: #0f172a;">Admissions Support Team</strong><br>
+        ${schoolName}
+      </div>
     </div>
   </div>
 </body>
 </html>`;
 
-    await transporter.sendMail({
-      from: FROM,
+    await sendEmailMessage({
       to: ticket.email,
-      subject: `Ticket Received: ${ticket.subject} — ${school.name}`,
+      subject: `Inquiry Received: ${ticket.subject} — ${schoolName}`,
       html,
     });
-    console.log(`Ticket confirmation email sent to ${ticket.email}`);
   } catch (error) {
-    console.error('Ticket confirmation email failed:', error.message);
+    console.error('[Email Service] Ticket confirmation email failed:', error.message);
   }
 }

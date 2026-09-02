@@ -118,13 +118,13 @@ function TicketRow({ ticket, onUpdate }) {
           <td colSpan={7} className="px-5 py-4">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Visitor Message</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Student Inquiry</div>
                 <div className="bg-white border border-gray-200 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap">{ticket.message}</div>
 
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-2">Contact</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-2">Student Contact</div>
                 <div className="text-sm space-y-1">
                   <div>Name: <strong>{ticket.name}</strong></div>
-                  <div>Email: {ticket.email}</div>
+                  <div>Email: <a href={`mailto:${ticket.email}`} className="text-blue-600 hover:underline">{ticket.email}</a></div>
                   {ticket.phone && <div>Phone: {ticket.phone}</div>}
                 </div>
 
@@ -138,26 +138,26 @@ function TicketRow({ ticket, onUpdate }) {
                   value={assignedTo}
                   onChange={e => setAssignedTo(e.target.value)}
                   onBlur={() => patch({ assigned_to: assignedTo })}
-                  placeholder="Agent name..."
+                  placeholder="Admissions officer name..."
                   className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                 />
 
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex justify-between items-center">
-                  <span>Reply</span>
-                  {successMsg && <span className="text-green-600 normal-case">{successMsg}</span>}
+                  <span>Official Email Reply</span>
+                  {successMsg && <span className="text-emerald-600 font-semibold normal-case">✓ Reply emailed to {ticket.email}</span>}
                 </div>
                 <textarea
                   value={reply}
                   onChange={e => setReply(e.target.value)}
                   rows={4}
-                  placeholder="Type your reply to the visitor..."
+                  placeholder="Type your official reply (will be emailed directly to student)..."
                   className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-3"
                 />
 
                 <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => patch({ staff_reply: reply })} disabled={saving}
-                    className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                    Send Reply
+                  <button onClick={() => patch({ staff_reply: reply })} disabled={saving || !reply.trim()}
+                    className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    ✉️ Send Email Reply
                   </button>
                   {ticket.status !== 'pending' && ticket.status !== 'closed' && (
                     <button onClick={() => patch({ status: 'pending' })} disabled={saving}
@@ -224,7 +224,7 @@ export default function Tickets() {
       <Sidebar />
       <div className="max-w-6xl">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Tickets</h1>
-        <p className="text-gray-500 text-sm mb-6">Offline support requests from visitors</p>
+        <p className="text-gray-500 text-sm mb-6">Offline support requests from students & prospective leads</p>
 
         <div className="flex gap-2 mb-5">
           {STATUSES.map(s => (
@@ -245,11 +245,11 @@ export default function Tickets() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           {loading ? (
             <div className="flex items-center gap-2 text-gray-400 p-5">
               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              Loading...
+              Loading tickets...
             </div>
           ) : !tickets.length ? (
             <p className="text-gray-400 text-sm p-5">No tickets found.</p>
@@ -257,7 +257,7 @@ export default function Tickets() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr className="text-left text-gray-500">
-                  <th className="px-5 py-3 font-medium">Contact</th>
+                  <th className="px-5 py-3 font-medium">Student / Lead</th>
                   <th className="px-5 py-3 font-medium">Email</th>
                   <th className="px-5 py-3 font-medium">School</th>
                   <th className="px-5 py-3 font-medium">Subject</th>

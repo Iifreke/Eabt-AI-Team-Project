@@ -68,7 +68,7 @@ export default function Monitoring() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr className="text-left text-gray-500">
-                  <th className="px-5 py-3 font-medium">Visitor</th>
+                  <th className="px-5 py-3 font-medium">Student / Lead</th>
                   <th className="px-5 py-3 font-medium">School</th>
                   <th className="px-5 py-3 font-medium">Last Activity</th>
                   <th className="px-5 py-3 font-medium">Messages</th>

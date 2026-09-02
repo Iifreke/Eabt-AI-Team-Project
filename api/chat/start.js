@@ -1,5 +1,5 @@
 import { applyCors } from '../../src/utils/cors.js';
-import { getSchool } from '../../src/utils/validate.js';
+import { getSchool, isValidEmail } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 import { chat } from '../../src/services/llm.js';
 import * as zoho from '../../src/services/zoho.js';
@@ -15,6 +15,10 @@ export default async function handler(req, res) {
 
     if (!schoolId || !sessionId || !name || !email || !phone) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
     }
 
     const school = await getSchool(schoolId, res);

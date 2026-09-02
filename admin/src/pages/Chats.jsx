@@ -235,35 +235,45 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
             const isUser = m.role === 'user';
             const isAgent = m.role === 'agent';
             const isSystem = m.role === '__notification' || m.role === 'system';
+            const studentName = esc.leads?.name || esc.lead?.name || esc.lead_name || 'Prospective Student';
 
             if (isSystem) {
               return (
                 <div key={i} className="text-center my-2">
-                  <span className="inline-block bg-gray-200 text-gray-600 text-[11px] px-2.5 py-1 rounded-full">
+                  <span className="inline-block bg-slate-100 border border-slate-200 text-slate-600 text-[11px] px-3 py-1 rounded-full font-medium">
                     {m.content}
                   </span>
                 </div>
               );
             }
 
+            // Luxury message formatting — strip any residual system tokens
+            const formattedContent = typeof m.content === 'string'
+              ? m.content.replace(/\[ESCALATE(?::[^\]]*)?\]/gi, '').trim()
+              : m.content;
+
             return (
               <div key={i} className={`flex flex-col ${isUser ? 'items-start' : 'items-end'}`}>
-                <div className="text-[10px] text-gray-400 mb-0.5 px-1">
-                  {isUser ? (channel === 'whatsapp' ? '📱 Visitor (WhatsApp)' : '👤 Visitor') : isAgent ? `🎧 Staff (${m.agentName || 'Agent'})` : '🤖 AI Assistant'}
+                <div className="text-[10px] text-slate-500 mb-1 px-1 font-semibold tracking-wide">
+                  {isUser
+                    ? (channel === 'whatsapp' ? `📱 ${studentName} (WhatsApp)` : `👤 ${studentName}`)
+                    : isAgent
+                    ? `🎧 Staff (${m.agentName || 'Admissions Team'})`
+                    : '🏛️ Admissions Concierge'}
                 </div>
                 <div
-                  className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                  className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed whitespace-pre-wrap ${
                     isUser
-                      ? 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'
+                      ? 'bg-white border border-slate-200/80 text-slate-800 rounded-tl-none shadow-sm'
                       : isAgent
-                      ? 'bg-blue-600 text-white rounded-tr-none shadow-sm'
-                      : 'bg-slate-200 text-gray-800 rounded-tr-none'
+                      ? 'bg-slate-900 text-white rounded-tr-none shadow-sm font-medium'
+                      : 'bg-slate-100 border border-slate-200/60 text-slate-800 rounded-tr-none'
                   }`}
                 >
-                  {m.content}
+                  {formattedContent}
                 </div>
                 {m.ts && (
-                  <span className="text-[9px] text-gray-400 mt-0.5 px-1">
+                  <span className="text-[9px] text-slate-400 mt-0.5 px-1">
                     {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
@@ -459,7 +469,7 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false }) {
           <td colSpan={7} className="px-5 py-4">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Visitor Details</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Student Details</div>
                 <div className="text-sm space-y-1.5">
                   <div>Name: <strong>{esc.leads?.name || '—'}</strong></div>
                   <div>Email: {esc.leads?.email || '—'}</div>
@@ -701,7 +711,7 @@ export default function Chats() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr className="text-left text-gray-500">
-                  <th className="px-5 py-3 font-medium">Visitor</th>
+                  <th className="px-5 py-3 font-medium">Student / Lead</th>
                   <th className="px-5 py-3 font-medium">School</th>
                   <th className="px-5 py-3 font-medium">Reason</th>
                   <th className="px-5 py-3 font-medium">Status</th>
