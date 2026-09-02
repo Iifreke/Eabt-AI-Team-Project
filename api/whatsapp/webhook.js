@@ -15,6 +15,7 @@ import { searchKnowledgeBase } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
 import * as email from '../../src/services/email.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
+import { isWithinBusinessHours } from '../../src/utils/validate.js';
 import {
   isValidHumanName,
   cleanPersonName,
@@ -187,7 +188,11 @@ async function sendPhoneCollectionPrompt(to, rawFrom, school) {
 async function sendInteractiveWelcomeMenu(to, school, customHeader = '') {
   const schoolName = getSchoolDisplayName(school);
   const header = customHeader || `Welcome to *${schoolName}*! 🎓\n\nHow can I assist you with your academic goals today?`;
-  const bodyText = `${header}\n\nSelect an option below or type any specific question:`;
+  const withinHours = isWithinBusinessHours();
+  const humanHint = withinHours
+    ? `\n\n💡 _Our admissions advisors are online (Mon–Fri, 8am–6pm WAT). You can reply *Human* or *Advisor* at any time to chat with a representative._`
+    : ``;
+  const bodyText = `${header}${humanHint}\n\nSelect an option below or type any specific question:`;
 
   const buttons = [
     { id: 'btn_programmes', title: 'Explore Courses' },
@@ -644,7 +649,7 @@ export default async function handler(req, res) {
           channel: 'WhatsApp',
           reason: 'Escalated Chat Follow-up',
           chatId: conv.id,
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       ).catch(() => {});
 
@@ -1238,7 +1243,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         school,
         lead,
         `New student completed WhatsApp onboarding: "${lead.name}" (${lead.email})`,
-        { channel: 'WhatsApp', chatId: conv.id, actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}` }
+        { channel: 'WhatsApp', chatId: conv.id, actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}` }
       );
 
       conv.stage = 'active';
@@ -1260,7 +1265,10 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           const aiReply = await chat(systemPrompt, [{ role: 'user', content: firstInquiry }]);
           const cleanReply = stripEscalateToken(aiReply);
 
-          const welcomeActiveWithAnswer = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nRegarding your inquiry:\n${cleanReply}`;
+          let welcomeActiveWithAnswer = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nRegarding your inquiry:\n${cleanReply}`;
+          if (isWithinBusinessHours()) {
+            welcomeActiveWithAnswer += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+          }
           messages.push({ role: 'assistant', content: welcomeActiveWithAnswer, ts: Date.now() });
 
           await supabase
@@ -1288,7 +1296,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendInteractiveWelcomeMenu(rawFrom, school, `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`);
+      let successMsg = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`;
+      if (isWithinBusinessHours()) {
+        successMsg += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+      }
+      await sendInteractiveWelcomeMenu(rawFrom, school, successMsg);
       return res.status(200).json({ status: 'onboarding_completed' });
     }
 
@@ -1298,7 +1310,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     // 1. FAST-PATH EXECUTION (Sub-50ms instant response for buttons & high-frequency queries)
     const fastReply = getFastPathResponse(clickedButtonId || incomingText, school);
     if (fastReply) {
-      messages.push({ role: 'assistant', content: fastReply, ts: Date.now() });
+      let finalFastReply = fastReply;
+      if (isWithinBusinessHours()) {
+        finalFastReply += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+      }
+      messages.push({ role: 'assistant', content: finalFastReply, ts: Date.now() });
 
       await supabase
         .from('conversations')
@@ -1309,7 +1325,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, fastReply, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, finalFastReply, { schoolSlug: school.slug });
       return res.status(200).json({ status: 'fast_path_dispatched' });
     }
 
@@ -1317,6 +1333,40 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     const wantsHuman = detectEscalation(incomingText);
 
     if (wantsHuman) {
+      const withinHours = isWithinBusinessHours();
+
+      if (!withinHours) {
+        const offHoursMsg = `Our admissions advisors are currently offline (Office hours: Monday–Friday, 8:00 AM – 6:00 PM WAT). 🌙\n\nYour message has been logged for our admissions team to review and follow up with you on the next business day. In the meantime, I am available 24/7 to answer all your questions about programmes, requirements, fees, and application procedures!`;
+        messages.push({ role: 'assistant', content: offHoursMsg, ts: Date.now() });
+
+        await supabase
+          .from('conversations')
+          .update({
+            messages,
+            stage: 'escalated',
+            channel: 'whatsapp',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conv.id);
+
+        await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'WhatsApp Bot' });
+        await zoho.createEscalationTask(lead, school, 'Off-Hours Human Request', incomingText);
+        await zoho.sendCliqAlert(
+          school,
+          lead,
+          `Off-hours WhatsApp human assistance request from ${lead.name || 'Student'}: "${incomingText}"`,
+          {
+            channel: 'WhatsApp',
+            reason: 'Off-Hours Human Request',
+            chatId: conv.id,
+            actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
+          }
+        );
+
+        await sendWhatsAppMessage(rawFrom, offHoursMsg, { schoolSlug: school.slug });
+        return res.status(200).json({ status: 'off_hours_escalated' });
+      }
+
       conv.stage = 'escalated';
 
       await supabase.from('escalations').insert({
@@ -1359,7 +1409,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           channel: 'WhatsApp',
           reason: 'User Requested Human',
           chatId: conv.id,
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       );
 
@@ -1442,7 +1492,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           channel: 'WhatsApp',
           reason: 'Knowledge Base Fallback',
           chatId: conv.id,
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       );
 
@@ -1462,7 +1512,12 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     }
 
     // Normal Successful Answer
-    messages.push({ role: 'assistant', content: cleanReply, ts: Date.now() });
+    let finalWhatsAppReply = cleanReply;
+    if (isWithinBusinessHours()) {
+      finalWhatsAppReply += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+    }
+
+    messages.push({ role: 'assistant', content: finalWhatsAppReply, ts: Date.now() });
 
     await supabase
       .from('conversations')

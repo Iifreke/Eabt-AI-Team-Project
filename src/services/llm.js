@@ -140,18 +140,35 @@ const ESCALATION_PHRASES = [
   'human support',
   'human help',
   'escalate',
+  'speak to an advisor',
+  'speak to an admissions advisor',
+  'speak to advisor',
+  'speak to human',
+  'talk to advisor',
+  'talk to human',
+  'admissions officer',
+  'admissions advisor',
+  'live human',
+  'human advisor',
+  'speak with advisor',
+  'speak with an advisor',
+  'speak with human',
+  'human',
+  'advisor',
+  'adviser',
 ];
 
 // Catches the many ways people phrase "connect me to a human" —
 // "speak with a human", "reach admin", "talk to someone", "connect me to an agent",
-// "I want a human", "need an agent", etc.
+// "I want a human", "need an agent", "speak to advisor", etc.
 const ESCALATION_REQUEST_RE =
-  /\b(talk|speak|chat|want|need|get me|connect me|transfer me|put me|reach)\s*(to|with)?\s*(a|an|the)?\s*(human|person|someone|agent|admin|administrator|representative|rep|staff|manager)\b/i;
+  /\b(talk|speak|chat|want|need|get me|connect me|transfer me|put me|reach)\s*(to|with)?\s*(a|an|the)?\s*(human|person|someone|agent|admin|administrator|representative|rep|staff|manager|advisor|adviser|officer)\b/i;
 
 export function detectEscalation(text) {
   if (!text) return false;
   if (/\[ESCALATE(?::[^\]]*)?\]/i.test(text)) return true;
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
+  if (lower === 'human' || lower === 'advisor' || lower === 'adviser' || lower === 'agent' || lower === 'rep' || lower === 'officer') return true;
   if (ESCALATION_PHRASES.some(t => lower.includes(t))) return true;
   return ESCALATION_REQUEST_RE.test(text);
 }

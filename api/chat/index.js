@@ -203,7 +203,7 @@ export default async function handler(req, res) {
           {
             channel: 'Web Chatbot',
             chatId: conv.id,
-            actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+            actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
           }
         );
       }
@@ -289,7 +289,7 @@ export default async function handler(req, res) {
               channel: 'Web Chatbot',
               reason: 'User Request',
               chatId: conv.id,
-              actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+              actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
             }
           );
 
@@ -373,7 +373,7 @@ export default async function handler(req, res) {
           channel: 'Web Chatbot',
           reason,
           chatId: conv.id,
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       );
 
@@ -395,7 +395,7 @@ export default async function handler(req, res) {
           channel: 'Web Chatbot',
           reason: 'Off-Hours Escalation',
           chatId: conv.id,
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${conv.id}`,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       );
     }
@@ -414,7 +414,13 @@ export default async function handler(req, res) {
       })
       .eq('id', conv.id);
 
-    const suggestions = await generateSuggestions(school.name, cleanResponse);
+    let suggestions = await generateSuggestions(school.name, cleanResponse);
+    if (withinBusinessHours && newStage !== 'escalated') {
+      suggestions = [
+        ...suggestions.slice(0, 2),
+        '🧑‍💼 Speak to an Admissions Advisor',
+      ];
+    }
 
     const offHoursTicketPrompt = shouldEscalate && !withinBusinessHours;
 

@@ -127,7 +127,7 @@ export default async function handler(req, res) {
         {
           channel: 'Web Chatbot',
           chatId: sessionId,
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats?id=${sessionId}`,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${sessionId}`,
         }
       );
     } else {

@@ -53,6 +53,18 @@ export function getSchoolFormattedDetails(school) {
 }
 
 /**
+ * Returns the sanitized, production App URL for live chat links.
+ * Always resolves to https://eabt-ai-team-project.vercel.app even if an old domain is in env.
+ */
+export function getAppBaseUrl() {
+  let url = (process.env.APP_URL || '').trim();
+  if (!url || url.includes('school-rag') || url.includes('localhost') || !url.startsWith('http')) {
+    url = 'https://eabt-ai-team-project.vercel.app';
+  }
+  return url.replace(/\/+$/, '');
+}
+
+/**
  * Retrieves or refreshes Zoho CRM OAuth access token.
  */
 export async function getAccessToken() {
@@ -234,7 +246,7 @@ export async function syncLeadToZoho(lead, school, options = {}) {
       zohoLeadId = await searchZohoLeadByContact(normalizedPhone, lead.email);
     }
 
-    const appUrl = process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app';
+    const appUrl = getAppBaseUrl();
     const specificChatId = options.chatId || options.conversationId || options.escalationId || lead.session_id || lead.id;
     const directChatUrl = specificChatId ? `${appUrl}/chats?id=${encodeURIComponent(specificChatId)}` : `${appUrl}/chats`;
 
@@ -669,7 +681,7 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
   const phone = lead?.phone || lead?.normalized_phone || 'Not provided';
   const email = lead?.email || 'Not provided';
   const sourceChannel = options.channel || (lead?.channel === 'whatsapp' || lead?.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Web Chatbot');
-  const appUrl = process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app';
+  const appUrl = getAppBaseUrl();
   const specificChatId = options.chatId || options.conversationId || options.escalationId || lead?.session_id || lead?.id;
   const chatUrl = options.actionUrl || (specificChatId ? `${appUrl}/chats?id=${encodeURIComponent(specificChatId)}` : `${appUrl}/chats`);
 
