@@ -1,6 +1,6 @@
 -- ====================================================================
--- EDUTECH BABCOCK & ABU ADMISSIONS BOT - COMPLETE SUPABASE SETUP SCRIPT
--- Run this script in your Supabase Project -> SQL Editor -> Run
+-- EDUTECH BABCOCK & ABU ADMISSIONS PLATFORM - SUPABASE SQL SETUP
+-- Run this script in: Supabase Project -> SQL Editor -> Click "Run"
 -- ====================================================================
 
 -- ── 1. EXTENSIONS ───────────────────────────────────────────────────
@@ -180,7 +180,31 @@ CREATE TABLE IF NOT EXISTS admin_profiles (
 CREATE INDEX IF NOT EXISTS admin_profiles_email_idx ON admin_profiles (email);
 CREATE INDEX IF NOT EXISTS admin_profiles_role_idx ON admin_profiles (role);
 
--- ── 8. WHATSAPP MESSAGE DEDUPLICATION (IDEMPOTENCY) ─────────────────
+-- ── 8. SHORTCUTS / QUICK REPLIES TABLE ─────────────────────────────
+CREATE TABLE IF NOT EXISTS shortcuts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        TEXT NOT NULL,
+  shortcut    TEXT NOT NULL,
+  message     TEXT,
+  content     TEXT,
+  created_by  TEXT,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- Idempotent column additions for existing shortcuts
+ALTER TABLE shortcuts ADD COLUMN IF NOT EXISTS content TEXT;
+ALTER TABLE shortcuts ADD COLUMN IF NOT EXISTS message TEXT;
+
+-- Seed default shortcuts if table is empty
+INSERT INTO shortcuts (name, shortcut, message, content, created_by) VALUES
+  ('takeover', '/takeover', 'Hi, this conversation has been escalated to a support agent. I am reviewing your issue now and will assist you shortly.', 'Hi, this conversation has been escalated to a support agent. I am reviewing your issue now and will assist you shortly.', 'System'),
+  ('reviewing', '/review', 'Thanks for your patience. I am currently reviewing the details of your request.', 'Thanks for your patience. I am currently reviewing the details of your request.', 'System'),
+  ('delay', '/wait', 'Thank you for your patience while I check this for you.', 'Thank you for your patience while I check this for you.', 'System'),
+  ('closing', '/close', 'Thank you for contacting Support. We wish you success in your learning journey.', 'Thank you for contacting Support. We wish you success in your learning journey.', 'System'),
+  ('access issues', '/access', 'If you are having trouble accessing your student portal or course materials, please describe the issue in detail.', 'If you are having trouble accessing your student portal or course materials, please describe the issue in detail.', 'System')
+ON CONFLICT DO NOTHING;
+
+-- ── 9. WHATSAPP MESSAGE DEDUPLICATION ──────────────────────────────
 CREATE TABLE IF NOT EXISTS processed_whatsapp_messages (
   message_id    TEXT PRIMARY KEY,
   from_phone    TEXT NOT NULL,
@@ -189,7 +213,7 @@ CREATE TABLE IF NOT EXISTS processed_whatsapp_messages (
 
 CREATE INDEX IF NOT EXISTS processed_whatsapp_messages_processed_at_idx ON processed_whatsapp_messages (processed_at DESC);
 
--- ── 9. KNOWLEDGE BASE DOCUMENTS & VECTOR CHUNKS ─────────────────────
+-- ── 10. KNOWLEDGE BASE DOCUMENTS & VECTOR CHUNKS ────────────────────
 CREATE TABLE IF NOT EXISTS documents (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   school_id      UUID REFERENCES schools(id) ON DELETE CASCADE,
@@ -219,7 +243,7 @@ CREATE INDEX IF NOT EXISTS document_chunks_document_id_idx ON document_chunks (d
 CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx ON document_chunks
   USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
--- ── 10. VECTOR MATCH FUNCTION ───────────────────────────────────────
+-- ── 11. VECTOR MATCH FUNCTION ──────────────────────────────────────
 CREATE OR REPLACE FUNCTION match_chunks(
   query_embedding   VECTOR(1536),
   match_school_id   UUID,

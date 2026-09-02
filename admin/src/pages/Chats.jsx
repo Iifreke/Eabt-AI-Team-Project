@@ -295,9 +295,9 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
             <button
               key={s.id}
               type="button"
-              onClick={() => setReply(s.content)}
+              onClick={() => setReply(s.content || s.message || '')}
               className="text-[11px] bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-300 rounded px-2 py-0.5 transition-colors"
-              title={s.content}
+              title={s.content || s.message || ''}
             >
               {s.shortcut}
             </button>
