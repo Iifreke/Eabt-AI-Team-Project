@@ -3,25 +3,57 @@ import { supabase } from './supabase.js';
 const BASE_URL = (typeof window !== 'undefined' && window.location.origin) ? '' : (import.meta.env.VITE_API_URL || '');
 
 async function authFetch(path, options = {}) {
-  const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  let { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+  let token = session?.access_token;
+
+  if (!token) {
+    try {
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      token = refreshData?.session?.access_token;
+    } catch (_) {}
+  }
 
   if (!token) {
     console.warn('authFetch: no session token', { path, sessionErr });
-    throw new Error('Not authenticated — please refresh and log in again');
+    throw new Error('Not authenticated — please refresh or log in again');
   }
 
   const url = `${BASE_URL}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+  } catch (netErr) {
+    console.error('authFetch network error:', netErr);
+    throw new Error('Network connection error — please check your connection and retry');
+  }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      // Token may have expired during session — attempt one refresh and retry
+      try {
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        const retryToken = refreshData?.session?.access_token;
+        if (retryToken && retryToken !== token) {
+          const retryRes = await fetch(url, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${retryToken}`,
+              ...(options.headers || {}),
+            },
+          });
+          if (retryRes.ok) return retryRes.json();
+        }
+      } catch (_) {}
+    }
+
     const err = await res.json().catch(() => ({ error: res.statusText }));
     console.error('authFetch error:', res.status, url, err);
     throw new Error(err.error || `Request failed (${res.status})`);

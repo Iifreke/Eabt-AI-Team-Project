@@ -67,8 +67,10 @@ export default async function handler(req, res) {
         .from('tickets')
         .select('*, schools(name, slug)', { count: 'exact' });
 
-      if (status) query = query.eq('status', status);
-      if (schoolId) {
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+      if (schoolId && schoolId !== 'all') {
         const resolvedId = await resolveSchoolId(schoolId);
         if (resolvedId) query = query.eq('school_id', resolvedId);
       }
