@@ -1,6 +1,7 @@
 -- ====================================================================
--- EDUTECH BABCOCK & ABU ADMISSIONS PLATFORM - SUPABASE SQL SETUP
--- Run this script in: Supabase Project -> SQL Editor -> Click "Run"
+-- EDUTECH BABCOCK & ABU ADMISSIONS PLATFORM - COMPLETE SUPABASE SQL
+-- Instructions: Copy and paste this script into:
+-- Supabase Dashboard -> SQL Editor -> Click "Run"
 -- ====================================================================
 
 -- ── 1. EXTENSIONS ───────────────────────────────────────────────────
@@ -19,11 +20,11 @@ CREATE TABLE IF NOT EXISTS schools (
 
 -- Ensure Default Schools Exist
 INSERT INTO schools (slug, name, staff_email, branding) VALUES
-  ('babcock', 'Babcock University (BU-CODEL)', 'admin@babcock.edu.ng',
+  ('babcock', 'Babcock University (BU-CODEL)', 'eabtconnect@gmail.com',
    '{"primaryColor":"#003366","displayName":"Babcock University","welcomeMessage":"Welcome to Babcock University BU-CODEL Admissions Support!"}'),
-  ('backock', 'Babcock University (BU-CODEL)', 'admin@babcock.edu.ng',
+  ('backock', 'Babcock University (BU-CODEL)', 'eabtconnect@gmail.com',
    '{"primaryColor":"#003366","displayName":"Babcock University","welcomeMessage":"Welcome to Babcock University BU-CODEL Admissions Support!"}'),
-  ('abu', 'Ahmadu Bello University (ABU DLC)', 'admin@abudlc.edu.ng',
+  ('abu', 'Ahmadu Bello University (ABU DLC)', 'eabtconnect@gmail.com',
    '{"primaryColor":"#006633","displayName":"ABU Distance Learning Centre","welcomeMessage":"Welcome to Ahmadu Bello University Distance Learning Centre Admissions Support!"}')
 ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,
@@ -151,7 +152,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   phone         TEXT,
   subject       TEXT NOT NULL,
   message       TEXT NOT NULL,
-  status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
+  status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'pending', 'in_progress', 'resolved', 'closed')),
   staff_reply   TEXT,
   tags          TEXT[] DEFAULT '{}',
   assigned_to   TEXT,
@@ -159,6 +160,14 @@ CREATE TABLE IF NOT EXISTS tickets (
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now()
 );
+
+-- Idempotent column additions for existing tickets tables
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS lead_id UUID REFERENCES leads(id) ON DELETE SET NULL;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS staff_reply TEXT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assigned_to TEXT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS tickets_school_id_idx ON tickets (school_id);
 CREATE INDEX IF NOT EXISTS tickets_status_idx ON tickets (status);
@@ -197,11 +206,11 @@ ALTER TABLE shortcuts ADD COLUMN IF NOT EXISTS message TEXT;
 
 -- Seed default shortcuts if table is empty
 INSERT INTO shortcuts (name, shortcut, message, content, created_by) VALUES
-  ('takeover', '/takeover', 'Hi, this conversation has been escalated to a support agent. I am reviewing your issue now and will assist you shortly.', 'Hi, this conversation has been escalated to a support agent. I am reviewing your issue now and will assist you shortly.', 'System'),
-  ('reviewing', '/review', 'Thanks for your patience. I am currently reviewing the details of your request.', 'Thanks for your patience. I am currently reviewing the details of your request.', 'System'),
-  ('delay', '/wait', 'Thank you for your patience while I check this for you.', 'Thank you for your patience while I check this for you.', 'System'),
-  ('closing', '/close', 'Thank you for contacting Support. We wish you success in your learning journey.', 'Thank you for contacting Support. We wish you success in your learning journey.', 'System'),
-  ('access issues', '/access', 'If you are having trouble accessing your student portal or course materials, please describe the issue in detail.', 'If you are having trouble accessing your student portal or course materials, please describe the issue in detail.', 'System')
+  ('takeover', '/takeover', 'Hi, this conversation has been escalated to an admissions advisor. I am reviewing your inquiry now and will assist you shortly.', 'Hi, this conversation has been escalated to an admissions advisor. I am reviewing your inquiry now and will assist you shortly.', 'System'),
+  ('reviewing', '/review', 'Thank you for your patience. I am currently reviewing your academic requirements and application details.', 'Thank you for your patience. I am currently reviewing your academic requirements and application details.', 'System'),
+  ('delay', '/wait', 'Thank you for your patience while I confirm this detail with the admissions office.', 'Thank you for your patience while I confirm this detail with the admissions office.', 'System'),
+  ('closing', '/close', 'Thank you for contacting our Admissions Directorate. We wish you great success in your academic pursuit!', 'Thank you for contacting our Admissions Directorate. We wish you great success in your academic pursuit!', 'System'),
+  ('portal help', '/portal', 'If you are experiencing issues with the admissions portal, please share your application number and the specific error message.', 'If you are experiencing issues with the admissions portal, please share your application number and the specific error message.', 'System')
 ON CONFLICT DO NOTHING;
 
 -- ── 9. WHATSAPP MESSAGE DEDUPLICATION ──────────────────────────────
@@ -268,3 +277,89 @@ LANGUAGE SQL STABLE AS $$
   ORDER BY dc.embedding <=> query_embedding
   LIMIT match_count;
 $$;
+
+-- ── 12. AUTOMATIC UPDATED_AT TRIGGER ────────────────────────────────
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_leads_updated_at ON leads;
+CREATE TRIGGER set_leads_updated_at
+  BEFORE UPDATE ON leads
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS set_conversations_updated_at ON conversations;
+CREATE TRIGGER set_conversations_updated_at
+  BEFORE UPDATE ON conversations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS set_escalations_updated_at ON escalations;
+CREATE TRIGGER set_escalations_updated_at
+  BEFORE UPDATE ON escalations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS set_tickets_updated_at ON tickets;
+CREATE TRIGGER set_tickets_updated_at
+  BEFORE UPDATE ON tickets
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ── 13. REALTIME PUBLICATION SETUP ──────────────────────────────────
+-- Enable Realtime events for live chat, tickets, presence & escalations
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+END $$;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
+ALTER PUBLICATION supabase_realtime ADD TABLE escalations;
+ALTER PUBLICATION supabase_realtime ADD TABLE tickets;
+ALTER PUBLICATION supabase_realtime ADD TABLE leads;
+ALTER PUBLICATION supabase_realtime ADD TABLE admin_profiles;
+
+-- ── 14. ROW LEVEL SECURITY (RLS) POLICIES ───────────────────────────
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE escalations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shortcuts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE processed_whatsapp_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_chunks ENABLE ROW LEVEL SECURITY;
+
+-- Allow public read access to schools for widget branding
+CREATE POLICY "Public read schools" ON schools FOR SELECT USING (true);
+
+-- Allow backend service role & public API widget lead / chat operations
+CREATE POLICY "Allow public insert leads" ON leads FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public select leads" ON leads FOR SELECT USING (true);
+CREATE POLICY "Allow public update leads" ON leads FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public insert conversations" ON conversations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public select conversations" ON conversations FOR SELECT USING (true);
+CREATE POLICY "Allow public update conversations" ON conversations FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public insert escalations" ON escalations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public select escalations" ON escalations FOR SELECT USING (true);
+CREATE POLICY "Allow public update escalations" ON escalations FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public insert tickets" ON tickets FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public select tickets" ON tickets FOR SELECT USING (true);
+CREATE POLICY "Allow public update tickets" ON tickets FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public select shortcuts" ON shortcuts FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated manage shortcuts" ON shortcuts FOR ALL USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow authenticated read admin_profiles" ON admin_profiles FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated update admin_profiles" ON admin_profiles FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow public read document_chunks" ON document_chunks FOR SELECT USING (true);
+CREATE POLICY "Allow public read documents" ON documents FOR SELECT USING (true);
+
