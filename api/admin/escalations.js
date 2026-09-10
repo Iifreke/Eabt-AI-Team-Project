@@ -17,16 +17,22 @@ export default async function handler(req, res) {
 
       let query = supabase
         .from('escalations')
-        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
+        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone, updated_at, messages), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
 
-      if (status) query = query.eq('status', status);
+      if (status) {
+        if (status === 'active') {
+          query = query.in('status', ['pending', 'in_progress']);
+        } else {
+          query = query.eq('status', status);
+        }
+      }
 
       if (schoolId) {
         const resolvedId = await resolveSchoolId(schoolId);
         if (resolvedId) query = query.eq('school_id', resolvedId);
       }
 
-      const { data: escalations, error } = await query.order('created_at', { ascending: false });
+      const { data: escalations, error } = await query.order('updated_at', { ascending: false, nullsFirst: false });
 
       if (error) throw error;
 

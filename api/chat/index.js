@@ -230,15 +230,22 @@ export default async function handler(req, res) {
         // Only hand off to human agent if they have already replied
         const hasAdminReply = messages.some(m => m.role === 'admin' || m.adminName);
         if (hasAdminReply) {
+          const nowIso = new Date().toISOString();
           await supabase
             .from('conversations')
             .update({
               messages,
               user_web_online: true,
-              user_last_seen_web: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
+              user_last_seen_web: nowIso,
+              updated_at: nowIso,
             })
             .eq('id', conv.id);
+
+          await supabase
+            .from('escalations')
+            .update({ updated_at: nowIso })
+            .eq('conversation_id', conv.id);
+
           sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages, adminsOnline });
           return res.end();
         }

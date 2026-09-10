@@ -39,6 +39,30 @@ const CSAT_OPTIONS = [
   { rating: 5, emoji: '😊', label: 'Excellent' },
 ];
 
+function getWhatsAppNumberForSchool(schoolId, config) {
+  const sid = (schoolId || config?.schoolId || '').toLowerCase().trim();
+  if (config?.whatsappNumbers?.[sid]) return config.whatsappNumbers[sid];
+  if (config?.whatsappNumber && !sid) return config.whatsappNumber;
+  if (sid.includes('abu')) return '2347025105412';
+  if (sid.includes('babcock') || sid.includes('backock')) return '2348080523171';
+  return config?.whatsappNumber || '2348080523171';
+}
+
+function getWhatsAppDisplayForSchool(schoolId, config) {
+  const sid = (schoolId || config?.schoolId || '').toLowerCase().trim();
+  if (sid.includes('abu')) return '+234 702 510 5412';
+  return '+234 808 052 3171';
+}
+
+function buildWhatsAppUrl(schoolId, schoolName, config) {
+  const rawNum = getWhatsAppNumberForSchool(schoolId, config);
+  const number = rawNum.replace(/[^\d]/g, '');
+  const sid = (schoolId || config?.schoolId || '').toLowerCase().trim();
+  const name = schoolName || (sid.includes('abu') ? 'ABU Distance Learning' : 'Babcock University');
+  const text = encodeURIComponent(`Hello! I would like to make an enquiry about ${name} admissions and programmes.`);
+  return `https://wa.me/${number}?text=${text}`;
+}
+
 export default function ChatWidget({ config }) {
   const primaryColor = config?.theme?.primaryColor || '#1a73e8';
   const isMultiSchool = Array.isArray(config?.schools) && config.schools.length > 1;
@@ -141,11 +165,10 @@ export default function ChatWidget({ config }) {
     }
   }, [messages, showNoResponseHint]);
 
-  const getWhatsAppUrl = () => {
-    const waNumber = config?.whatsappNumber || '2348000000000';
-    const schoolName = selectedSchool?.name || 'Admissions';
-    const text = encodeURIComponent(`Hello! I was chatting with ${schoolName} support on the website and would like to continue here.`);
-    return `https://wa.me/${waNumber.replace(/[^\d]/g, '')}?text=${text}`;
+  const getWhatsAppUrl = (schoolIdOverride) => {
+    const sId = schoolIdOverride || selectedSchool?.id || config?.schoolId;
+    const sName = selectedSchool?.name || config?.theme?.name;
+    return buildWhatsAppUrl(sId, sName, config);
   };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 480;
@@ -165,18 +188,47 @@ export default function ChatWidget({ config }) {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   };
 
-  function PanelHeader({ title, subtitle, onClose }) {
+  function PanelHeader({ title, subtitle, onClose, schoolId }) {
+    const waUrl = getWhatsAppUrl(schoolId);
     return (
-      <div style={{ background: primaryColor, padding: '18px 20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+      <div style={{ background: primaryColor, padding: '16px 20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div>
           <div style={{ fontSize: '15px', fontWeight: 700 }}>{title}</div>
           {subtitle && <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>{subtitle}</div>}
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', padding: '4px', display: 'flex', alignItems: 'center' }} aria-label="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {waUrl && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: '#25D366',
+                color: 'white',
+                textDecoration: 'none',
+                padding: '4px 9px',
+                borderRadius: '20px',
+                fontSize: '11px',
+                fontWeight: 700,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+              }}
+              title="Chat directly on WhatsApp"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
+              </svg>
+              WhatsApp
+            </a>
+          )}
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', padding: '4px', display: 'flex', alignItems: 'center' }} aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
       </div>
     );
   }
@@ -282,34 +334,86 @@ export default function ChatWidget({ config }) {
       {/* ── SCHOOL SELECT STEP ── */}
       {isOpen && step === 'school' && isMultiSchool && (
         <div style={panelStyle}>
-          <PanelHeader title="Select Institution" subtitle="Choose your school to get started" onClose={handleClose} />
-          <div style={{ flex: 1, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center' }}>
-            {config.schools.map((school) => (
-              <button
-                key={school.id}
-                onClick={() => handleSchoolSelect(school)}
-                style={{
-                  padding: '16px 20px',
-                  borderRadius: '12px',
-                  border: '1.5px solid #e0e0e0',
-                  background: 'white',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'border-color 0.15s, transform 0.1s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = primaryColor; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0e0e0'; e.currentTarget.style.transform = 'translateY(0)'; }}
-              >
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#222' }}>{school.name}</div>
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>Admissions & Support</div>
+          <PanelHeader title="Select Institution" subtitle="Choose your school or chat on WhatsApp" onClose={handleClose} />
+          <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
+            <div style={{ fontSize: '13px', color: '#444', fontWeight: 600 }}>Choose how you'd like to get support:</div>
+            {config.schools.map((school) => {
+              const waLink = getWhatsAppUrl(school.id);
+              const waDisplay = getWhatsAppDisplayForSchool(school.id, config);
+              return (
+                <div
+                  key={school.id}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    border: '1.5px solid #e0e0e0',
+                    background: 'white',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: '#1a1a2e' }}>{school.name}</div>
+                      <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>Admissions & Student Enquiries</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => handleSchoolSelect(school)}
+                      style={{
+                        flex: 1,
+                        padding: '9px 10px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${primaryColor}`,
+                        background: primaryColor,
+                        color: 'white',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'opacity 0.15s',
+                      }}
+                    >
+                      💬 Web Chat →
+                    </button>
+                    <a
+                      href={waLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        flex: 1,
+                        padding: '9px 10px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #25D366',
+                        background: '#f0fdf4',
+                        color: '#15803d',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        textAlign: 'center',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      📱 WhatsApp ({waDisplay})
+                    </a>
+                  </div>
                 </div>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-              </button>
-            ))}
+              );
+            })}
+
+            <div style={{ marginTop: 'auto', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '12px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#166534', marginBottom: '2px' }}>📱 Prefer Instant WhatsApp Chat?</div>
+              <div style={{ fontSize: '11px', color: '#15803d', lineHeight: '1.4' }}>
+                Chat straight with our admissions team on WhatsApp anytime 24/7!
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -317,8 +421,51 @@ export default function ChatWidget({ config }) {
       {/* ── FORM STEP ── */}
       {isOpen && step === 'form' && (
         <div style={panelStyle}>
-          <PanelHeader title={selectedSchool?.name || 'School Support'} subtitle="Please share your details to begin" onClose={handleClose} />
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
+          <PanelHeader
+            title={selectedSchool?.name || 'School Support'}
+            subtitle="Fill details below or chat straight on WhatsApp"
+            onClose={handleClose}
+            schoolId={selectedSchool?.id}
+          />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+            {/* Direct WhatsApp Action Banner */}
+            <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>📱</span>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#166534' }}>Chat directly on WhatsApp</div>
+                  <div style={{ fontSize: '11px', color: '#15803d' }}>Skip this form and chat with an admissions advisor immediately</div>
+                </div>
+              </div>
+              <a
+                href={getWhatsAppUrl(selectedSchool?.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: '#25D366',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '8px',
+                  padding: '9px 12px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(37,211,102,0.3)',
+                }}
+              >
+                📱 Open WhatsApp ({getWhatsAppDisplayForSchool(selectedSchool?.id, config)}) →
+              </a>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '14px 0 16px' }}>
+              <div style={{ flex: 1, height: '1px', background: '#e0e0e0' }} />
+              <span style={{ fontSize: '11px', color: '#888', fontWeight: 600, textTransform: 'uppercase' }}>or continue with web chat</span>
+              <div style={{ flex: 1, height: '1px', background: '#e0e0e0' }} />
+            </div>
+
             <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#444', display: 'block', marginBottom: '5px' }}>Full Name</label>
@@ -380,7 +527,7 @@ export default function ChatWidget({ config }) {
                   transition: 'opacity 0.15s',
                 }}
               >
-                {formLoading ? 'Starting chat...' : 'Start Chat'}
+                {formLoading ? 'Starting chat...' : 'Start Web Chat'}
               </button>
             </form>
           </div>
@@ -391,7 +538,10 @@ export default function ChatWidget({ config }) {
       {isOpen && step === 'chat' && (
         <div style={panelStyle}>
           <ChatHeader
+            schoolName={selectedSchool?.name || config?.theme?.name || 'School Support'}
+            primaryColor={primaryColor}
             config={effectiveConfig}
+            whatsappUrl={getWhatsAppUrl(selectedSchool?.id)}
             onClose={handleClose}
             stage={stage}
             agentTyping={agentTyping}
@@ -421,10 +571,10 @@ export default function ChatWidget({ config }) {
                 style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#e65100', fontSize: '18px', fontWeight: 700, lineHeight: 1, padding: '2px 4px' }}
                 aria-label="Dismiss">&#x2715;</button>
               <div style={{ fontWeight: 700, marginBottom: '4px', paddingRight: '20px' }}>Support Team is Offline</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is offline (Mon–Fri 8am–6pm WAT). Continue on WhatsApp or open a ticket.</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our team is offline (Mon–Fri 8am–6pm WAT). Continue on WhatsApp ({getWhatsAppDisplayForSchool(selectedSchool?.id, config)}) or open a ticket.</div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <a
-                  href={getWhatsAppUrl()}
+                  href={getWhatsAppUrl(selectedSchool?.id)}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -447,10 +597,10 @@ export default function ChatWidget({ config }) {
                 style={{ position: 'absolute', top: '6px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#c62828', fontSize: '18px', fontWeight: 700, lineHeight: 1, padding: '2px 4px' }}
                 aria-label="Dismiss">&#x2715;</button>
               <div style={{ fontWeight: 700, marginBottom: '4px', paddingRight: '20px' }}>Support Team is Offline</div>
-              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our advisors are offline. You can chat with our AI, switch to WhatsApp, or open a ticket.</div>
+              <div style={{ marginBottom: '8px', lineHeight: '1.5' }}>Our advisors are offline. You can chat with our AI, switch to WhatsApp ({getWhatsAppDisplayForSchool(selectedSchool?.id, config)}), or open a ticket.</div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <a
-                  href={getWhatsAppUrl()}
+                  href={getWhatsAppUrl(selectedSchool?.id)}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -500,7 +650,7 @@ export default function ChatWidget({ config }) {
                 Rate this chat ★
               </button>
               <a
-                href={getWhatsAppUrl()}
+                href={getWhatsAppUrl(selectedSchool?.id)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ fontSize: '12px', color: '#128C7E', background: 'none', textDecoration: 'underline', fontWeight: 600 }}>
@@ -526,7 +676,7 @@ export default function ChatWidget({ config }) {
       {/* ── TICKET FORM ── */}
       {isOpen && step === 'ticket' && !isBusinessHours() && (
         <div style={panelStyle}>
-          <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} />
+          <PanelHeader title="Open a Ticket" subtitle="We'll reply to your email within 24 hours" onClose={handleClose} schoolId={selectedSchool?.id} />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
             <form onSubmit={handleTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {!form.name && (
@@ -586,7 +736,7 @@ export default function ChatWidget({ config }) {
       {/* ── TICKET DONE ── */}
       {isOpen && step === 'ticket_done' && (
         <div style={panelStyle}>
-          <PanelHeader title="Ticket Submitted" onClose={handleClose} />
+          <PanelHeader title="Ticket Submitted" onClose={handleClose} schoolId={selectedSchool?.id} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
             <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -597,7 +747,7 @@ export default function ChatWidget({ config }) {
             </div>
             <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
               <a
-                href={getWhatsAppUrl()}
+                href={getWhatsAppUrl(selectedSchool?.id)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ padding: '10px 16px', borderRadius: '10px', background: '#25D366', color: 'white', textDecoration: 'none', fontSize: '13px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -615,7 +765,7 @@ export default function ChatWidget({ config }) {
       {/* ── RATING STEP ── */}
       {isOpen && step === 'rating' && (
         <div style={panelStyle}>
-          <PanelHeader title="Rate Your Experience" subtitle="How did we do today?" onClose={handleClose} />
+          <PanelHeader title="Rate Your Experience" subtitle="How did we do today?" onClose={handleClose} schoolId={selectedSchool?.id} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center' }}>
             <div style={{ fontSize: '14px', color: '#444', marginBottom: '24px', fontWeight: 600 }}>Please rate your support experience:</div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '32px' }}>
@@ -644,7 +794,7 @@ export default function ChatWidget({ config }) {
       {/* ── RATING DONE ── */}
       {isOpen && step === 'rating_done' && (
         <div style={panelStyle}>
-          <PanelHeader title="Thank You!" onClose={handleClose} />
+          <PanelHeader title="Thank You!" onClose={handleClose} schoolId={selectedSchool?.id} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>⭐</div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#222', marginBottom: '8px' }}>Thanks for your feedback!</div>

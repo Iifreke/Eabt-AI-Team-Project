@@ -1,6 +1,6 @@
 import { openRouterClient } from '../clients/index.js';
 
-const MODEL = 'anthropic/claude-sonnet-4-5';
+const MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 
 export function buildOnboardingSystemPrompt(schoolName) {
   return `You are Maverick, a warm, friendly admissions assistant for ${schoolName}. You talk like a real helpful person — not a robot.

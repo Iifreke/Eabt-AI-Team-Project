@@ -36,7 +36,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { selectedSchool, setSelectedSchool } = useSchool();
   const { profile } = useUser();
-  const { pendingCount } = useEscalation();
+  const { pendingCount, unviewedCount, unrespondedCount } = useEscalation();
   const [statusOpen, setStatusOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -100,10 +100,28 @@ export default function Sidebar() {
           >
             <span>{icon}</span>
             <span className="flex-1">{label}</span>
-            {to === '/chats' && pendingCount > 0 && (
-              <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none">
-                {pendingCount > 9 ? '9+' : pendingCount}
-              </span>
+            {to === '/chats' && (
+              <>
+                {unviewedCount > 0 ? (
+                  <span className="relative flex items-center">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative bg-red-500 text-white text-[11px] font-extrabold rounded-full px-1.5 py-0.5 min-w-[20px] text-center leading-none shadow-sm">
+                      {unviewedCount > 9 ? '9+' : `${unviewedCount} new`}
+                    </span>
+                  </span>
+                ) : unrespondedCount > 0 ? (
+                  <span
+                    title={`${unrespondedCount} chats awaiting staff reply`}
+                    className="bg-amber-500 text-white text-[11px] font-bold rounded-full px-1.5 py-0.5 min-w-[20px] text-center leading-none"
+                  >
+                    ⏳ {unrespondedCount > 9 ? '9+' : unrespondedCount}
+                  </span>
+                ) : pendingCount > 0 ? (
+                  <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none">
+                    {pendingCount > 9 ? '9+' : pendingCount}
+                  </span>
+                ) : null}
+              </>
             )}
           </NavLink>
         ))}

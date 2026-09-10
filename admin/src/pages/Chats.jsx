@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
@@ -7,7 +7,7 @@ import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
 import { supabase } from '../lib/supabase.js';
 
-const STATUSES = ['all', 'pending', 'in_progress', 'resolved'];
+const STATUSES = ['all', 'needs_reply', 'pending', 'in_progress', 'resolved'];
 
 const SLUG_DISPLAY = { backock: 'BABCOCK', babcock: 'BABCOCK', abu: 'ABU' };
 const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
@@ -21,7 +21,13 @@ const statusBadge = (status) => {
   return `px-2 py-0.5 rounded-full text-xs font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`;
 };
 
-const STATUS_LABEL = { pending: 'Pending', in_progress: 'In Progress', resolved: 'Ended' };
+const STATUS_LABEL = {
+  all: 'All',
+  needs_reply: 'Needs Reply',
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  resolved: 'Ended',
+};
 
 const reasonLabel = {
   user_request: 'Visitor requested human',
@@ -62,6 +68,17 @@ function getSlaBadge(createdAt, status) {
   );
 }
 
+function formatRelativeTime(ts) {
+  if (!ts) return '';
+  const diffSec = Math.max(0, Math.floor((Date.now() - Number(ts)) / 1000));
+  if (diffSec < 45) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${Math.floor(diffHours / 24)}d ago`;
+}
+
 // ── Shortcuts autocomplete ───────────────────────────────────────
 function useShortcuts() {
   const [shortcuts, setShortcuts] = useState([]);
@@ -72,7 +89,7 @@ function useShortcuts() {
 }
 
 // ── Live Chat Panel ─────────────────────────────────────────────
-const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
+const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMarkResponded }) {
   const { profile } = useUser();
   const shortcuts = useShortcuts();
   const [messages, setMessages] = useState([]);
@@ -183,7 +200,9 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
         setInfoMessage('User offline on web — message automatically forwarded to their WhatsApp! 📱');
       }
 
+      onMarkResponded?.(esc.id, esc.conversation_id);
       fetchMessages();
+      onUpdateRef.current?.();
     } catch (err) {
       setError(err.message || 'Failed to send message');
     } finally {
@@ -223,6 +242,20 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate }) {
           <span className="text-[11px] text-gray-400">Live Sync</span>
         </div>
       </div>
+
+      {msgInfo?.needsResponse && (
+        <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center justify-between font-medium">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⏳</span>
+            <span>Visitor is waiting for your reply.</span>
+          </div>
+          {msgInfo?.userTs && (
+            <span className="text-[10px] text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded">
+              Sent {formatRelativeTime(msgInfo.userTs)}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 h-72 overflow-y-auto space-y-3 mb-3">
         {!messages.length ? (
@@ -381,7 +414,7 @@ function TagsEditor({ tags = [], onSave }) {
 }
 
 // ── Chat Row ─────────────────────────────────────────────────────
-function ChatRow({ esc, onUpdate, defaultExpanded = false }) {
+function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed, onMarkResponded }) {
   const { profile } = useUser();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [notes, setNotes] = useState(esc.staff_notes || '');
@@ -391,8 +424,19 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false }) {
   useEffect(() => {
     if (defaultExpanded) {
       setExpanded(true);
+      onMarkViewed?.(esc.id, esc.conversation_id);
     }
-  }, [defaultExpanded]);
+  }, [defaultExpanded, esc.id, esc.conversation_id, onMarkViewed]);
+
+  const handleRowClick = () => {
+    setExpanded(e => {
+      const next = !e;
+      if (next && onMarkViewed) {
+        onMarkViewed(esc.id, esc.conversation_id);
+      }
+      return next;
+    });
+  };
 
   const update = async (patch) => {
     setSaving(true);
@@ -425,19 +469,50 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false }) {
   return (
     <>
       <tr
-        className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${defaultExpanded ? 'bg-blue-50/50' : ''}`}
-        onClick={() => setExpanded(e => !e)}
+        className={`border-b border-gray-100 cursor-pointer transition-colors ${
+          msgInfo?.isUnviewed
+            ? 'bg-red-50/70 hover:bg-red-50/90 border-l-4 border-l-red-500'
+            : msgInfo?.needsResponse
+            ? 'bg-amber-50/40 hover:bg-amber-50/70 border-l-4 border-l-amber-400'
+            : defaultExpanded
+            ? 'bg-blue-50/50 hover:bg-blue-50/70'
+            : 'hover:bg-gray-50'
+        }`}
+        onClick={handleRowClick}
       >
         <td className="px-5 py-3 font-medium">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span>{esc.leads?.name || '—'}</span>
+            <span className="font-bold text-gray-900">{esc.leads?.name || '—'}</span>
             <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
               {channel === 'whatsapp' ? 'WA' : 'WEB'}
             </span>
             {esc.leads?.lead_tier === 'HOT' && (
               <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700">🔥 Hot</span>
             )}
+            {msgInfo?.isUnviewed ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white shadow-sm animate-pulse">
+                🔴 NEW MESSAGE
+              </span>
+            ) : msgInfo?.needsResponse ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                ⏳ Awaiting Reply
+              </span>
+            ) : null}
           </div>
+
+          {/* Last message preview snippet */}
+          {msgInfo?.lastUserContent && (
+            <div className={`text-xs mt-1 truncate max-w-sm flex items-center gap-1.5 ${
+              msgInfo?.isUnviewed ? 'text-red-950 font-medium' : 'text-gray-500'
+            }`}>
+              <span className="truncate">💬 "{msgInfo.lastUserContent}"</span>
+              {msgInfo?.userTs && (
+                <span className="text-[10px] text-gray-400 font-normal shrink-0">
+                  • {formatRelativeTime(msgInfo.userTs)}
+                </span>
+              )}
+            </div>
+          )}
         </td>
         <td className="px-5 py-3">
           <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
@@ -539,7 +614,12 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false }) {
             </div>
 
             {esc.conversation_id && (
-              <LiveChatPanel esc={esc} onUpdate={onUpdate} />
+              <LiveChatPanel
+                esc={esc}
+                onUpdate={onUpdate}
+                msgInfo={msgInfo}
+                onMarkResponded={onMarkResponded}
+              />
             )}
           </td>
         </tr>
@@ -550,7 +630,15 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false }) {
 
 export default function Chats() {
   const { selectedSchool } = useSchool();
-  const { pendingCount, refresh: refreshBadgeCount } = useEscalation();
+  const {
+    pendingCount,
+    unviewedCount,
+    unrespondedCount,
+    markChatAsViewed,
+    markChatAsResponded,
+    getEscalationInfo,
+    refresh: refreshBadgeCount,
+  } = useEscalation();
   const { chatId: routeChatId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -570,7 +658,7 @@ export default function Chats() {
       // If focusing on a specific chat, fetch across all schools/statuses to ensure it's found
       if (!targetChatId) {
         if (selectedSchool !== 'all') params.schoolId = selectedSchool;
-        if (status !== 'all') params.status = status;
+        if (status !== 'all' && status !== 'needs_reply') params.status = status;
       }
       const data = await api.escalations(params);
       let list = data.escalations || [];
@@ -637,11 +725,62 @@ export default function Chats() {
       )
     : null;
 
-  const displayed = targetEsc
-    ? [targetEsc]
-    : tagFilter
-    ? escalations.filter(e => (e.tags || []).includes(tagFilter.toLowerCase()))
-    : escalations;
+  // Auto-mark target chat as viewed when navigated directly
+  useEffect(() => {
+    if (targetEsc) {
+      markChatAsViewed(targetEsc.id, targetEsc.conversation_id);
+    }
+  }, [targetEsc, markChatAsViewed]);
+
+  const analyzedList = useMemo(() => {
+    return escalations.map(esc => ({
+      esc,
+      info: getEscalationInfo(esc),
+    }));
+  }, [escalations, getEscalationInfo]);
+
+  const filtered = useMemo(() => {
+    if (targetEsc) {
+      const info = getEscalationInfo(targetEsc);
+      return [{ esc: targetEsc, info }];
+    }
+
+    return analyzedList.filter(({ esc, info }) => {
+      // School filter
+      if (selectedSchool !== 'all') {
+        const slug = esc.schools?.slug?.toLowerCase();
+        const sel = selectedSchool.toLowerCase();
+        if (slug !== sel && !(sel === 'babcock' && slug === 'backock')) {
+          return false;
+        }
+      }
+
+      // Tag filter
+      if (tagFilter && !(esc.tags || []).some(t => t.toLowerCase().includes(tagFilter.toLowerCase()))) {
+        return false;
+      }
+
+      // Tab filter
+      if (status === 'needs_reply') return info.needsResponse;
+      if (status === 'pending') return esc.status === 'pending';
+      if (status === 'in_progress') return esc.status === 'in_progress';
+      if (status === 'resolved') return esc.status === 'resolved' || esc.status === 'closed';
+
+      return true; // 'all'
+    });
+  }, [targetEsc, analyzedList, selectedSchool, tagFilter, status, getEscalationInfo]);
+
+  // Sort so unviewed chats are at top, then unresponded, then most recent userTs
+  const displayed = useMemo(() => {
+    if (targetEsc) return filtered;
+    return [...filtered].sort((a, b) => {
+      if (a.info.isUnviewed && !b.info.isUnviewed) return -1;
+      if (!a.info.isUnviewed && b.info.isUnviewed) return 1;
+      if (a.info.needsResponse && !b.info.needsResponse) return -1;
+      if (!a.info.needsResponse && b.info.needsResponse) return 1;
+      return (b.info.userTs || 0) - (a.info.userTs || 0);
+    });
+  }, [filtered, targetEsc]);
 
   return (
     <div className="ml-60 min-h-screen p-8">
@@ -679,13 +818,37 @@ export default function Chats() {
         {!targetEsc && (
           <div className="flex flex-wrap gap-2 mb-5 items-center">
             {STATUSES.map(s => (
-              <button key={s} onClick={() => setStatus(s)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                  status === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}>
-                {s === 'all' ? 'All' : STATUS_LABEL[s] || s}
+              <button
+                key={s}
+                onClick={() => setStatus(s)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize flex items-center gap-1.5 ${
+                  status === s
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span>{STATUS_LABEL[s] || s}</span>
+                {s === 'needs_reply' && unrespondedCount > 0 && (
+                  <span
+                    className={`text-xs rounded-full px-2 py-0.5 font-bold ${
+                      status === s
+                        ? 'bg-white text-blue-800'
+                        : unviewedCount > 0
+                        ? 'bg-red-500 text-white animate-pulse'
+                        : 'bg-amber-500 text-white'
+                    }`}
+                  >
+                    {unviewedCount > 0 ? `${unviewedCount} new` : unrespondedCount}
+                  </span>
+                )}
                 {s === 'pending' && pendingCount > 0 && (
-                  <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{pendingCount}</span>
+                  <span
+                    className={`text-xs rounded-full px-1.5 py-0.5 font-bold ${
+                      status === s ? 'bg-white text-blue-800' : 'bg-red-500 text-white'
+                    }`}
+                  >
+                    {pendingCount}
+                  </span>
                 )}
               </button>
             ))}
@@ -721,12 +884,15 @@ export default function Chats() {
                 </tr>
               </thead>
               <tbody>
-                {displayed.map(esc => (
+                {displayed.map(({ esc, info }) => (
                   <ChatRow
                     key={esc.id}
                     esc={esc}
+                    msgInfo={info}
                     onUpdate={handleUpdate}
-                    defaultExpanded={!!targetEsc}
+                    onMarkViewed={markChatAsViewed}
+                    onMarkResponded={markChatAsResponded}
+                    defaultExpanded={Boolean(targetEsc)}
                   />
                 ))}
               </tbody>

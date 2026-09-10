@@ -635,10 +635,16 @@ export default async function handler(req, res) {
     if (conv.stage === 'escalated') {
       pushUserMessage(incomingText);
 
+      const nowIso = new Date().toISOString();
       await supabase
         .from('conversations')
-        .update({ messages, channel: 'whatsapp', updated_at: new Date().toISOString() })
+        .update({ messages, channel: 'whatsapp', updated_at: nowIso })
         .eq('id', conv.id);
+
+      await supabase
+        .from('escalations')
+        .update({ updated_at: nowIso })
+        .eq('conversation_id', conv.id);
 
       // Always alert Cliq so agent sees every follow-up message
       await zoho.sendCliqAlert(
@@ -1428,7 +1434,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       return res.status(200).json({ status: 'escalated' });
     }
 
-    // 3. EXECUTE KNOWLEDGE BASE RAG SEARCH & CLAUDE INFERENCE
+    // 3. EXECUTE KNOWLEDGE BASE RAG SEARCH & GPT-4O-MINI INFERENCE
     const chunks = await searchKnowledgeBase(incomingText, school.id);
     const context =
       chunks.length > 0
