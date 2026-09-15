@@ -233,7 +233,14 @@ export async function syncLeadToZoho(lead, school, options = {}) {
     }
 
     const schoolSuffix = schoolInfo.slug.toUpperCase() === 'ABU' ? ' (ABU)' : ' (Babcock)';
-    let leadSource = options.source || (lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_') ? 'WhatsApp Bot' : 'Website Chatbot');
+    const botType = options.botType || lead.bot_type || (lead.session_id?.includes('aspiring') ? 'aspiring' : null);
+    const audienceTag = botType === 'aspiring' ? ' Aspiring' : (botType === 'existing' ? ' Support' : '');
+
+    let leadSource = options.source || (
+      lead.channel === 'whatsapp' || lead.session_id?.startsWith('wa_')
+        ? `WhatsApp Bot${audienceTag}`
+        : 'Website Chatbot'
+    );
     if (!leadSource.includes('(') && !leadSource.includes('ABU') && !leadSource.includes('Babcock')) {
       leadSource += schoolSuffix;
     }
@@ -664,14 +671,28 @@ export async function syncFullConversationToZoho(lead, school, conv, options = {
 export async function sendCliqAlert(school, lead, message, options = {}) {
   const schoolInfo = getSchoolFormattedDetails(school);
   const schoolSlug = schoolInfo.slug.toUpperCase();
+  const botType = options.botType || lead?.bot_type || (lead?.session_id?.includes('aspiring') ? 'aspiring' : null);
+  const isAspiring = botType === 'aspiring';
 
-  // Determine webhook URL: school-specific override or general fallback
-  const webhookUrl =
-    (schoolSlug && process.env[`ZOHO_CLIQ_WEBHOOK_URL_${schoolSlug}`]) ||
-    (schoolSlug === 'BABCOCK' || schoolSlug === 'BACKOCK'
-      ? (process.env.ZOHO_CLIQ_WEBHOOK_URL_BABCOCK || process.env.ZOHO_CLIQ_WEBHOOK_URL_BACKOCK)
-      : null) ||
-    process.env.ZOHO_CLIQ_WEBHOOK_URL;
+  // Determine webhook URL: separate aspiring channel, school-specific existing channel, or general fallback
+  let webhookUrl = null;
+  if (isAspiring) {
+    if (schoolSlug === 'BABCOCK' || schoolSlug === 'BACKOCK') {
+      webhookUrl = process.env.ZOHO_CLIQ_WEBHOOK_URL_BABCOCK_ASPIRING || process.env.ZOHO_CLIQ_WEBHOOK_URL_BABCOCK || process.env.ZOHO_CLIQ_WEBHOOK_URL;
+    } else if (schoolSlug === 'ABU') {
+      webhookUrl = process.env.ZOHO_CLIQ_WEBHOOK_URL_ABU_ASPIRING || process.env.ZOHO_CLIQ_WEBHOOK_URL_ABU || process.env.ZOHO_CLIQ_WEBHOOK_URL;
+    }
+  } else {
+    if (schoolSlug === 'BABCOCK' || schoolSlug === 'BACKOCK') {
+      webhookUrl = process.env.ZOHO_CLIQ_WEBHOOK_URL_BABCOCK || process.env.ZOHO_CLIQ_WEBHOOK_URL_BACKOCK || process.env.ZOHO_CLIQ_WEBHOOK_URL;
+    } else if (schoolSlug === 'ABU') {
+      webhookUrl = process.env.ZOHO_CLIQ_WEBHOOK_URL_ABU || process.env.ZOHO_CLIQ_WEBHOOK_URL;
+    }
+  }
+
+  if (!webhookUrl) {
+    webhookUrl = process.env.ZOHO_CLIQ_WEBHOOK_URL;
+  }
 
   if (!webhookUrl) {
     return; // Cliq webhook not configured; fail silently
@@ -680,13 +701,18 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
   const studentName = lead?.name || 'Prospective Student';
   const phone = lead?.phone || lead?.normalized_phone || 'Not provided';
   const email = lead?.email || 'Not provided';
-  const sourceChannel = options.channel || (lead?.channel === 'whatsapp' || lead?.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Web Chatbot');
+  const audienceTag = isAspiring ? ' (Aspiring / Admissions)' : (botType === 'existing' ? ' (Existing Student Support)' : '');
+  const sourceChannel = (options.channel || (lead?.channel === 'whatsapp' || lead?.session_id?.startsWith('wa_') ? 'WhatsApp' : 'Web Chatbot')) + audienceTag;
   const appUrl = getAppBaseUrl();
   const specificChatId = options.chatId || options.conversationId || options.escalationId || lead?.session_id || lead?.id;
   const chatUrl = options.actionUrl || (specificChatId ? `${appUrl}/chats?id=${encodeURIComponent(specificChatId)}` : `${appUrl}/chats`);
 
+  const alertHeader = isAspiring
+    ? `🎓 *Admissions Alert — ${schoolInfo.displayName}*`
+    : `🚨 *Student Support Alert — ${schoolInfo.displayName}*`;
+
   const cliqPayload = {
-    text: `🚨 *Lead Alert — ${schoolInfo.displayName}*`,
+    text: alertHeader,
     card: {
       title: `${studentName} (${sourceChannel})`,
       theme: 'modern-inline',
@@ -698,6 +724,7 @@ export async function sendCliqAlert(school, lead, message, options = {}) {
         data: [
           { 'Student Name': studentName },
           { 'Institution': schoolInfo.displayName },
+          { 'Audience': isAspiring ? 'Aspiring Student (Admissions)' : 'Current Student (Support)' },
           { 'Channel': sourceChannel },
           { 'Phone': phone },
           { 'Email': email },

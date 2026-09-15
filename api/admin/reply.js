@@ -121,8 +121,8 @@ export default async function handler(req, res) {
 
       const schoolSlug = conv.schools?.slug || lastUserMsg?.schoolSlug || 'babcock';
       const defaultPhoneId = schoolSlug === 'abu'
-        ? (process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494')
-        : (process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291');
+        ? (process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1244786642062141')
+        : (process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546');
 
       const targetPhoneNumberId = lastUserMsg?.phone_number_id || defaultPhoneId;
       const targetSchoolSlug = lastUserMsg?.schoolSlug || schoolSlug;
