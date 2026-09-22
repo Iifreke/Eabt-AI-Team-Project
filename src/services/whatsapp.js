@@ -5,16 +5,16 @@ import { formatWhatsAppRecipient } from '../utils/phone.js';
  */
 export function resolveWhatsAppPhoneNumberId(options) {
   if (!options) {
-    return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || process.env.WHATSAPP_PHONE_NUMBER_ID || '1308107395712291';
+    return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || process.env.WHATSAPP_PHONE_NUMBER_ID || '1364026993464546';
   }
 
   if (typeof options === 'string') {
     const slug = options.toLowerCase().trim();
     if (slug === 'babcock' || slug === 'backock') {
-      return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
     }
     if (slug === 'abu') {
-      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494';
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
     }
     // If passed a numeric string directly
     if (/^\d+$/.test(slug)) return slug;
@@ -24,14 +24,14 @@ export function resolveWhatsAppPhoneNumberId(options) {
     if (options.phoneNumberId) return options.phoneNumberId;
     const slug = (options.schoolSlug || options.school || '').toLowerCase().trim();
     if (slug === 'babcock' || slug === 'backock') {
-      return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
     }
     if (slug === 'abu') {
-      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494';
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
     }
   }
 
-  return process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
+  return process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
 }
 
 /**

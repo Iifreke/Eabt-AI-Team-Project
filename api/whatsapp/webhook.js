@@ -301,13 +301,13 @@ function resolveSchoolSlugFromPayload(entry, change, query = {}) {
   const displayPhone = change?.metadata?.display_phone_number || '';
   const wabaId = entry?.id || '';
 
-  const babcockPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1308107395712291';
-  const babcockWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_BABCOCK || '1306201654679772';
-  const babcockNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_BABCOCK || '2348080523171').replace(/[^\d]/g, '');
+  const babcockPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
+  const babcockWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_BABCOCK || '1746522759878986';
+  const babcockNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_BABCOCK || '2348026636638').replace(/[^\d]/g, '');
 
-  const abuPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1220287537833494';
-  const abuWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_ABU || '920478204428865';
-  const abuNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_ABU || '2347025105412').replace(/[^\d]/g, '');
+  const abuPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
+  const abuWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_ABU || '1306201654679772';
+  const abuNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_ABU || '2348080523171').replace(/[^\d]/g, '');
 
   // Match by Phone Number ID
   if (phoneId === babcockPhoneId) return 'babcock';
