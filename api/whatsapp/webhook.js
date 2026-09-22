@@ -15,6 +15,7 @@ import { searchKnowledgeBase } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
 import * as email from '../../src/services/email.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
+import { isWithinBusinessHours } from '../../src/utils/validate.js';
 import {
   isValidHumanName,
   cleanPersonName,
@@ -125,44 +126,73 @@ function getEscalationAckMessage(school) {
 
 // ── Multi-Tenant School Helpers ───────────────────────────────────
 
-function getSchoolDisplayName(school) {
+function getSchoolDisplayName(school, botType = 'aspiring') {
   if (!school) return 'University Admissions Support';
   const slug = (school.slug || '').toLowerCase();
+  const isAspiring = botType === 'aspiring';
+
   if (slug === 'babcock' || slug === 'backock') {
-    return 'Babcock University (BU-CODEL)';
+    return isAspiring
+      ? 'Babcock University (BU-CODEL) Admissions'
+      : 'Babcock University (BU-CODEL) Student Support';
   }
   if (slug === 'abu') {
-    return 'Ahmadu Bello University (ABU) Distance Learning Centre';
+    return isAspiring
+      ? 'Ahmadu Bello University (ABU) DLC Admissions'
+      : 'Ahmadu Bello University (ABU) DLC Student Support';
   }
   return school.name || 'Admissions Support';
 }
 
-function getSchoolWelcomePrompt(school, leadName) {
-  const schoolName = getSchoolDisplayName(school);
+function getSchoolWelcomePrompt(school, leadName, botType = 'aspiring') {
+  const schoolName = getSchoolDisplayName(school, botType);
   const slug = (school?.slug || '').toLowerCase();
-  if (slug === 'babcock' || slug === 'backock') {
-    return `Welcome to *${schoolName}*! 🎓\n\nHow can I help you today? Feel free to ask about our undergraduate and conversion degree programmes, admission requirements, tuition fees, or application procedures.`;
+  const isAspiring = botType === 'aspiring';
+
+  if (isAspiring) {
+    if (slug === 'babcock' || slug === 'backock') {
+      return `Welcome to *${schoolName}*! 🎓\n\nHow can I help you today? Feel free to ask about our undergraduate and conversion degree programmes, admission requirements, tuition fees, or application procedures.`;
+    }
+    return `Welcome to *${schoolName}*! 🎓\n\nHow can I help you today? Feel free to ask about our undergraduate and postgraduate programmes, admission requirements, tuition fees, or application procedures.`;
   }
-  return `Welcome to *${schoolName}*! 🎓\n\nHow can I help you today? Feel free to ask about our undergraduate and postgraduate programmes, admission requirements, tuition fees, or application procedures.`;
+
+  // Existing student support prompt
+  return `Welcome to *${schoolName}*! 🎓\n\nHow can I help you today with your ongoing studies, student portal, course registration, exam centers, or LMS access?`;
 }
 
-async function sendConfirmationPrompt(to, lead, school) {
-  const schoolName = getSchoolDisplayName(school);
+async function sendConfirmationPrompt(to, lead, school, options = {}) {
+  const botType = options.botType || 'aspiring';
+  const schoolName = getSchoolDisplayName(school, botType);
   const name = lead.name || 'Student';
   const emailVal = lead.email || 'Not provided';
   const phoneVal = lead.phone || lead.normalized_phone || `+${to}`;
 
-  const bodyText = `Welcome to *${schoolName}*! 🎓\n\nPlease confirm your contact details before we proceed:\n• *Name:* ${name}\n• *Email:* ${emailVal}\n• *Phone:* ${phoneVal}\n\nReply *1* (or click *Confirm & Proceed*) to continue.\nReply *2* (or click *Change Details*) to update your information.`;
+  const bodyText =
+    `Welcome to *${schoolName}*! 🎓\n\n` +
+    `We found your profile on our admissions system:\n` +
+    `• *Name:* ${name}\n` +
+    `• *Email:* ${emailVal}\n` +
+    `• *Phone:* ${phoneVal}\n\n` +
+    `Would you like to:\n` +
+    `1️⃣ *Proceed* with these details\n` +
+    `2️⃣ *Edit / Correct* your details\n` +
+    `3️⃣ *Start Afresh* with new details\n\n` +
+    `Reply *1* (or click *Proceed*), Reply *2* (or click *Edit Details*), or Reply *3* (or click *Start Afresh*):`;
 
   const buttons = [
-    { id: 'confirm_details', title: 'Confirm & Proceed' },
-    { id: 'change_details', title: 'Change Details' },
+    { id: 'confirm_details', title: 'Proceed' },
+    { id: 'change_details', title: 'Edit Details' },
+    { id: 'start_afresh', title: 'Start Afresh' },
   ];
 
-  return await sendWhatsAppButtons(to, bodyText, buttons, { schoolSlug: school.slug });
+  return await sendWhatsAppButtons(to, bodyText, buttons, {
+    schoolSlug: school.slug,
+    phoneNumberId: options.phoneNumberId,
+    botType,
+  });
 }
 
-async function sendPhoneCollectionPrompt(to, rawFrom, school) {
+async function sendPhoneCollectionPrompt(to, rawFrom, school, options = {}) {
   const bodyText = `Great! Lastly, what is your *Phone number*?\n\nWould you like to use your current WhatsApp number *+${rawFrom}* as your contact phone number? (Reply *1* or *'Same'* to use it, or enter a different phone number):`;
 
   const buttons = [
@@ -170,27 +200,72 @@ async function sendPhoneCollectionPrompt(to, rawFrom, school) {
     { id: 'phone_enter_different', title: 'Enter Other Phone' },
   ];
 
-  return await sendWhatsAppButtons(to, bodyText, buttons, { schoolSlug: school.slug });
+  return await sendWhatsAppButtons(to, bodyText, buttons, {
+    schoolSlug: school.slug,
+    phoneNumberId: options.phoneNumberId,
+    botType: options.botType,
+  });
 }
 
-async function sendInteractiveWelcomeMenu(to, school, customHeader = '') {
-  const schoolName = getSchoolDisplayName(school);
-  const header = customHeader || `Welcome to *${schoolName}*! 🎓\n\nHow can I assist you with your academic goals today?`;
-  const bodyText = `${header}\n\nSelect an option below or type any specific question:`;
+async function sendInteractiveWelcomeMenu(to, school, customHeader = '', options = {}) {
+  const botType = options.botType || 'aspiring';
+  const schoolName = getSchoolDisplayName(school, botType);
+  const isAspiring = botType === 'aspiring';
 
-  const buttons = [
-    { id: 'btn_programmes', title: 'Explore Courses' },
-    { id: 'btn_fees', title: 'Tuition & Fees' },
-    { id: 'btn_apply', title: 'How to Apply' },
-  ];
+  const defaultHeader = isAspiring
+    ? `Welcome to *${schoolName}*! 🎓\n\nHow can I assist you with your academic admission goals today?`
+    : `Welcome to *${schoolName}*! 🎓\n\nHow can I assist you with your student portal or academic inquiries today?`;
 
-  return await sendWhatsAppButtons(to, bodyText, buttons, { schoolSlug: school.slug });
+  const header = customHeader || defaultHeader;
+  const withinHours = isWithinBusinessHours();
+  const humanHint = withinHours
+    ? `\n\n💡 _Our advisors are online (Mon–Fri, 8am–6pm WAT). You can reply *Human* or *Advisor* at any time to chat with a representative._`
+    : ``;
+  const bodyText = `${header}${humanHint}\n\nSelect an option below or type any specific question:`;
+
+  const buttons = isAspiring
+    ? [
+        { id: 'btn_programmes', title: 'Explore Courses' },
+        { id: 'btn_fees', title: 'Tuition & Fees' },
+        { id: 'btn_apply', title: 'How to Apply' },
+      ]
+    : [
+        { id: 'btn_portal', title: 'Portal & LMS' },
+        { id: 'btn_exam_centers', title: 'Exam Centers' },
+        { id: 'btn_support', title: 'Speak to Advisor' },
+      ];
+
+  return await sendWhatsAppButtons(to, bodyText, buttons, {
+    schoolSlug: school.slug,
+    phoneNumberId: options.phoneNumberId,
+    botType,
+  });
 }
 
-export function getFastPathResponse(actionIdOrText, school) {
+export function getFastPathResponse(actionIdOrText, school, botType = 'aspiring') {
   const slug = (school?.slug || '').toLowerCase();
   const isBabcock = slug === 'babcock' || slug === 'backock';
   const lower = (actionIdOrText || '').toLowerCase().trim();
+
+  // Portal & LMS Fast-Path (Existing Students)
+  if (
+    lower === 'btn_portal' ||
+    lower === 'portal & lms' ||
+    lower === 'portal' ||
+    lower === 'lms' ||
+    lower === 'student portal' ||
+    lower === 'e-learning'
+  ) {
+    if (isBabcock) {
+      return `💻 *Babcock University (BU-CODEL) Student Portal & LMS*\n\n• *Student Portal:* *https://codel.babcock.edu.ng*\n• *Virtual Learning LMS:* Access your registered courses, lecture notes, assignments, and continuous assessments.\n• *Portal Login Support:* For matriculation, course registration, or password reset assistance, reply *'Advisor'* to chat with support!`;
+    }
+    return `💻 *ABU Distance Learning Centre (ABUDLC) Student Portal & LMS*\n\n• *Registration & Fees Portal:* *https://reg.abudlc.edu.ng*\n• *E-Learning LMS Portal:* Access live sessions, video lectures, and coursework.\n• *Application Portal:* *https://apply.abudlc.edu.ng*\n• *Remote Online Screening:* *https://remote.abudlc-edu.ng/*\n\nNeed technical assistance? Reply *'Advisor'* to connect directly with student support!`;
+  }
+
+  // Speak to Support Fast-Path
+  if (lower === 'btn_support' || lower === 'speak to advisor' || lower === 'contact support') {
+    return `Connecting you directly with a representative...`;
+  }
 
   // Programmes Fast-Path
   if (
@@ -287,44 +362,95 @@ export function getFastPathResponse(actionIdOrText, school) {
 }
 
 /**
- * Resolves the destination school slug based on WhatsApp metadata.
+ * Resolves the destination school slug, bot type (aspiring vs existing), and phone number ID based on WhatsApp metadata.
  */
-function resolveSchoolSlugFromPayload(entry, change, query = {}) {
-  // Check direct query parameter override
-  if (query.school) {
-    const q = query.school.toLowerCase().trim();
-    if (q === 'babcock' || q === 'backock') return 'babcock';
-    if (q === 'abu') return 'abu';
+export function resolveBotContextFromPayload(entry, change, query = {}) {
+  const phoneId = String(change?.metadata?.phone_number_id || '').trim();
+  const displayPhone = String(change?.metadata?.display_phone_number || '').replace(/[^\d]/g, '');
+  const wabaId = String(entry?.id || '').trim();
+
+  // 1. Aspiring / Admissions Bots (NEW)
+  const babcockAspiringPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
+  const babcockAspiringWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_BABCOCK || '1746522759878986';
+  const babcockAspiringNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_BABCOCK || '2348026636638').replace(/[^\d]/g, '');
+
+  const abuAspiringPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1244786642062141';
+  const abuAspiringWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_ABU || '4487863601471450';
+  const abuAspiringNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_ABU || '2348023399998').replace(/[^\d]/g, '');
+
+  // 2. Existing Student / Support Bots (RETAINED)
+  const babcockExistingPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK_EXISTING || '1308107395712291';
+  const babcockExistingWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_BABCOCK_EXISTING || '1306201654679772';
+  const babcockExistingNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_BABCOCK_EXISTING || '2348080523171').replace(/[^\d]/g, '');
+
+  const abuExistingPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_ABU_EXISTING || '1220287537833494';
+  const abuExistingWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_ABU_EXISTING || '920478204428865';
+  const abuExistingNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_ABU_EXISTING || '2347025105412').replace(/[^\d]/g, '');
+
+  // Match ABU Aspiring
+  if (
+    phoneId === abuAspiringPhoneId ||
+    wabaId === abuAspiringWabaId ||
+    (displayPhone && (displayPhone === abuAspiringNumber || displayPhone.endsWith('8023399998') || displayPhone.endsWith('3399998')))
+  ) {
+    return { schoolSlug: 'abu', botType: 'aspiring', phoneNumberId: abuAspiringPhoneId };
   }
 
-  const phoneId = change?.metadata?.phone_number_id || '';
-  const displayPhone = change?.metadata?.display_phone_number || '';
-  const wabaId = entry?.id || '';
+  // Match ABU Existing / Support
+  if (
+    phoneId === abuExistingPhoneId ||
+    wabaId === abuExistingWabaId ||
+    (displayPhone && (displayPhone === abuExistingNumber || displayPhone.endsWith('7025105412') || displayPhone.endsWith('5105412')))
+  ) {
+    return { schoolSlug: 'abu', botType: 'existing', phoneNumberId: abuExistingPhoneId };
+  }
 
-  const babcockPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
-  const babcockWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_BABCOCK || '1746522759878986';
-  const babcockNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_BABCOCK || '2348026636638').replace(/[^\d]/g, '');
+  // Match Babcock Existing / Support
+  if (
+    phoneId === babcockExistingPhoneId ||
+    wabaId === babcockExistingWabaId ||
+    (displayPhone && (displayPhone === babcockExistingNumber || displayPhone.endsWith('8080523171') || displayPhone.endsWith('523171')))
+  ) {
+    return { schoolSlug: 'babcock', botType: 'existing', phoneNumberId: babcockExistingPhoneId };
+  }
 
-  const abuPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
-  const abuWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID_ABU || '1306201654679772';
-  const abuNumber = (process.env.WHATSAPP_BUSINESS_NUMBER_ABU || '2348080523171').replace(/[^\d]/g, '');
+  // Match Babcock Aspiring
+  if (
+    phoneId === babcockAspiringPhoneId ||
+    wabaId === babcockAspiringWabaId ||
+    (displayPhone && (displayPhone === babcockAspiringNumber || displayPhone.endsWith('8026636638') || displayPhone.endsWith('6636638')))
+  ) {
+    return { schoolSlug: 'babcock', botType: 'aspiring', phoneNumberId: babcockAspiringPhoneId };
+  }
 
-  // Match by Phone Number ID
-  if (phoneId === babcockPhoneId) return 'babcock';
-  if (phoneId === abuPhoneId) return 'abu';
+  // Query parameter overrides
+  if (query.school) {
+    const q = query.school.toLowerCase().trim();
+    const botType = query.type === 'existing' ? 'existing' : 'aspiring';
+    if (q === 'abu') {
+      return {
+        schoolSlug: 'abu',
+        botType,
+        phoneNumberId: botType === 'existing' ? abuExistingPhoneId : abuAspiringPhoneId,
+      };
+    }
+    return {
+      schoolSlug: 'babcock',
+      botType,
+      phoneNumberId: botType === 'existing' ? babcockExistingPhoneId : babcockAspiringPhoneId,
+    };
+  }
 
-  // Match by Business Number / Display Phone
-  const cleanDisplay = displayPhone.replace(/[^\d]/g, '');
-  if (cleanDisplay && (cleanDisplay === babcockNumber || cleanDisplay.endsWith('8080523171'))) return 'babcock';
-  if (cleanDisplay && (cleanDisplay === abuNumber || cleanDisplay.endsWith('7025105412'))) return 'abu';
+  // General fallback
+  if (process.env.WHATSAPP_PHONE_NUMBER_ID === abuAspiringPhoneId || process.env.WHATSAPP_PHONE_NUMBER_ID === abuExistingPhoneId) {
+    return { schoolSlug: 'abu', botType: 'aspiring', phoneNumberId: abuAspiringPhoneId };
+  }
 
-  // Match by WABA ID
-  if (wabaId === babcockWabaId) return 'babcock';
-  if (wabaId === abuWabaId) return 'abu';
+  return { schoolSlug: 'babcock', botType: 'aspiring', phoneNumberId: babcockAspiringPhoneId };
+}
 
-  // Default fallback to Babcock if primary configured, otherwise check general env
-  if (process.env.WHATSAPP_PHONE_NUMBER_ID === abuPhoneId) return 'abu';
-  return 'babcock';
+export function resolveSchoolSlugFromPayload(entry, change, query = {}) {
+  return resolveBotContextFromPayload(entry, change, query).schoolSlug;
 }
 
 /**
@@ -334,7 +460,7 @@ function verifyMetaSignature(req) {
   const appSecret = process.env.WHATSAPP_APP_SECRET;
   if (!appSecret) return true;
 
-  const signature = req.headers['x-hub-signature-256'];
+  const signature = req.headers?.['x-hub-signature-256'] || req.headers?.['X-Hub-Signature-256'];
   if (!signature) {
     console.warn('[WhatsApp Webhook] Missing x-hub-signature-256 header');
     return true;
@@ -425,9 +551,12 @@ export default async function handler(req, res) {
       from_phone: rawFrom,
     });
 
-    // ── Multi-Tenant School Resolution ───────────────────────
-    const schoolSlug = resolveSchoolSlugFromPayload(entry, change, req.query);
-    console.log('[WhatsApp Webhook] Resolved School Slug:', schoolSlug);
+    // ── Multi-Tenant School & Bot Resolution ─────────────────
+    const botContext = resolveBotContextFromPayload(entry, change, req.query);
+    const schoolSlug = botContext.schoolSlug;
+    const botType = botContext.botType;
+    const activePhoneNumberId = botContext.phoneNumberId;
+    console.log('[WhatsApp Webhook] Resolved Context:', { schoolSlug, botType, activePhoneNumberId });
 
     let { data: school, error: schoolErr } = await supabase
       .from('schools')
@@ -473,12 +602,12 @@ export default async function handler(req, res) {
       await sendWhatsAppMessage(
         rawFrom,
         'I received your attachment. Could you please describe what you need assistance with in text so I can help you best?',
-        { schoolSlug: school.slug }
+        { schoolSlug: school.slug, phoneNumberId: activePhoneNumberId, botType }
       );
       return res.status(200).json({ status: 'media_prompt_sent' });
     }
 
-    // ── Load or Create Lead Record ───────────────────────────
+    // ── Load or Create Lead Record (Checking both Supabase & Zoho) ──
     const waLeadConditions = [`session_id.eq.wa_${rawFrom}`];
     if (normalizedPhone) waLeadConditions.push(`normalized_phone.eq.${normalizedPhone}`);
     if (rawFrom) waLeadConditions.push(`phone.eq.${rawFrom}`);
@@ -491,36 +620,70 @@ export default async function handler(req, res) {
       .limit(1)
       .maybeSingle();
 
+    // Verify if lead exists on Zoho CRM
+    let zohoLead = null;
+    try {
+      zohoLead = await zoho.findZohoLead(rawFrom, lead?.email);
+    } catch (zErr) {
+      console.warn('[WhatsApp Webhook] Zoho search warning:', zErr.message);
+    }
+
+    const schoolLabel = school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock';
+    const audienceLabel = botType === 'aspiring' ? 'Aspiring' : 'Support';
+    const defaultLeadSource = `WhatsApp Bot (${schoolLabel} ${audienceLabel})`;
+
     if (!lead) {
       const { data: newLead } = await supabase
         .from('leads')
         .insert({
           school_id: school.id,
           session_id: `wa_${rawFrom}`,
-          name: profileName || null,
+          name: (zohoLead?.name && !isPlaceholderName(zohoLead.name)) ? zohoLead.name : (profileName || null),
+          email: zohoLead?.email || null,
           phone: rawFrom,
           normalized_phone: normalizedPhone,
+          zoho_contact_id: zohoLead?.id || null,
+          zoho_synced_at: zohoLead?.id ? new Date().toISOString() : null,
           whatsapp_opt_in: true,
         })
         .select()
         .single();
       lead = newLead;
-      if (lead) {
-        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+      if (lead && !zohoLead?.id) {
+        await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
       }
-    } else if (lead.school_id !== school.id || (!lead.normalized_phone && normalizedPhone) || (!lead.phone && rawFrom)) {
-      const { data: updatedLead } = await supabase
-        .from('leads')
-        .update({
-          school_id: school.id,
-          phone: lead.phone || rawFrom,
-          normalized_phone: lead.normalized_phone || normalizedPhone,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', lead.id)
-        .select()
-        .single();
-      lead = updatedLead;
+    } else {
+      const updates = {};
+      if (zohoLead?.id && !lead.zoho_contact_id) {
+        updates.zoho_contact_id = zohoLead.id;
+        updates.zoho_synced_at = new Date().toISOString();
+      }
+      if (zohoLead?.name && (!lead.name || isPlaceholderName(lead.name))) {
+        updates.name = zohoLead.name;
+      }
+      if (zohoLead?.email && !lead.email) {
+        updates.email = zohoLead.email;
+      }
+      if (lead.school_id !== school.id) {
+        updates.school_id = school.id;
+      }
+      if (!lead.normalized_phone && normalizedPhone) {
+        updates.normalized_phone = normalizedPhone;
+      }
+      if (!lead.phone && rawFrom) {
+        updates.phone = rawFrom;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updates.updated_at = new Date().toISOString();
+        const { data: updatedLead } = await supabase
+          .from('leads')
+          .update(updates)
+          .eq('id', lead.id)
+          .select()
+          .single();
+        if (updatedLead) lead = updatedLead;
+      }
     }
 
     // ── Load or Create Conversation ──────────────────────────
@@ -571,8 +734,9 @@ export default async function handler(req, res) {
 
     const messages = Array.isArray(conv.messages) ? conv.messages : [];
     const lowerInput = incomingText.toLowerCase().trim();
-    const schoolName = getSchoolDisplayName(school);
-    const phoneId = change?.metadata?.phone_number_id || '';
+    const schoolName = getSchoolDisplayName(school, botType);
+    const phoneId = activePhoneNumberId;
+    const sendOpts = { schoolSlug: school.slug, phoneNumberId: activePhoneNumberId, botType };
 
     const pushUserMessage = (text) => {
       messages.push({
@@ -580,8 +744,9 @@ export default async function handler(req, res) {
         content: text,
         channel: 'whatsapp',
         ts: Date.now(),
-        phone_number_id: phoneId,
+        phone_number_id: activePhoneNumberId,
         schoolSlug: school.slug,
+        bot_type: botType,
       });
     };
 
@@ -589,10 +754,16 @@ export default async function handler(req, res) {
     if (conv.stage === 'escalated') {
       pushUserMessage(incomingText);
 
+      const nowIso = new Date().toISOString();
       await supabase
         .from('conversations')
-        .update({ messages, channel: 'whatsapp', updated_at: new Date().toISOString() })
+        .update({ messages, channel: 'whatsapp', updated_at: nowIso })
         .eq('id', conv.id);
+
+      await supabase
+        .from('escalations')
+        .update({ updated_at: nowIso })
+        .eq('conversation_id', conv.id);
 
       // Always alert Cliq so agent sees every follow-up message
       await zoho.sendCliqAlert(
@@ -600,9 +771,11 @@ export default async function handler(req, res) {
         lead,
         `New WhatsApp message from student: "${incomingText}"`,
         {
-          channel: 'WhatsApp',
+          channel: `WhatsApp (${botType === 'aspiring' ? 'Aspiring' : 'Support'})`,
+          botType,
           reason: 'Escalated Chat Follow-up',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+          chatId: conv.id,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       ).catch(() => {});
 
@@ -643,12 +816,12 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           .update({ messages, updated_at: new Date().toISOString() })
           .eq('id', conv.id);
 
-        await sendWhatsAppMessage(rawFrom, escCleanReply, { schoolSlug: school.slug });
+        await sendWhatsAppMessage(rawFrom, escCleanReply, sendOpts);
       } catch (escErr) {
         console.warn('[WhatsApp Webhook] AI fallback in escalated failed:', escErr.message);
         // Fallback ack so user isn't left in silence
         const ack = getEscalationAckMessage(school);
-        await sendWhatsAppMessage(rawFrom, ack, { schoolSlug: school.slug }).catch(() => {});
+        await sendWhatsAppMessage(rawFrom, ack, sendOpts).catch(() => {});
       }
 
       return res.status(200).json({ status: 'escalated_ai_responded' });
@@ -687,6 +860,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       messages.length === 0 ||
       conv.stage === 'resolved' ||
       conv.stage === 'confirming_details' ||
+      isSessionStartMessage(incomingText) ||
       isSessionStale(conv);
 
     // If at beginning of chat and details are complete: Must confirm before proceeding
@@ -703,11 +877,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendConfirmationPrompt(rawFrom, lead, school);
+      await sendConfirmationPrompt(rawFrom, lead, school, sendOpts);
       return res.status(200).json({ status: 'confirmation_prompt_sent' });
     }
 
-    // ── STAGE: CONFIRMING DETAILS ────────────────────────────
+    // ── STAGE: CONFIRMING DETAILS (Zoho Verification) ───────
     if (conv.stage === 'confirming_details') {
       pushUserMessage(incomingText);
 
@@ -733,16 +907,65 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         lowerInput === '2' ||
         lowerInput === 'change' ||
         lowerInput === 'change details' ||
+        lowerInput === 'edit' ||
+        lowerInput === 'edit details' ||
+        lowerInput === 'correct' ||
         lowerInput === 'update' ||
         lowerInput === 'update details' ||
-        lowerInput === 'edit' ||
         lowerInput === 'modify' ||
-        lowerInput === 'no' ||
         lowerInput === 'different' ||
         lowerInput === 'wrong';
 
+      const isStartAfresh =
+        clickedButtonId === 'start_afresh' ||
+        lowerInput === '3' ||
+        lowerInput === 'start afresh' ||
+        lowerInput === 'afresh' ||
+        lowerInput === 'restart' ||
+        lowerInput === 'reset' ||
+        lowerInput === 'new' ||
+        lowerInput === 'start over' ||
+        lowerInput === 'fresh' ||
+        lowerInput === 'start fresh';
+
+      if (isStartAfresh) {
+        // Reset lead profile and start onboarding afresh
+        lead.name = null;
+        lead.email = null;
+        await supabase
+          .from('leads')
+          .update({
+            name: null,
+            email: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', lead.id);
+
+        conv.stage = 'onboarding_name';
+        const freshWelcomePrompt = `Welcome to *${schoolName}*! 🎓\n\nI am Maverick, your virtual concierge.\n\nLet's get your details set up afresh. Before we proceed with your inquiry, could you please tell me your *Full Name*?`;
+        messages.push({ role: 'assistant', content: freshWelcomePrompt, ts: Date.now() });
+
+        await supabase
+          .from('conversations')
+          .update({
+            stage: 'onboarding_name',
+            messages,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conv.id);
+
+        await sendWhatsAppMessage(rawFrom, freshWelcomePrompt, sendOpts);
+        return res.status(200).json({ status: 'start_afresh_initiated' });
+      }
+
       if (isConfirm) {
         conv.stage = 'active';
+
+        // Ensure lead is synced to Zoho with current school tag
+        await zoho.syncLeadToZoho(lead, school, {
+          source: defaultLeadSource,
+          botType,
+        });
 
         const questionSnippet = incomingText
           .replace(/^(1|confirm|yes|proceed|correct|ok|okay|sure|looks good|all good)[., ]*/i, '')
@@ -764,7 +987,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
             const cleanReply = stripEscalateToken(aiReply);
             welcomeReply += cleanReply;
           } catch (e) {
-            welcomeReply += getSchoolWelcomePrompt(school, lead.name);
+            welcomeReply += getSchoolWelcomePrompt(school, lead.name, botType);
           }
 
           messages.push({ role: 'assistant', content: welcomeReply, ts: Date.now() });
@@ -778,7 +1001,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
             })
             .eq('id', conv.id);
 
-          await sendWhatsAppMessage(rawFrom, welcomeReply, { schoolSlug: school.slug });
+          await sendWhatsAppMessage(rawFrom, welcomeReply, sendOpts);
           return res.status(200).json({ status: 'confirmed_and_activated' });
         }
 
@@ -795,7 +1018,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', conv.id);
 
-        await sendInteractiveWelcomeMenu(rawFrom, school, welcomeHeader);
+        await sendInteractiveWelcomeMenu(rawFrom, school, welcomeHeader, sendOpts);
         return res.status(200).json({ status: 'confirmed_and_activated' });
       }
 
@@ -813,7 +1036,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', conv.id);
 
-        await sendWhatsAppMessage(rawFrom, changePrompt, { schoolSlug: school.slug });
+        await sendWhatsAppMessage(rawFrom, changePrompt, sendOpts);
         return res.status(200).json({ status: 'change_flow_started' });
       }
 
@@ -838,7 +1061,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', lead.id);
 
-        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+        await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
 
         const updateAck = `I've updated your details! Please confirm:`;
         messages.push({ role: 'assistant', content: updateAck, ts: Date.now() });
@@ -851,12 +1074,12 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', conv.id);
 
-        await sendConfirmationPrompt(rawFrom, lead, school);
+        await sendConfirmationPrompt(rawFrom, lead, school, sendOpts);
         return res.status(200).json({ status: 'direct_details_updated' });
       }
 
       // Unrecognized answer -> resend prompt
-      await sendConfirmationPrompt(rawFrom, lead, school);
+      await sendConfirmationPrompt(rawFrom, lead, school, sendOpts);
       return res.status(200).json({ status: 'confirmation_prompt_resent' });
     }
 
@@ -869,12 +1092,12 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         if (cleanedName && isValidHumanName(cleanedName)) {
           lead.name = cleanedName;
           await supabase.from('leads').update({ name: lead.name, updated_at: new Date().toISOString() }).eq('id', lead.id);
-          await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+          await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
         } else {
           const retryName = `Please enter your *Full Name* (e.g. *John Doe*) or reply *'Keep'* to keep *${lead.name || 'current name'}*:`;
           messages.push({ role: 'assistant', content: retryName, ts: Date.now() });
           await supabase.from('conversations').update({ messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-          await sendWhatsAppMessage(rawFrom, retryName, { schoolSlug: school.slug });
+          await sendWhatsAppMessage(rawFrom, retryName, sendOpts);
           return res.status(200).json({ status: 'invalid_name_in_update' });
         }
       }
@@ -892,7 +1115,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, promptEmail, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, promptEmail, sendOpts);
       return res.status(200).json({ status: 'updated_name' });
     }
 
@@ -904,10 +1127,10 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         if (extracted) {
           lead.email = extracted;
           await supabase.from('leads').update({ email: lead.email, updated_at: new Date().toISOString() }).eq('id', lead.id);
-          await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+          await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
         } else {
           const invalidReply = `That doesn't look like a valid email address. Please enter your email (e.g. *name@example.com*) or reply *'Keep'* to keep *${lead.email || 'current email'}*:`;
-          await sendWhatsAppMessage(rawFrom, invalidReply, { schoolSlug: school.slug });
+          await sendWhatsAppMessage(rawFrom, invalidReply, sendOpts);
           return res.status(200).json({ status: 'invalid_email_prompt' });
         }
       }
@@ -925,7 +1148,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, promptPhone, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, promptPhone, sendOpts);
       return res.status(200).json({ status: 'updated_email' });
     }
 
@@ -942,7 +1165,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           lead.normalized_phone = norm;
         } else {
           const retryPhone = `Please enter a valid phone number (e.g. *08012345678*) or reply *'Keep'* to keep *${lead.phone || lead.normalized_phone}*:`;
-          await sendWhatsAppMessage(rawFrom, retryPhone, { schoolSlug: school.slug });
+          await sendWhatsAppMessage(rawFrom, retryPhone, sendOpts);
           return res.status(200).json({ status: 'invalid_phone_in_update' });
         }
       }
@@ -958,10 +1181,10 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', lead.id);
 
-      await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+      await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
 
       conv.stage = 'active';
-      const successReply = `Thank you, *${lead.name}*! Your details have been updated successfully: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\n${getSchoolWelcomePrompt(school, lead.name)}`;
+      const successReply = `Thank you, *${lead.name}*! Your details have been updated successfully: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\n${getSchoolWelcomePrompt(school, lead.name, botType)}`;
       messages.push({ role: 'assistant', content: successReply, ts: Date.now() });
 
       await supabase
@@ -973,7 +1196,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendInteractiveWelcomeMenu(rawFrom, school, `Thank you, *${lead.name}*! Your details have been updated successfully. ✅`);
+      await sendInteractiveWelcomeMenu(rawFrom, school, `Thank you, *${lead.name}*! Your details have been updated successfully. ✅`, sendOpts);
       return res.status(200).json({ status: 'update_completed' });
     }
 
@@ -1005,37 +1228,42 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           })
           .eq('id', lead.id);
 
-        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+        await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
 
         if (lead.email && lead.phone) {
           // All details provided at once!
           conv.stage = 'active';
-          await zoho.sendCliqAlert(school, lead, `New student completed registration: "${lead.name}" (${lead.email})`, { channel: 'WhatsApp' });
+          await zoho.sendCliqAlert(
+            school,
+            lead,
+            `New student completed registration: "${lead.name}" (${lead.email})`,
+            { channel: `WhatsApp (${botType === 'aspiring' ? 'Aspiring' : 'Support'})`, botType, chatId: conv.id, actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}` }
+          );
 
           await supabase.from('conversations').update({ stage: 'active', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-          await sendInteractiveWelcomeMenu(rawFrom, school, `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`);
+          await sendInteractiveWelcomeMenu(rawFrom, school, `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`, sendOpts);
           return res.status(200).json({ status: 'onboarding_completed' });
         }
 
         // Advance to email
         conv.stage = 'onboarding_email';
         const promptEmail = messages.length <= 1
-          ? `Welcome to *${schoolName}* Admissions Support! 🎓\n\nI am Maverick, your admissions concierge.\n\nThank you, *${lead.name}*! What is your *Email address*?`
+          ? `Welcome to *${schoolName}*! 🎓\n\nI am Maverick, your virtual concierge.\n\nThank you, *${lead.name}*! What is your *Email address*?`
           : `Thank you, *${lead.name}*! What is your *Email address*?`;
         messages.push({ role: 'assistant', content: promptEmail, ts: Date.now() });
 
         await supabase.from('conversations').update({ stage: 'onboarding_email', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-        await sendWhatsAppMessage(rawFrom, promptEmail, { schoolSlug: school.slug });
+        await sendWhatsAppMessage(rawFrom, promptEmail, sendOpts);
         return res.status(200).json({ status: 'asked_email' });
       }
 
       // Needs Name prompt (DO NOT set incoming question/sentence as name!)
       conv.stage = 'onboarding_name';
-      const promptName = `Welcome to *${schoolName}* Admissions Support! 🎓\n\nI am Maverick, your admissions concierge.\n\nBefore we proceed with your inquiry, could you please tell me your *Full Name*?`;
+      const promptName = `Welcome to *${schoolName}*! 🎓\n\nI am Maverick, your virtual concierge.\n\nBefore we proceed with your inquiry, could you please tell me your *Full Name*?`;
       messages.push({ role: 'assistant', content: promptName, ts: Date.now() });
 
       await supabase.from('conversations').update({ stage: 'onboarding_name', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-      await sendWhatsAppMessage(rawFrom, promptName, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, promptName, sendOpts);
       return res.status(200).json({ status: 'asked_name' });
     }
 
@@ -1048,7 +1276,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       if (emailVal && !isSessionStartMessage(incomingText)) {
         lead.email = emailVal;
         await supabase.from('leads').update({ email: lead.email, updated_at: new Date().toISOString() }).eq('id', lead.id);
-        await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+        await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
 
         conv.stage = 'onboarding_phone';
         messages.push({
@@ -1058,17 +1286,17 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         });
 
         await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-        await sendPhoneCollectionPrompt(rawFrom, rawFrom, school);
+        await sendPhoneCollectionPrompt(rawFrom, rawFrom, school, sendOpts);
         return res.status(200).json({ status: 'asked_phone' });
       }
 
       // If user sent a greeting / session start keyword while in email onboarding
       if (isSessionStartMessage(incomingText)) {
-        const greetingEmailPrompt = `Hello${lead.name ? ` *${lead.name}*` : ''}! Welcome to *${schoolName}* Admissions Support! 🎓\n\nTo assist you with your inquiry, could you please provide your *Email address* (e.g. *name@example.com*)?`;
+        const greetingEmailPrompt = `Hello${lead.name ? ` *${lead.name}*` : ''}! Welcome to *${schoolName}*! 🎓\n\nTo assist you with your inquiry, could you please provide your *Email address* (e.g. *name@example.com*)?`;
         messages.push({ role: 'assistant', content: greetingEmailPrompt, ts: Date.now() });
 
         await supabase.from('conversations').update({ stage: 'onboarding_email', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-        await sendWhatsAppMessage(rawFrom, greetingEmailPrompt, { schoolSlug: school.slug });
+        await sendWhatsAppMessage(rawFrom, greetingEmailPrompt, sendOpts);
         return res.status(200).json({ status: 'asked_email' });
       }
 
@@ -1077,7 +1305,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       messages.push({ role: 'assistant', content: invalidEmailPrompt, ts: Date.now() });
 
       await supabase.from('conversations').update({ stage: 'onboarding_email', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-      await sendWhatsAppMessage(rawFrom, invalidEmailPrompt, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, invalidEmailPrompt, sendOpts);
       return res.status(200).json({ status: 'asked_email' });
     }
 
@@ -1090,7 +1318,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         messages.push({ role: 'assistant', content: enterDifferentPrompt, ts: Date.now() });
 
         await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-        await sendWhatsAppMessage(rawFrom, enterDifferentPrompt, { schoolSlug: school.slug });
+        await sendWhatsAppMessage(rawFrom, enterDifferentPrompt, sendOpts);
         return res.status(200).json({ status: 'asked_phone' });
       }
 
@@ -1116,7 +1344,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
             messages.push({ role: 'assistant', content: greetingPhonePrompt, ts: Date.now() });
 
             await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-            await sendPhoneCollectionPrompt(rawFrom, rawFrom, school);
+            await sendPhoneCollectionPrompt(rawFrom, rawFrom, school, sendOpts);
             return res.status(200).json({ status: 'asked_phone' });
           }
 
@@ -1125,7 +1353,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           messages.push({ role: 'assistant', content: retryPhone, ts: Date.now() });
 
           await supabase.from('conversations').update({ stage: 'onboarding_phone', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
-          await sendPhoneCollectionPrompt(rawFrom, rawFrom, school);
+          await sendPhoneCollectionPrompt(rawFrom, rawFrom, school, sendOpts);
           return res.status(200).json({ status: 'asked_phone' });
         }
       }
@@ -1142,12 +1370,17 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', lead.id);
 
-      await zoho.syncLeadToZoho(lead, school, { source: 'WhatsApp Bot' });
+      await zoho.syncLeadToZoho(lead, school, { source: defaultLeadSource, botType });
       await zoho.sendCliqAlert(
         school,
         lead,
         `New student completed WhatsApp onboarding: "${lead.name}" (${lead.email})`,
-        { channel: 'WhatsApp', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+        {
+          channel: `WhatsApp (${botType === 'aspiring' ? 'Aspiring' : 'Support'})`,
+          botType,
+          chatId: conv.id,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
+        }
       );
 
       conv.stage = 'active';
@@ -1169,7 +1402,10 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           const aiReply = await chat(systemPrompt, [{ role: 'user', content: firstInquiry }]);
           const cleanReply = stripEscalateToken(aiReply);
 
-          const welcomeActiveWithAnswer = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nRegarding your inquiry:\n${cleanReply}`;
+          let welcomeActiveWithAnswer = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}\n\nRegarding your inquiry:\n${cleanReply}`;
+          if (isWithinBusinessHours()) {
+            welcomeActiveWithAnswer += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+          }
           messages.push({ role: 'assistant', content: welcomeActiveWithAnswer, ts: Date.now() });
 
           await supabase
@@ -1181,7 +1417,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
             })
             .eq('id', conv.id);
 
-          await sendWhatsAppMessage(rawFrom, welcomeActiveWithAnswer, { schoolSlug: school.slug });
+          await sendWhatsAppMessage(rawFrom, welcomeActiveWithAnswer, sendOpts);
           return res.status(200).json({ status: 'onboarding_completed_with_answer' });
         } catch (ragErr) {
           console.warn('[WhatsApp Webhook] Initial inquiry answer fallback:', ragErr.message);
@@ -1197,7 +1433,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendInteractiveWelcomeMenu(rawFrom, school, `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`);
+      let successMsg = `Perfect, thank you *${lead.name}*! Your details have been saved: ✅\n• *Name:* ${lead.name}\n• *Email:* ${lead.email}\n• *Phone:* ${lead.phone || lead.normalized_phone}`;
+      if (isWithinBusinessHours()) {
+        successMsg += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+      }
+      await sendInteractiveWelcomeMenu(rawFrom, school, successMsg, sendOpts);
       return res.status(200).json({ status: 'onboarding_completed' });
     }
 
@@ -1205,9 +1445,13 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     pushUserMessage(incomingText);
 
     // 1. FAST-PATH EXECUTION (Sub-50ms instant response for buttons & high-frequency queries)
-    const fastReply = getFastPathResponse(clickedButtonId || incomingText, school);
+    const fastReply = getFastPathResponse(clickedButtonId || incomingText, school, botType);
     if (fastReply) {
-      messages.push({ role: 'assistant', content: fastReply, ts: Date.now() });
+      let finalFastReply = fastReply;
+      if (isWithinBusinessHours()) {
+        finalFastReply += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+      }
+      messages.push({ role: 'assistant', content: finalFastReply, ts: Date.now() });
 
       await supabase
         .from('conversations')
@@ -1218,7 +1462,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         })
         .eq('id', conv.id);
 
-      await sendWhatsAppMessage(rawFrom, fastReply, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, finalFastReply, sendOpts);
       return res.status(200).json({ status: 'fast_path_dispatched' });
     }
 
@@ -1226,6 +1470,41 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
     const wantsHuman = detectEscalation(incomingText);
 
     if (wantsHuman) {
+      const withinHours = isWithinBusinessHours();
+
+      if (!withinHours) {
+        const offHoursMsg = `Our admissions advisors are currently offline (Office hours: Monday–Friday, 8:00 AM – 6:00 PM WAT). 🌙\n\nYour message has been logged for our admissions team to review and follow up with you on the next business day. In the meantime, I am available 24/7 to answer all your questions about programmes, requirements, fees, and application procedures!`;
+        messages.push({ role: 'assistant', content: offHoursMsg, ts: Date.now() });
+
+        await supabase
+          .from('conversations')
+          .update({
+            messages,
+            stage: 'escalated',
+            channel: 'whatsapp',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conv.id);
+
+        await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: defaultLeadSource, botType });
+        await zoho.createEscalationTask(lead, school, 'Off-Hours Human Request', incomingText);
+        await zoho.sendCliqAlert(
+          school,
+          lead,
+          `Off-hours WhatsApp human assistance request from ${lead.name || 'Student'}: "${incomingText}"`,
+          {
+            channel: `WhatsApp (${botType === 'aspiring' ? 'Aspiring' : 'Support'})`,
+            botType,
+            reason: 'Off-Hours Human Request',
+            chatId: conv.id,
+            actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
+          }
+        );
+
+        await sendWhatsAppMessage(rawFrom, offHoursMsg, sendOpts);
+        return res.status(200).json({ status: 'off_hours_escalated' });
+      }
+
       conv.stage = 'escalated';
 
       await supabase.from('escalations').insert({
@@ -1250,7 +1529,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
       const fullTranscript = zoho.formatConversationTranscript(messages, lead, school, { reason: 'user_request' });
 
-      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'WhatsApp Bot' });
+      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: defaultLeadSource, botType });
 
       await zoho.createEscalationTask(
         lead,
@@ -1265,9 +1544,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         lead,
         `Student requested live human assistance on WhatsApp: "${incomingText}"`,
         {
-          channel: 'WhatsApp',
+          channel: `WhatsApp (${botType === 'aspiring' ? 'Aspiring' : 'Support'})`,
+          botType,
           reason: 'User Requested Human',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+          chatId: conv.id,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       );
 
@@ -1282,11 +1563,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         console.error('[WhatsApp Webhook] Escalation email error:', emailErr.message);
       }
 
-      await sendWhatsAppMessage(rawFrom, botResponse, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, botResponse, sendOpts);
       return res.status(200).json({ status: 'escalated' });
     }
 
-    // 3. EXECUTE KNOWLEDGE BASE RAG SEARCH & CLAUDE INFERENCE
+    // 3. EXECUTE KNOWLEDGE BASE RAG SEARCH & GPT-4O-MINI INFERENCE
     const chunks = await searchKnowledgeBase(incomingText, school.id);
     const context =
       chunks.length > 0
@@ -1332,7 +1613,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
       const fullTranscript = zoho.formatConversationTranscript(messages, lead, school, { reason: 'failed_attempts' });
 
-      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'WhatsApp Bot' });
+      await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: defaultLeadSource, botType });
 
       await zoho.createEscalationTask(
         lead,
@@ -1347,9 +1628,11 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         lead,
         `AI could not find knowledge base answer for: "${incomingText}". Escalating to ${schoolName} support team.`,
         {
-          channel: 'WhatsApp',
+          channel: `WhatsApp (${botType === 'aspiring' ? 'Aspiring' : 'Support'})`,
+          botType,
           reason: 'Knowledge Base Fallback',
-          actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats`,
+          chatId: conv.id,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
         }
       );
 
@@ -1364,12 +1647,17 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         console.error('[WhatsApp Webhook] Escalation email error:', emailErr.message);
       }
 
-      await sendWhatsAppMessage(rawFrom, combinedReply, { schoolSlug: school.slug });
+      await sendWhatsAppMessage(rawFrom, combinedReply, sendOpts);
       return res.status(200).json({ status: 'answered_and_escalated' });
     }
 
     // Normal Successful Answer
-    messages.push({ role: 'assistant', content: cleanReply, ts: Date.now() });
+    let finalWhatsAppReply = cleanReply;
+    if (isWithinBusinessHours()) {
+      finalWhatsAppReply += `\n\n💬 _Admissions advisors are online right now. Reply with *Human* or *Advisor* at any time if you'd like to speak with a representative._`;
+    }
+
+    messages.push({ role: 'assistant', content: finalWhatsAppReply, ts: Date.now() });
 
     await supabase
       .from('conversations')
@@ -1380,7 +1668,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       })
       .eq('id', conv.id);
 
-    await sendWhatsAppMessage(rawFrom, cleanReply, { schoolSlug: school.slug });
+    await sendWhatsAppMessage(rawFrom, cleanReply, sendOpts);
 
     // Automatically attach updated full conversation transcript note to Zoho CRM
     if (messages.length >= 2) {

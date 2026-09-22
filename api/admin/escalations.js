@@ -2,6 +2,7 @@ import { applyCors } from '../../src/utils/cors.js';
 import { requireAuth } from '../../src/utils/auth.js';
 import { resolveSchoolId } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
+import { sendWhatsAppMessage } from '../../src/services/whatsapp.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -16,16 +17,22 @@ export default async function handler(req, res) {
 
       let query = supabase
         .from('escalations')
-        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
+        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone, updated_at, messages), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
 
-      if (status) query = query.eq('status', status);
+      if (status) {
+        if (status === 'active') {
+          query = query.in('status', ['pending', 'in_progress']);
+        } else {
+          query = query.eq('status', status);
+        }
+      }
 
       if (schoolId) {
         const resolvedId = await resolveSchoolId(schoolId);
         if (resolvedId) query = query.eq('school_id', resolvedId);
       }
 
-      const { data: escalations, error } = await query.order('created_at', { ascending: false });
+      const { data: escalations, error } = await query.order('updated_at', { ascending: false, nullsFirst: false });
 
       if (error) throw error;
 
@@ -36,11 +43,12 @@ export default async function handler(req, res) {
     }
   }
 
-  // PATCH or POST — update a single escalation
-  if (req.method === 'PATCH' || req.method === 'POST') {
+  // PATCH, POST, or PUT — update a single escalation
+  if (req.method === 'PATCH' || req.method === 'POST' || req.method === 'PUT') {
     try {
-      const { id, status, staff_notes, attended_by, resolved_by, tags } = req.body;
-      if (!id) return res.status(400).json({ error: 'Missing id' });
+      const id = req.body?.id || req.body?.escalationId;
+      const { status, staff_notes, attended_by, resolved_by, tags } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'Missing escalation id' });
 
       const updates = { updated_at: new Date().toISOString() };
       if (status) updates.status = status;
@@ -53,7 +61,7 @@ export default async function handler(req, res) {
         .from('escalations')
         .update(updates)
         .eq('id', id)
-        .select('id, conversation_id')
+        .select('id, conversation_id, school_id, lead_id')
         .maybeSingle();
 
       if (error) throw error;
@@ -62,7 +70,7 @@ export default async function handler(req, res) {
       if (status === 'resolved' && escalation?.conversation_id) {
         const { data: conv } = await supabase
           .from('conversations')
-          .select('id, messages, channel, whatsapp_phone, session_id, school_id, schools(name, slug)')
+          .select('id, messages, channel, whatsapp_phone, session_id, lead_id, school_id, leads(id, name, email, phone, normalized_phone, zoho_contact_id), schools(id, name, slug)')
           .eq('id', escalation.conversation_id)
           .maybeSingle();
 
@@ -81,9 +89,25 @@ export default async function handler(req, res) {
             .update({ stage: 'active', messages, updated_at: new Date().toISOString() })
             .eq('id', escalation.conversation_id);
 
+          // Sync resolved status and closing note to Zoho CRM
+          if (conv.leads && conv.schools) {
+            try {
+              const { addNoteToLead, syncLeadToZoho } = await import('../../src/services/zoho.js');
+              await syncLeadToZoho(conv.leads, conv.schools, { status: 'Closed' });
+              await addNoteToLead(
+                conv.leads,
+                `Support Session Ended (${new Date().toLocaleDateString()})`,
+                `Support agent ${resolved_by || 'Staff'} marked this escalation as resolved on ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT.`,
+                conv.schools
+              );
+            } catch (zErr) {
+              console.warn('[Escalation Resolve] Zoho sync warning:', zErr.message);
+            }
+          }
+
           // Send WhatsApp closing message if this was a WhatsApp conversation
           const isWhatsApp = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
-          const userPhone = conv.whatsapp_phone || conv.session_id?.replace('wa_', '');
+          const userPhone = conv.whatsapp_phone || conv.leads?.normalized_phone || conv.leads?.phone || conv.session_id?.replace('wa_', '');
 
           if (isWhatsApp && userPhone) {
             const schoolSlug = conv.schools?.slug || 'babcock';
@@ -95,21 +119,25 @@ export default async function handler(req, res) {
               `Thank you for reaching out! If you have more questions, feel free to message us anytime and our AI assistant will be happy to help. 🎓`;
 
             try {
-              const { sendWhatsAppMessage } = await import('../../src/services/whatsapp.js');
-              await sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug });
+              const waResult = await sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug });
+              if (waResult.ok) {
+                console.log(`[Escalation Resolve] WhatsApp goodbye sent to ${userPhone}`);
+              } else {
+                console.warn(`[Escalation Resolve] WhatsApp goodbye failed for ${userPhone}:`, waResult.error);
+              }
             } catch (waErr) {
-              console.warn('[End Chat] WhatsApp goodbye failed:', waErr.message);
+              console.warn('[Escalation Resolve] WhatsApp goodbye error:', waErr.message);
             }
           }
         }
       }
 
-      return res.status(200).json({ escalation });
+      return res.status(200).json({ escalation, ok: true });
     } catch (error) {
       console.error('escalation patch error:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: error.message || 'Internal server error' });
     }
   }
 
-  return res.status(405).end();
+  return res.status(405).json({ error: `Method ${req.method} not allowed` });
 }

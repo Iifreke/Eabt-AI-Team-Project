@@ -3,17 +3,25 @@ import { formatWhatsAppRecipient } from '../utils/phone.js';
 /**
  * Resolves the appropriate Meta Phone Number ID based on school slug or options.
  */
-export function resolveWhatsAppPhoneNumberId(options) {
+export function resolveWhatsAppPhoneNumberId(options, maybeBotType) {
   if (!options) {
     return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || process.env.WHATSAPP_PHONE_NUMBER_ID || '1364026993464546';
   }
 
   if (typeof options === 'string') {
     const slug = options.toLowerCase().trim();
-    if (slug === 'babcock' || slug === 'backock') {
+    const botType = (maybeBotType || '').toLowerCase().trim();
+
+    if (slug === 'babcock_existing' || slug === 'backock_existing' || ((slug === 'babcock' || slug === 'backock') && botType === 'existing')) {
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK_EXISTING || '1308107395712291';
+    }
+    if (slug === 'babcock' || slug === 'backock' || slug === 'babcock_aspiring') {
       return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
     }
-    if (slug === 'abu') {
+    if (slug === 'abu_existing' || (slug === 'abu' && botType === 'existing')) {
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU_EXISTING || '1220287537833494';
+    }
+    if (slug === 'abu' || slug === 'abu_aspiring') {
       return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
     }
     // If passed a numeric string directly
@@ -21,12 +29,20 @@ export function resolveWhatsAppPhoneNumberId(options) {
   }
 
   if (typeof options === 'object') {
-    if (options.phoneNumberId) return options.phoneNumberId;
+    if (options.phoneNumberId) return String(options.phoneNumberId);
     const slug = (options.schoolSlug || options.school || '').toLowerCase().trim();
+    const botType = (options.botType || options.audience || maybeBotType || 'aspiring').toLowerCase().trim();
+
     if (slug === 'babcock' || slug === 'backock') {
+      if (botType === 'existing') {
+        return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK_EXISTING || '1308107395712291';
+      }
       return process.env.WHATSAPP_PHONE_NUMBER_ID_BABCOCK || '1364026993464546';
     }
     if (slug === 'abu') {
+      if (botType === 'existing') {
+        return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU_EXISTING || '1220287537833494';
+      }
       return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
     }
   }

@@ -42,3 +42,22 @@ export async function resolveSchoolId(schoolId) {
   return data?.id || null;
 }
 
+/**
+ * Checks if current time is within official admissions office hours:
+ * Monday through Friday, 8:00 AM – 6:00 PM West Africa Time (WAT / UTC+1).
+ */
+export function isWithinBusinessHours() {
+  const watNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+  const day = watNow.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
+  const hour = watNow.getHours(); // 0 - 23
+  return day >= 1 && day <= 5 && hour >= 8 && hour < 18;
+}
+
+/**
+ * Validates whether an email string matches a standard valid RFC email format.
+ */
+export function isValidEmail(emailStr) {
+  if (!emailStr || typeof emailStr !== 'string') return false;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailStr.trim());
+}
+

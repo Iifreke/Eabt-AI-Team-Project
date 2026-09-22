@@ -5,7 +5,7 @@ A production-ready RAG-powered support chatbot for Backock School and ABU, deplo
 ## Architecture
 
 - **Widget** — React + Vite compiled to a single `widget.js` IIFE. Embed with one `<script>` tag.
-- **API** — Vercel serverless functions in `api/`. LLM via OpenRouter (claude-sonnet-4-5). Embeddings via OpenAI directly (text-embedding-3-small).
+- **API** — Vercel serverless functions in `api/`. LLM via OpenRouter (openai/gpt-4o-mini). Embeddings via OpenAI directly (text-embedding-3-small).
 - **Admin** — React + Vite + Tailwind SPA for managing both schools.
 - **Database** — Supabase Postgres + pgvector for leads, conversations, documents, escalations.
 - **CRM** — Zoho CRM sync after visitor onboarding completes.

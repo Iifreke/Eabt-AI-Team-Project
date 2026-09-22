@@ -113,6 +113,14 @@ export default async function handler(req, res) {
       conv.lead_id = lead.id;
     }
 
+    // Auto-sync lead to Zoho CRM if not yet synced
+    if ((lead.name || lead.email || lead.phone) && !lead.zoho_contact_id) {
+      zoho.syncLeadToZoho(lead, school, {
+        source: `Website Chatbot (${school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`,
+        chatId: conv.id,
+      }).catch(zErr => console.warn('[Web Chat] Auto Zoho sync warning:', zErr.message));
+    }
+
     // Extract text from any readable attachments
     const attachmentText = await extractAttachmentText(attachments);
     const messageWithAttachments = attachmentText
@@ -174,11 +182,13 @@ export default async function handler(req, res) {
         })
         .eq('id', lead.id);
 
-      // Sync to Zoho as soon as name + email are available (phone is a bonus update)
+      // Sync to Zoho as soon as name + (email or phone) are available
       // zoho.syncLeadToZoho writes zoho_contact_id back to Supabase, so repeated calls
       // update the same Zoho record rather than creating duplicates.
-      if (lead.name && lead.email) {
-        await zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' }).catch(() => {});
+      if (lead.name && (lead.email || lead.phone)) {
+        await zoho.syncLeadToZoho(lead, school, {
+          source: `Website Chatbot (${school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`,
+        }).catch(() => {});
       }
 
       // Check if onboarding complete
@@ -190,7 +200,11 @@ export default async function handler(req, res) {
           school,
           lead,
           `Visitor completed onboarding on the website widget: "${lead.name}" (${lead.email || lead.phone})`,
-          { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+          {
+            channel: 'Web Chatbot',
+            chatId: conv.id,
+            actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
+          }
         );
       }
 
@@ -216,15 +230,22 @@ export default async function handler(req, res) {
         // Only hand off to human agent if they have already replied
         const hasAdminReply = messages.some(m => m.role === 'admin' || m.adminName);
         if (hasAdminReply) {
+          const nowIso = new Date().toISOString();
           await supabase
             .from('conversations')
             .update({
               messages,
               user_web_online: true,
-              user_last_seen_web: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
+              user_last_seen_web: nowIso,
+              updated_at: nowIso,
             })
             .eq('id', conv.id);
+
+          await supabase
+            .from('escalations')
+            .update({ updated_at: nowIso })
+            .eq('conversation_id', conv.id);
+
           sendChunk({ done: true, stage: 'escalated', lead, suggestions: [], messages, adminsOnline });
           return res.end();
         }
@@ -267,7 +288,17 @@ export default async function handler(req, res) {
 
           await zoho.syncLeadToZoho(lead, school, { status: 'Escalated', source: 'Website Chatbot' });
           await zoho.createEscalationTask(lead, school, 'Visitor expressed dissatisfaction / requested human', message, fullTranscript);
-          await zoho.sendCliqAlert(school, lead, `Visitor expressed dissatisfaction / requested human advisor: "${message}"`, { channel: 'Web Chatbot', reason: 'User Request' });
+          await zoho.sendCliqAlert(
+            school,
+            lead,
+            `Visitor expressed dissatisfaction / requested human advisor: "${message}"`,
+            {
+              channel: 'Web Chatbot',
+              reason: 'User Request',
+              chatId: conv.id,
+              actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
+            }
+          );
 
           try {
             await email.sendEscalationEmail({ school, lead, conversation: { ...conv, messages }, reason: 'user_request' });
@@ -345,7 +376,12 @@ export default async function handler(req, res) {
         school,
         lead,
         `Chatbot escalation: "${message}" (${reason === 'user_request' ? 'Visitor requested human' : 'Knowledge Base Fallback'})`,
-        { channel: 'Web Chatbot', reason }
+        {
+          channel: 'Web Chatbot',
+          reason,
+          chatId: conv.id,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
+        }
       );
 
       try {
@@ -362,7 +398,12 @@ export default async function handler(req, res) {
         school,
         lead,
         `Off-hours chatbot escalation from ${lead.name || 'Visitor'}: "${message}"`,
-        { channel: 'Web Chatbot', reason: 'Off-Hours Escalation' }
+        {
+          channel: 'Web Chatbot',
+          reason: 'Off-Hours Escalation',
+          chatId: conv.id,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${conv.id}`,
+        }
       );
     }
 
@@ -380,7 +421,13 @@ export default async function handler(req, res) {
       })
       .eq('id', conv.id);
 
-    const suggestions = await generateSuggestions(school.name, cleanResponse);
+    let suggestions = await generateSuggestions(school.name, cleanResponse);
+    if (withinBusinessHours && newStage !== 'escalated') {
+      suggestions = [
+        ...suggestions.slice(0, 2),
+        '🧑‍💼 Speak to an Admissions Advisor',
+      ];
+    }
 
     const offHoursTicketPrompt = shouldEscalate && !withinBusinessHours;
 

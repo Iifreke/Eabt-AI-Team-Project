@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api/|widget.js).*)", "destination": "/index.html" }
   ],
   "functions": {
     "api/chat/index.js": {

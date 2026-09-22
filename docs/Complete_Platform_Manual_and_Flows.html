@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edutech Admissions Intelligence Platform — Complete Manual & System Flows</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0f172a;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --gold: #d97706;
+      --success: #16a34a;
+      --warning: #ea580c;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      padding: 40px 20px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+      overflow: hidden;
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 48px 48px 40px;
+      border-bottom: 4px solid var(--accent);
+      position: relative;
+    }
+    .header-badge {
+      display: inline-block;
+      background: rgba(37, 99, 235, 0.25);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #93c5fd;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      padding: 6px 14px;
+      border-radius: 30px;
+      margin-bottom: 16px;
+    }
+    .header-banner h1 {
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .header-banner p {
+      color: #cbd5e1;
+      font-size: 15px;
+      max-width: 780px;
+    }
+
+    /* Content Layout */
+    .content {
+      padding: 48px;
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--primary);
+      margin: 40px 0 18px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2:first-of-type { margin-top: 0; }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #334155;
+      margin: 24px 0 10px;
+    }
+
+    p, li {
+      font-size: 14.5px;
+      color: #475569;
+      line-height: 1.7;
+    }
+    ul, ol { padding-left: 24px; margin-bottom: 16px; }
+    li { margin-bottom: 6px; }
+
+    /* Cards & Grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      transition: all 0.2s ease;
+    }
+    .card-accent {
+      border-left: 4px solid var(--accent);
+      background: #f0f7ff;
+    }
+    .card-success {
+      border-left: 4px solid var(--success);
+      background: #f0fdf4;
+    }
+    .card-warning {
+      border-left: 4px solid var(--warning);
+      background: #fff7ed;
+    }
+
+    .card h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0 28px;
+      font-size: 13.5px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--border);
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: #475569;
+    }
+    tr:hover td { background: #f8fafc; }
+
+    /* Visual Diagrams (SVG/CSS) */
+    .flow-diagram {
+      background: #0f172a;
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 28px;
+      margin: 24px 0 32px;
+      overflow-x: auto;
+    }
+    .flow-step {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .flow-step:last-child { margin-bottom: 0; }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .step-content {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 12px 18px;
+      flex: 1;
+    }
+    .step-content h5 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #93c5fd;
+      margin-bottom: 2px;
+    }
+    .step-content p {
+      color: #cbd5e1;
+      font-size: 12.5px;
+      margin: 0;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      background: #f1f5f9;
+      color: #d97706;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Print Optimization */
+    @media print {
+      body { background: white; padding: 0; }
+      .container { border: none; box-shadow: none; max-width: 100%; }
+      .header-banner { padding: 24px; }
+      .content { padding: 24px; }
+      .page-break { page-break-before: always; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header Banner -->
+  <div class="header-banner">
+    <div class="header-badge">Official Staff Documentation & Architecture</div>
+    <h1>Edutech Admissions Platform: Complete Staff SOP & System Flows</h1>
+    <p>Operational Handbook for Admissions Officers, Support Teams, and Technical Administrators managing Babcock University & Ahmadu Bello University distance learning admissions.</p>
+  </div>
+
+  <div class="content">
+
+    <!-- PART 1: EXECUTIVE OVERVIEW -->
+    <h2>📖 Part 1: How the System Works (In Plain English)</h2>
+    <p>The Edutech Admissions Platform acts as an intelligent bridge connecting prospective students with university admissions officers. It guarantees that inquiries received through either <strong>Web Chat</strong> or <strong>WhatsApp</strong> are answered immediately, qualified accurately, and synced to <strong>Zoho CRM</strong>.</p>
+
+    <div class="grid-3">
+      <div class="card card-accent">
+        <h4>🤖 1. AI Concierge (24/7)</h4>
+        <p>Answers tuition, course requirements, and deadlines using official university brochures. Never invents details or hallucinates.</p>
+      </div>
+      <div class="card card-success">
+        <h4>🧑‍💼 2. Live Human Advisor</h4>
+        <p>Available Mon–Fri (8 AM – 6 PM WAT). Students can request an advisor, triggering instant alerts to Zoho Cliq and staff dashboard.</p>
+      </div>
+      <div class="card card-warning">
+        <h4>🎫 3. Offline Support Tickets</h4>
+        <p>Outside office hours, students raise tickets. Staff replies on the dashboard are automatically emailed directly to the student.</p>
+      </div>
+    </div>
+
+    <!-- PART 2: STEP-BY-STEP ADMISSIONS WORKFLOW -->
+    <h2>📋 Part 2: Step-by-Step Daily Staff Workflow</h2>
+
+    <h3>Step 1: Logging in & Setting Online Presence</h3>
+    <ol>
+      <li>Visit <strong><a href="https://eabt-ai-team-project.vercel.app" target="_blank">https://eabt-ai-team-project.vercel.app</a></strong></li>
+      <li>Enter your staff credentials (e.g. <code>eabtconnect@gmail.com</code>).</li>
+      <li>Confirm your presence indicator in the bottom-left sidebar turns <strong>🟢 Online</strong>.</li>
+    </ol>
+
+    <h3>Step 2: Attending Live Chats & Escalations</h3>
+    <div class="flow-diagram">
+      <div class="flow-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h5>Instant Alert Fired</h5>
+          <p>Student requests human advisor → Alert card posts to Zoho Cliq & badge turns red on Dashboard.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h5>Direct Access</h5>
+          <p>Click "Open Live Chat in Admin Portal" in Zoho Cliq to jump directly into the conversation.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h5>Take Over Chat</h5>
+          <p>Click "Attend / Take Over". The AI pauses and informs the student an advisor is now online.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h5>Reply (Web & WhatsApp)</h5>
+          <p>Type message or use quick reply shortcuts (<code>/takeover</code>, <code>/review</code>, <code>/close</code>).</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h5>Resolve & Sync</h5>
+          <p>Add staff notes and click "Mark as Resolved". Full transcript syncs to Zoho CRM automatically.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>⚡ Quick Reply Shortcuts Cheat Sheet</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Shortcut</th>
+          <th>Purpose</th>
+          <th>Default Response Text</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/takeover</code></td>
+          <td>Joining live chat</td>
+          <td><em>"Hi, this conversation has been escalated to an admissions advisor. I am reviewing your inquiry now..."</em></td>
+        </tr>
+        <tr>
+          <td><code>/review</code></td>
+          <td>Checking requirements</td>
+          <td><em>"Thank you for your patience. I am currently reviewing your academic requirements and application details."</em></td>
+        </tr>
+        <tr>
+          <td><code>/wait</code></td>
+          <td>Consulting admissions registry</td>
+          <td><em>"Thank you for your patience while I confirm this detail with the admissions office."</em></td>
+        </tr>
+        <tr>
+          <td><code>/portal</code></td>
+          <td>Application portal assistance</td>
+          <td><em>"If you are experiencing issues with the admissions portal, please share your application number..."</em></td>
+        </tr>
+        <tr>
+          <td><code>/close</code></td>
+          <td>Concluding conversation</td>
+          <td><em>"Thank you for contacting our Admissions Directorate. We wish you great success in your academic pursuit!"</em></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <!-- PART 3: OFFLINE TICKETS -->
+    <h2>🎫 Part 3: Offline Ticket Management & Direct Email Replies</h2>
+    <p>Outside working hours, students can submit an inquiry ticket with their full name, verified email, and question.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>1. Student Submits Ticket</h4>
+        <p>The student fills the offline ticket modal on the web widget. A confirmation email is instantly dispatched to their inbox, and the ticket appears under <strong>Tickets</strong> on the dashboard.</p>
+      </div>
+      <div class="card">
+        <h4>2. Officer Replies from Dashboard</h4>
+        <p>Staff clicks on the ticket, reviews the student's inquiry, types an official response, and clicks <strong>✉️ Send Email Reply</strong>. An executive branded email is immediately sent to the student.</p>
+      </div>
+    </div>
+
+    <!-- PART 4: SYSTEM ARCHITECTURE & DATA FLOWS -->
+    <h2>🏛️ Part 4: Complete Architecture & Data Flow Diagram</h2>
+    <p>The diagram below illustrates how all layers of the platform communicate in real-time:</p>
+
+    <div class="flow-diagram">
+      <div style="font-size: 13px; font-weight: 700; color: #93c5fd; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px;">
+        End-to-End Multi-Channel Architecture
+      </div>
+      <div class="flow-step">
+        <div class="step-num">A</div>
+        <div class="step-content">
+          <h5>Student Ingestion Layer</h5>
+          <p>Web Chat (Vite React Widget) & WhatsApp Business Cloud Webhook → Vercel Serverless Functions.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">B</div>
+        <div class="step-content">
+          <h5>Database & Intelligence Layer</h5>
+          <p>Supabase PostgreSQL (Leads, Conversations, Tickets, Escalations) + pgvector semantic embeddings search.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">C</div>
+        <div class="step-content">
+          <h5>Admissions AI Engine</h5>
+          <p>OpenRouter LLM (Gemini 2.5 Flash) ingests brochure context and enforces executive concierge persona.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">D</div>
+        <div class="step-content">
+          <h5>Enterprise Integrations</h5>
+          <p>Zoho CRM (Lead Sync) &bull; Zoho Cliq (Instant Webhook Alerts) &bull; Resend / SMTP (Executive Email Delivery).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PART 5: SYSTEM CHECKLIST & FAQS -->
+    <h2>✅ Part 5: Quality Checklist & Support</h2>
+    <div class="grid-2">
+      <div class="card card-success">
+        <h4>Admissions Best Practices</h4>
+        <ul>
+          <li>Always greet students respectfully by their captured name.</li>
+          <li>Never share personal banking info — direct to official portals.</li>
+          <li>Reply to all offline tickets within 24 hours.</li>
+          <li>Set your presence status to Offline when leaving your shift.</li>
+        </ul>
+      </div>
+      <div class="card card-accent">
+        <h4>Technical Support & Contacts</h4>
+        <ul>
+          <li><strong>Live Portal:</strong> https://eabt-ai-team-project.vercel.app</li>
+          <li><strong>Support Email:</strong> eabtconnect@gmail.com</li>
+          <li><strong>GitHub Repository:</strong> Iifreke/Eabt-AI-Team-Project</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>School AI Chatbot — Live Demo</title>
+  <title>Babcock & ABU School — Chat Widget Test</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -58,21 +58,6 @@
       align-items: center;
       gap: 8px;
     }
-    .schools-badge {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 16px;
-      flex-wrap: wrap;
-    }
-    .badge {
-      background: #1a73e8;
-      color: white;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-    }
   </style>
 </head>
 <body>
@@ -83,21 +68,17 @@
       <path d="M6 12v5c3 3 9 3 12 0v-5"/>
     </svg>
     <div>
-      <h1>School AI Chatbot — Live Demo</h1>
-      <p>Powered by Antigravity</p>
+      <h1>Babcock &amp; ABU Support</h1>
+      <p>Excellence in Education &amp; Admissions Support</p>
     </div>
   </header>
 
   <div class="hero">
-    <h2>Welcome to the AI Admissions Assistant</h2>
+    <h2>Welcome to Babcock &amp; ABU Support</h2>
     <p>
-      Get instant answers about admissions, programmes, fees, and campus life — 24/7, powered by AI.
+      Get instant answers to your questions about admissions, programmes,
+      fees, and campus life — 24/7 via Web Chat or direct WhatsApp.
     </p>
-
-    <div class="schools-badge">
-      <span class="badge">Babcock University</span>
-      <span class="badge">ABU (Ahmadu Bello University)</span>
-    </div>
 
     <div class="cards">
       <div class="card">
@@ -108,7 +89,7 @@
       <div class="card">
         <div class="icon">📚</div>
         <h3>Programmes</h3>
-        <p>Explore undergraduate and postgraduate degree offerings.</p>
+        <p>Explore our undergraduate and postgraduate degree offerings.</p>
       </div>
       <div class="card">
         <div class="icon">🏛️</div>
@@ -117,13 +98,13 @@
       </div>
       <div class="card">
         <div class="icon">💰</div>
-        <h3>Fees & Funding</h3>
+        <h3>Fees &amp; Funding</h3>
         <p>Find out about tuition fees, scholarships, and payment plans.</p>
       </div>
     </div>
 
     <div class="hint">
-      💬 Click the blue chat bubble at the bottom-right to get started
+      💬 Click the blue chat bubble at the bottom-right to start web chat or switch straight to WhatsApp!
     </div>
   </div>
 
@@ -133,11 +114,15 @@
         { id: 'babcock', name: 'Babcock University' },
         { id: 'abu',     name: 'ABU (Ahmadu Bello University)' }
       ],
-      apiUrl: window.location.origin,
+      whatsappNumbers: {
+        babcock: '2348080523171',
+        abu: '2347025105412'
+      },
+      apiUrl: 'https://eabt-ai-team-project.vercel.app',
       theme: { primaryColor: '#1a73e8' }
     };
   </script>
-  <script src="/widget.js"></script>
+  <script src="/deploy/widget.js" onerror="this.onerror=null;this.src='https://eabt-ai-team-project.vercel.app/widget.js';"></script>
 
 </body>
 </html>

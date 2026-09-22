@@ -1,5 +1,5 @@
 import { applyCors } from '../../src/utils/cors.js';
-import { getSchool } from '../../src/utils/validate.js';
+import { getSchool, isValidEmail } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 import { chat } from '../../src/services/llm.js';
 import * as zoho from '../../src/services/zoho.js';
@@ -15,6 +15,10 @@ export default async function handler(req, res) {
 
     if (!schoolId || !sessionId || !name || !email || !phone) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
     }
 
     const school = await getSchool(schoolId, res);
@@ -36,6 +40,14 @@ export default async function handler(req, res) {
     let lead = existingLeads?.[0] || null;
     let existingConv = null;
 
+    // Check Zoho CRM for existing lead
+    let zohoLead = null;
+    try {
+      zohoLead = await zoho.findZohoLead(normalizedPhone, email);
+    } catch (zErr) {
+      console.warn('[Web Chat Start] Zoho search warning:', zErr.message);
+    }
+
     if (lead) {
       const { data: conv } = await supabase
         .from('conversations')
@@ -46,19 +58,25 @@ export default async function handler(req, res) {
         .maybeSingle();
       existingConv = conv;
 
+      const updates = {
+        name,
+        email,
+        phone,
+        normalized_phone: normalizedPhone,
+        updated_at: new Date().toISOString(),
+      };
+      if (zohoLead?.id && !lead.zoho_contact_id) {
+        updates.zoho_contact_id = zohoLead.id;
+        updates.zoho_synced_at = new Date().toISOString();
+      }
+
       const { data: updated } = await supabase
         .from('leads')
-        .update({
-          name,
-          email,
-          phone,
-          normalized_phone: normalizedPhone,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', lead.id)
         .select()
         .single();
-      lead = updated;
+      lead = updated || lead;
     } else {
       const { data: newLead } = await supabase
         .from('leads')
@@ -69,6 +87,8 @@ export default async function handler(req, res) {
           email,
           phone,
           normalized_phone: normalizedPhone,
+          zoho_contact_id: zohoLead?.id || null,
+          zoho_synced_at: zohoLead?.id ? new Date().toISOString() : null,
         })
         .select()
         .single();
@@ -108,7 +128,11 @@ export default async function handler(req, res) {
         school,
         lead,
         `New prospective student started chatting on the website widget: "${lead.name}" (${lead.email || lead.phone})`,
-        { channel: 'Web Chatbot', actionUrl: `${process.env.APP_URL || 'https://eabt-ai-team-project.vercel.app'}/chats` }
+        {
+          channel: 'Web Chatbot',
+          chatId: sessionId,
+          actionUrl: `${zoho.getAppBaseUrl()}/chats?id=${sessionId}`,
+        }
       );
     } else {
       await supabase
@@ -121,8 +145,19 @@ export default async function handler(req, res) {
         .eq('id', existingConv.id);
     }
 
-    // Sync lead to Zoho CRM
-    await zoho.syncLeadToZoho(lead, school, { source: 'Website Chatbot' });
+    // Sync lead to Zoho CRM immediately with full details and direct chat link
+    try {
+      const syncedZohoId = await zoho.syncLeadToZoho(lead, school, {
+        source: `Website Chatbot (${school.slug.toUpperCase() === 'ABU' ? 'ABU' : 'Babcock'})`,
+        chatId: sessionId,
+      });
+      if (syncedZohoId) {
+        lead.zoho_contact_id = syncedZohoId;
+        lead.zoho_synced_at = new Date().toISOString();
+      }
+    } catch (zErr) {
+      console.error('[Web Chat Start] Zoho lead sync error:', zErr.message);
+    }
 
     const adminsOnline = await anyAdminOnline(supabase);
 
