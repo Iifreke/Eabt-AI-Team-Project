@@ -870,21 +870,6 @@ export default function Chats() {
               </button>
             ))}
 
-            <button
-              onClick={handleBulkEnd}
-              disabled={bulkEnding}
-              className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-            >
-              {bulkEnding ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Ending...
-                </>
-              ) : (
-                <>✕ End All Pending</>
-              )}
-            </button>
-
             <input
               value={tagFilter}
               onChange={e => setTagFilter(e.target.value)}
