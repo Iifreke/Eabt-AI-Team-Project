@@ -9,7 +9,7 @@ const SCHOOL_NAMES = {
   backock:    ['Bisola', 'Adebola', 'Janet'], // typo alias
   uniabuja:   ['George', 'Amina', 'Chiamaka'],
   igbinedion: ['Ngozi', 'Hassana', 'Chinedu'],
-  kenbridge:  ['Folashade', 'Abubakar'],
+  kenbridge:  ['Folashade', 'Abubakar', 'Emeka'],
 };
 
 const DEFAULT_NAMES = ['Teni', 'Emma', 'Tola', 'Bisola', 'George', 'Amina'];
