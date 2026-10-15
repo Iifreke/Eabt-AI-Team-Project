@@ -17,7 +17,7 @@ export default async function handler(req, res) {
 
       let query = supabase
         .from('escalations')
-        .select('*, conversations(id, session_id, stage, channel, whatsapp_phone, updated_at, messages), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
+        .select('*, co_agents, conversations(id, session_id, stage, channel, whatsapp_phone, updated_at, messages), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
 
       if (status) {
         if (status === 'active') {

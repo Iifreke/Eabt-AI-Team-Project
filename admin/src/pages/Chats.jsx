@@ -442,6 +442,11 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
     setSaving(true);
     setActionError('');
     try {
+      // Block double-claiming: warn if someone else is already attending
+      if (patch.status === 'in_progress' && esc.attended_by && esc.attended_by !== profile?.full_name) {
+        const go = window.confirm(`⚠️ ${esc.attended_by} is already attending this chat. Take over anyway?`);
+        if (!go) { setSaving(false); return; }
+      }
       if (patch.status === 'resolved') {
         await api.endChat(esc.id, patch.resolved_by || profile?.full_name || null);
       } else {
@@ -456,8 +461,30 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
     }
   };
 
+  const handleJoin = async () => {
+    setSaving(true);
+    setActionError('');
+    try {
+      await api.joinChat(esc.id, profile?.full_name);
+      onUpdate();
+    } catch (err) {
+      setActionError(err.message || 'Failed to join conversation.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const coAgents = esc.co_agents?.filter(Boolean) || [];
+  const isMeAttending = esc.attended_by === profile?.full_name;
+  const isMeCoAgent = coAgents.includes(profile?.full_name);
+  const isSuperAdmin = profile?.role === 'super_admin';
+  const canJoin = esc.status === 'in_progress' && esc.attended_by && !isMeAttending && !isMeCoAgent;
+
   const agentCell = () => {
-    if (esc.status === 'in_progress' && esc.attended_by) return `🟡 ${esc.attended_by}`;
+    if (esc.status === 'in_progress' && esc.attended_by) {
+      const extras = coAgents.length > 0 ? ` +${coAgents.length}` : '';
+      return `🟡 ${esc.attended_by}${extras}`;
+    }
     if (esc.status === 'resolved' && esc.resolved_by) return `✅ ${esc.resolved_by}`;
     return '—';
   };
@@ -587,6 +614,23 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
                   placeholder="Add staff notes..."
                 />
 
+                {/* Attending / Co-agents banner */}
+                {esc.status === 'in_progress' && esc.attended_by && (
+                  <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-amber-800">🟡 Attending:</span>
+                      <span className={`px-2 py-0.5 rounded-full font-bold ${isMeAttending ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                        {esc.attended_by}{isMeAttending ? ' (you)' : ''}
+                      </span>
+                      {coAgents.map(a => (
+                        <span key={a} className={`px-2 py-0.5 rounded-full font-medium ${a === profile?.full_name ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-800'}`}>
+                          👁️ {a}{a === profile?.full_name ? ' (you)' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {actionError && (
                   <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{actionError}</div>
                 )}
@@ -595,6 +639,12 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
                     <button onClick={() => update({ status: 'in_progress', attended_by: profile?.full_name })} disabled={saving}
                       className="px-3 py-1.5 text-xs font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">
                       {saving ? 'Saving...' : 'Attend / Serve'}
+                    </button>
+                  )}
+                  {canJoin && isSuperAdmin && (
+                    <button onClick={handleJoin} disabled={saving}
+                      className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                      👁️ {saving ? 'Joining...' : 'Join Conversation'}
                     </button>
                   )}
                   {(esc.status === 'pending' || esc.status === 'in_progress') && (
