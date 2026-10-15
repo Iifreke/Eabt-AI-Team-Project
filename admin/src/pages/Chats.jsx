@@ -649,6 +649,7 @@ export default function Chats() {
   const [status, setStatus] = useState('all');
   const [tagFilter, setTagFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [bulkEnding, setBulkEnding] = useState(false);
   const prevPendingRef = useRef(null);
 
   const fetchEscalations = useCallback(async () => {
@@ -702,6 +703,22 @@ export default function Chats() {
     fetchEscalations();
     refreshBadgeCount();
   }, [fetchEscalations, refreshBadgeCount]);
+
+  const handleBulkEnd = useCallback(async () => {
+    const total = pendingCount + unrespondedCount;
+    if (!window.confirm(`End all ${total > 0 ? total : ''} pending chats${selectedSchool !== 'all' ? ' for this school' : ''}? This cannot be undone.`)) return;
+    setBulkEnding(true);
+    try {
+      const result = await api.bulkEndChats(selectedSchool !== 'all' ? selectedSchool : undefined);
+      await fetchEscalations();
+      refreshBadgeCount();
+      alert(`✅ ${result.ended || 0} chats ended successfully.`);
+    } catch (err) {
+      alert('Failed to bulk end chats: ' + err.message);
+    } finally {
+      setBulkEnding(false);
+    }
+  }, [selectedSchool, pendingCount, unrespondedCount, fetchEscalations, refreshBadgeCount]);
 
   useEffect(() => { fetchEscalations(); }, [fetchEscalations]);
 
@@ -852,6 +869,21 @@ export default function Chats() {
                 )}
               </button>
             ))}
+
+            <button
+              onClick={handleBulkEnd}
+              disabled={bulkEnding}
+              className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+            >
+              {bulkEnding ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Ending...
+                </>
+              ) : (
+                <>✕ End All Pending</>
+              )}
+            </button>
 
             <input
               value={tagFilter}

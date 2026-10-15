@@ -102,6 +102,9 @@ export const api = {
   endChat: (escalationId, resolvedBy) =>
     authFetch('/api/admin/end-chat', { method: 'POST', body: JSON.stringify({ escalationId, resolvedBy }) }),
 
+  bulkEndChats: (schoolId, resolvedBy) =>
+    authFetch('/api/admin/bulk-end-chats', { method: 'POST', body: JSON.stringify({ schoolId, resolvedBy }) }),
+
   replyToConversation: (conversationId, message) =>
     authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
 
