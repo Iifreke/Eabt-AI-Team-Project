@@ -3,6 +3,7 @@ import { getSchool } from '../../src/utils/validate.js';
 import supabase from '../../src/db/supabase.js';
 import { chat } from '../../src/services/llm.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
+import { getAgentName } from '../../src/utils/agentName.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -36,11 +37,12 @@ export default async function handler(req, res) {
     }
 
     // New session — generate a warm greeting
+    const agentName = getAgentName(school.slug, sessionId);
     const greetingText = await chat(
-      `You are Maverick, a warm, friendly admissions assistant for ${school.name}. Write ONLY in plain English — no markdown, no asterisks, no bullet symbols. Keep it to 2 sentences.`,
+      `You are ${agentName}, a warm, friendly admissions assistant for ${school.name}. Write ONLY in plain English — no markdown, no asterisks, no bullet symbols. Keep it to 2 sentences.`,
       [{
         role: 'user',
-        content: `Greet the visitor warmly. Welcome them, introduce yourself as Maverick, and ask what they would like to know about ${school.name}.`,
+        content: `Greet the visitor warmly. Welcome them, introduce yourself as ${agentName}, and ask what they would like to know about ${school.name}.`,
       }]
     );
 

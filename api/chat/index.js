@@ -13,6 +13,7 @@ import {
 import { searchKnowledgeBase, extractText } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
 import * as email from '../../src/services/email.js';
+import { getAgentName } from '../../src/utils/agentName.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
 import { normalizePhoneNumber } from '../../src/utils/phone.js';
 
@@ -150,7 +151,7 @@ export default async function handler(req, res) {
 
     // ── ONBOARDING STAGE ──────────────────────────────────────
     if (conv.stage === 'onboarding') {
-      const systemPrompt = buildOnboardingSystemPrompt(school.name);
+      const systemPrompt = buildOnboardingSystemPrompt(school.name, getAgentName(school.slug, sessionId));
       const messageHistory = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
 
       await chatStream(systemPrompt, messageHistory, (chunk) => {
@@ -323,7 +324,7 @@ export default async function handler(req, res) {
         ? chunks.map(c => c.content).join('\n\n---\n\n')
         : 'No specific information found in the knowledge base for this query.';
 
-    const systemPrompt = buildActiveSystemPrompt(school.name, lead.name || 'there', context);
+    const systemPrompt = buildActiveSystemPrompt(school.name, lead.name || 'there', context, getAgentName(school.slug, sessionId));
 
     const messageHistory = messages
       .filter(m => !m.role?.startsWith('__'))

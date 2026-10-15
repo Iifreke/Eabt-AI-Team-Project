@@ -5,6 +5,7 @@ import { chat } from '../../src/services/llm.js';
 import * as zoho from '../../src/services/zoho.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
 import { normalizePhoneNumber } from '../../src/utils/phone.js';
+import { getAgentName } from '../../src/utils/agentName.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -100,11 +101,12 @@ export default async function handler(req, res) {
     let initialMessages = [];
     if (!existingConv) {
       const firstName = name.split(' ')[0];
+      const agentName = getAgentName(school.slug, sessionId);
       greetingText = await chat(
-        `You are Maverick, a warm, friendly admissions assistant for ${school.name}. Your name is Maverick. Write ONLY in plain English — no markdown, no asterisks, no bullet symbols. Keep it to 2 sentences.`,
+        `You are ${agentName}, a warm, friendly admissions assistant for ${school.name}. Your name is ${agentName}. Write ONLY in plain English — no markdown, no asterisks, no bullet symbols. Keep it to 2 sentences.`,
         [{
           role: 'user',
-          content: `Greet ${firstName} warmly. Welcome them, introduce yourself as Maverick, and ask what they would like to know about ${school.name}.`,
+          content: `Greet ${firstName} warmly. Welcome them, introduce yourself as ${agentName}, and ask what they would like to know about ${school.name}.`,
         }]
       );
       initialMessages = [{ role: 'assistant', content: greetingText, ts: Date.now() }];

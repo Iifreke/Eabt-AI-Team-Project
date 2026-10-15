@@ -13,6 +13,7 @@ import {
 } from '../../src/services/llm.js';
 import { searchKnowledgeBase } from '../../src/services/rag.js';
 import * as zoho from '../../src/services/zoho.js';
+import { getAgentName } from '../../src/utils/agentName.js';
 import * as email from '../../src/services/email.js';
 import { anyAdminOnline } from '../../src/utils/presence.js';
 import { isWithinBusinessHours } from '../../src/utils/validate.js';
@@ -799,7 +800,7 @@ export default async function handler(req, res) {
           ? escChunks.map(c => c.content).join('\n\n---\n\n')
           : 'No specific information found in the knowledge base for this query.';
 
-        const escSystemPrompt = `${buildActiveSystemPrompt(schoolName, lead.name || 'there', escContext)}
+        const escSystemPrompt = `${buildActiveSystemPrompt(schoolName, lead.name || 'there', escContext, getAgentName(school.slug, `wa_${rawFrom}`))}
 IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
 
         const escHistory = messages
@@ -942,7 +943,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
           .eq('id', lead.id);
 
         conv.stage = 'onboarding_name';
-        const freshWelcomePrompt = `Welcome to *${schoolName}*! 🎓\n\nI am Maverick, your virtual concierge.\n\nLet's get your details set up afresh. Before we proceed with your inquiry, could you please tell me your *Full Name*?`;
+        const freshWelcomePrompt = `Welcome to *${schoolName}*! 🎓\n\nI am ${getAgentName(school.slug, `wa_${rawFrom}`)}, your virtual concierge.\n\nLet's get your details set up afresh. Before we proceed with your inquiry, could you please tell me your *Full Name*?`;
         messages.push({ role: 'assistant', content: freshWelcomePrompt, ts: Date.now() });
 
         await supabase
@@ -980,7 +981,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
                 ? chunks.map(c => c.content).join('\n\n---\n\n')
                 : 'No specific information found in the knowledge base for this query.';
 
-            const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context)}
+            const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context, getAgentName(school.slug, `wa_${rawFrom}`))}
 IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
 
             const aiReply = await chat(systemPrompt, [{ role: 'user', content: questionSnippet }]);
@@ -1248,7 +1249,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         // Advance to email
         conv.stage = 'onboarding_email';
         const promptEmail = messages.length <= 1
-          ? `Welcome to *${schoolName}*! 🎓\n\nI am Maverick, your virtual concierge.\n\nThank you, *${lead.name}*! What is your *Email address*?`
+          ? `Welcome to *${schoolName}*! 🎓\n\nI am ${getAgentName(school.slug, `wa_${rawFrom}`)}, your virtual concierge.\n\nThank you, *${lead.name}*! What is your *Email address*?`
           : `Thank you, *${lead.name}*! What is your *Email address*?`;
         messages.push({ role: 'assistant', content: promptEmail, ts: Date.now() });
 
@@ -1259,7 +1260,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
 
       // Needs Name prompt (DO NOT set incoming question/sentence as name!)
       conv.stage = 'onboarding_name';
-      const promptName = `Welcome to *${schoolName}*! 🎓\n\nI am Maverick, your virtual concierge.\n\nBefore we proceed with your inquiry, could you please tell me your *Full Name*?`;
+      const promptName = `Welcome to *${schoolName}*! 🎓\n\nI am ${getAgentName(school.slug, `wa_${rawFrom}`)}, your virtual concierge.\n\nBefore we proceed with your inquiry, could you please tell me your *Full Name*?`;
       messages.push({ role: 'assistant', content: promptName, ts: Date.now() });
 
       await supabase.from('conversations').update({ stage: 'onboarding_name', messages, updated_at: new Date().toISOString() }).eq('id', conv.id);
@@ -1396,7 +1397,7 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
               ? chunks.map(c => c.content).join('\n\n---\n\n')
               : 'No specific information found in the knowledge base for this query.';
 
-          const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context)}
+          const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context, getAgentName(school.slug, `wa_${rawFrom}`))}
 IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
 
           const aiReply = await chat(systemPrompt, [{ role: 'user', content: firstInquiry }]);

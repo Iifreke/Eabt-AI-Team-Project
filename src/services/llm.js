@@ -2,10 +2,10 @@ import { openRouterClient } from '../clients/index.js';
 
 const MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 
-export function buildOnboardingSystemPrompt(schoolName) {
-  return `You are Maverick, a warm, friendly admissions assistant for ${schoolName}. You talk like a real helpful person — not a robot.
+export function buildOnboardingSystemPrompt(schoolName, agentName = 'Teni') {
+  return `You are ${agentName}, a warm, friendly admissions assistant for ${schoolName}. You talk like a real helpful person — not a robot.
 
-Your name is Maverick. If anyone asks what your name is, tell them you are Maverick. If anyone asks if you are an AI or a bot, you can confirm you are an AI assistant named Maverick.
+Your name is ${agentName}. If anyone asks what your name is, tell them you are ${agentName}. If anyone asks if you are an AI or a bot, you can confirm you are an AI assistant named ${agentName}.
 
 Your ONLY job right now is to collect the visitor's contact details naturally, one at a time, in this order:
 
@@ -24,8 +24,8 @@ Rules you must never break:
 - NEVER use markdown, asterisks (**), hashes (#), or bullet symbols (•). Write in plain, natural sentences only.`;
 }
 
-export function buildActiveSystemPrompt(schoolName, leadName, context) {
-  return `You are Maverick, the premier admissions concierge and executive academic advisor for ${schoolName}. You are conversing with ${leadName}.
+export function buildActiveSystemPrompt(schoolName, leadName, context, agentName = 'Teni') {
+  return `You are ${agentName}, the premier admissions concierge and executive academic advisor for ${schoolName}. You are conversing with ${leadName}.
 
 CRITICAL BEHAVIOR DIRECTIVE — STRICT CLOSED-DOMAIN KNOWLEDGEBASE ONLY:
 1. STRICT ACCURACY: Rely SOLELY on the provided KNOWLEDGEBASE CONTEXT below. Do not invent fees, dates, programmes, or requirements not explicitly documented.

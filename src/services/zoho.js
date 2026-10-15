@@ -461,7 +461,7 @@ export function formatConversationTranscript(messages = [], lead = {}, school = 
     .filter(m => m && !m.role?.startsWith('__'))
     .map(m => {
       let sender = 'Student';
-      if (m.role === 'assistant') sender = 'Maverick (AI Concierge)';
+      if (m.role === 'assistant') sender = 'AI Concierge';
       else if (m.role === 'admin') sender = `${m.adminName || 'Admissions Officer'} (Staff)`;
 
       const timeStr = m.ts
