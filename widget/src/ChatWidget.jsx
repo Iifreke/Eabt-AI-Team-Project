@@ -41,24 +41,33 @@ const CSAT_OPTIONS = [
 
 function getWhatsAppNumberForSchool(schoolId, config) {
   const sid = (schoolId || config?.schoolId || '').toLowerCase().trim();
-  if (config?.whatsappNumbers?.[sid]) return config.whatsappNumbers[sid];
-  if (config?.whatsappNumber && !sid) return config.whatsappNumber;
+  // Explicit per-school number takes priority
+  if (config?.whatsappNumbers && sid in config.whatsappNumbers) {
+    return config.whatsappNumbers[sid] || null; // empty string → null (no button)
+  }
+  if (config?.whatsappNumber) return config.whatsappNumber;
+  // Built-in fallbacks only for the two original schools
   if (sid.includes('abu')) return '2347025105412';
   if (sid.includes('babcock') || sid.includes('backock')) return '2348080523171';
-  return config?.whatsappNumber || '2348080523171';
+  return null; // no number for this school — hide the button
 }
 
 function getWhatsAppDisplayForSchool(schoolId, config) {
-  const sid = (schoolId || config?.schoolId || '').toLowerCase().trim();
-  if (sid.includes('abu')) return '+234 702 510 5412';
-  return '+234 808 052 3171';
+  const num = getWhatsAppNumberForSchool(schoolId, config);
+  if (!num) return null;
+  const digits = num.replace(/[^\d]/g, '');
+  // Format: +234 XXX XXX XXXX
+  if (digits.startsWith('234') && digits.length >= 13) {
+    return `+${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+  }
+  return `+${digits}`;
 }
 
 function buildWhatsAppUrl(schoolId, schoolName, config) {
   const rawNum = getWhatsAppNumberForSchool(schoolId, config);
+  if (!rawNum) return null;
   const number = rawNum.replace(/[^\d]/g, '');
-  const sid = (schoolId || config?.schoolId || '').toLowerCase().trim();
-  const name = schoolName || (sid.includes('abu') ? 'ABU Distance Learning' : 'Babcock University');
+  const name = schoolName || schoolId || 'our university';
   const text = encodeURIComponent(`Hello! I would like to make an enquiry about ${name} admissions and programmes.`);
   return `https://wa.me/${number}?text=${text}`;
 }
@@ -340,6 +349,7 @@ export default function ChatWidget({ config }) {
             {config.schools.map((school) => {
               const waLink = getWhatsAppUrl(school.id);
               const waDisplay = getWhatsAppDisplayForSchool(school.id, config);
+              const hasWhatsApp = !!waLink;
               return (
                 <div
                   key={school.id}
@@ -379,6 +389,7 @@ export default function ChatWidget({ config }) {
                     >
                       💬 Web Chat →
                     </button>
+                    {hasWhatsApp && (
                     <a
                       href={waLink}
                       target="_blank"
@@ -403,6 +414,7 @@ export default function ChatWidget({ config }) {
                     >
                       📱 WhatsApp ({waDisplay})
                     </a>
+                    )}
                   </div>
                 </div>
               );

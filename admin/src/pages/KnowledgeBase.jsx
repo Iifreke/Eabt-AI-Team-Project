@@ -5,8 +5,11 @@ import Sidebar from '../components/Sidebar.jsx';
 import FileUploader from '../components/FileUploader.jsx';
 
 const SCHOOLS = [
-  { slug: 'backock', name: 'Babcock University' },
-  { slug: 'abu', name: 'ABU (Ahmadu Bello University)' },
+  { slug: 'babcock',    name: 'Babcock University' },
+  { slug: 'abu',        name: 'ABU (Ahmadu Bello University)' },
+  { slug: 'uniabuja',   name: 'University of Abuja Centre for Distance Learning' },
+  { slug: 'igbinedion', name: 'Igbinedion University Centre for Distance Learning' },
+  { slug: 'kenbridge',  name: 'Kenbridge Open University' },
 ];
 
 function formatSize(bytes) {
