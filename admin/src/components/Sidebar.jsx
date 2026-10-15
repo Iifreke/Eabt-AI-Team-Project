@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { api } from '../lib/api.js';
@@ -40,6 +40,11 @@ export default function Sidebar() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [schools, setSchools] = useState([]);
+
+  useEffect(() => {
+    api.schools().then(d => setSchools(d.schools || [])).catch(() => {});
+  }, []);
 
   // Heartbeat — keeps updated_at fresh so the server-side auto online/away
   // derivation (src/utils/presence.js) sees this agent as present in real time.
@@ -136,8 +141,9 @@ export default function Sidebar() {
             className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-blue-500"
           >
             <option value="all">All Schools</option>
-            <option value="babcock">Babcock University</option>
-            <option value="abu">ABU (Ahmadu Bello University)</option>
+            {schools.map(s => (
+              <option key={s.id} value={s.slug}>{s.name}</option>
+            ))}
           </select>
         </div>
 

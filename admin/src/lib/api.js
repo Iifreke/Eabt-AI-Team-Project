@@ -91,6 +91,8 @@ export const api = {
   updateTicket: (data) =>
     authFetch('/api/admin/tickets', { method: 'PATCH', body: JSON.stringify(data) }),
 
+  schools: () => authFetch('/api/admin/schools'),
+
   escalations: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return authFetch(`/api/admin/escalations${qs ? '?' + qs : ''}`);
