@@ -5,8 +5,11 @@ import StatsCard from '../components/StatsCard.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 
-const SLUG_DISPLAY = { backock: 'Babcock', babcock: 'Babcock', abu: 'ABU' };
-const schoolDisplayName = (slug) => SLUG_DISPLAY[slug] || slug?.toUpperCase() || '—';
+const schoolDisplayName = (slug, schools = []) => {
+  if (!slug || slug === 'all') return 'All Schools';
+  const match = schools.find(s => s.slug === slug || s.slug === slug?.replace('backock', 'babcock'));
+  return match?.name || slug?.toUpperCase() || '—';
+};
 
 const RANGES = [
   { value: '',      label: 'All Time' },
@@ -44,6 +47,11 @@ export default function Dashboard() {
   const [range, setRange] = useState('');
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [schools, setSchools] = useState([]);
+
+  useEffect(() => {
+    api.schools().then(d => setSchools(d.schools || [])).catch(() => {});
+  }, []);
 
   const fetchStats = useCallback(() => {
     setLoading(true);
@@ -72,8 +80,7 @@ export default function Dashboard() {
       .catch(console.error);
   }, [profile]);
 
-  const schoolLabel = selectedSchool === 'all' ? 'All Schools'
-    : (selectedSchool === 'backock' || selectedSchool === 'babcock') ? 'Babcock University' : 'ABU';
+  const schoolLabel = schoolDisplayName(selectedSchool, schools);
 
   return (
     <div className="ml-60 min-h-screen p-8">
