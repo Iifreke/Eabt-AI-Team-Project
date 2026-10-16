@@ -4,7 +4,7 @@
  */
 
 const SCHOOL_NAMES = {
-  abu:        ['Teni', 'Emma', 'Tola'],
+  abu:        ['Bola', 'Emma', 'Tola'],
   babcock:    ['Bisola', 'Adebola', 'Janet'],
   backock:    ['Bisola', 'Adebola', 'Janet'], // typo alias
   uniabuja:   ['George', 'Amina', 'Chiamaka'],
