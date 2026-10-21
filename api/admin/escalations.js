@@ -89,46 +89,47 @@ export default async function handler(req, res) {
             .update({ stage: 'active', messages, updated_at: new Date().toISOString() })
             .eq('id', escalation.conversation_id);
 
-          // Sync resolved status and closing note to Zoho CRM
-          if (conv.leads && conv.schools) {
-            try {
-              const { addNoteToLead, syncLeadToZoho } = await import('../../src/services/zoho.js');
-              await syncLeadToZoho(conv.leads, conv.schools, { status: 'Closed' });
-              await addNoteToLead(
-                conv.leads,
-                `Support Session Ended (${new Date().toLocaleDateString()})`,
-                `Support agent ${resolved_by || 'Staff'} marked this escalation as resolved on ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT.`,
-                conv.schools
-              );
-            } catch (zErr) {
-              console.warn('[Escalation Resolve] Zoho sync warning:', zErr.message);
-            }
-          }
-
-          // Send WhatsApp closing message if this was a WhatsApp conversation
           const isWhatsApp = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
           const userPhone = conv.whatsapp_phone || conv.leads?.normalized_phone || conv.leads?.phone || conv.session_id?.replace('wa_', '');
 
+          // Respond to the admin immediately — Zoho + WhatsApp run after
+          res.status(200).json({ escalation, ok: true });
+
+          // Zoho sync (post-response, non-blocking)
+          if (conv.leads && conv.schools) {
+            (async () => {
+              try {
+                const { addNoteToLead, syncLeadToZoho } = await import('../../src/services/zoho.js');
+                await syncLeadToZoho(conv.leads, conv.schools, { status: 'Closed' });
+                await addNoteToLead(
+                  conv.leads,
+                  `Support Session Ended (${new Date().toLocaleDateString()})`,
+                  `Support agent ${resolved_by || 'Staff'} marked this escalation as resolved on ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT.`,
+                  conv.schools
+                );
+              } catch (zErr) {
+                console.warn('[Escalation Resolve] Zoho sync warning:', zErr.message);
+              }
+            })();
+          }
+
+          // WhatsApp goodbye (post-response, non-blocking)
           if (isWhatsApp && userPhone) {
             const schoolSlug = conv.schools?.slug || 'babcock';
             const agentName = resolved_by || 'Support Agent';
             const schoolName = conv.schools?.name || 'School Support';
-
             const waGoodbye =
               `✅ *${agentName}* (${schoolName}) has ended this support session.\n\n` +
               `Thank you for reaching out! If you have more questions, feel free to message us anytime and our AI assistant will be happy to help. 🎓`;
 
-            try {
-              const waResult = await sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug });
-              if (waResult.ok) {
-                console.log(`[Escalation Resolve] WhatsApp goodbye sent to ${userPhone}`);
-              } else {
-                console.warn(`[Escalation Resolve] WhatsApp goodbye failed for ${userPhone}:`, waResult.error);
-              }
-            } catch (waErr) {
-              console.warn('[Escalation Resolve] WhatsApp goodbye error:', waErr.message);
-            }
+            sendWhatsAppMessage(userPhone, waGoodbye, { schoolSlug })
+              .then(r => r.ok
+                ? console.log(`[Escalation Resolve] WhatsApp goodbye sent to ${userPhone}`)
+                : console.warn(`[Escalation Resolve] WhatsApp goodbye failed:`, r.error))
+              .catch(e => console.warn('[Escalation Resolve] WhatsApp goodbye error:', e.message));
           }
+
+          return; // response already sent above
         }
       }
 
