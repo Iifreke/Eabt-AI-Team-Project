@@ -45,12 +45,8 @@ export default async function handler(req, res) {
 
     if (error || !conv) return res.status(404).json({ error: 'Conversation not found' });
 
-    // This poll fires every 3s while escalated — piggyback a presence touch
-    // so the lead shows as online even while silently reading, not just messaging.
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conv.id);
+    // Presence touch: fire-and-forget so it never delays the response
+    supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', conv.id).then(() => {}).catch(() => {});
 
     const adminsOnline = await anyAdminOnline(supabase);
 

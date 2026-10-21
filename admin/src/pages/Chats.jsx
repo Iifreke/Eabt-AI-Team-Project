@@ -154,14 +154,17 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
 
   useEffect(() => {
     fetchMessages();
-    pollRef.current = setInterval(fetchMessages, 4000);
+    // Only poll while chat is active — stop when resolved/ended
+    if (esc.status !== 'resolved') {
+      pollRef.current = setInterval(fetchMessages, 4000);
+    }
     return () => {
       clearInterval(pollRef.current);
       clearTimeout(typingTimerRef.current);
       clearTimeout(autoResolveRef.current);
       api.setTyping(esc.conversation_id, false);
     };
-  }, [fetchMessages, esc.conversation_id]);
+  }, [fetchMessages, esc.conversation_id, esc.status]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -702,8 +705,8 @@ export default function Chats() {
   const [bulkEnding, setBulkEnding] = useState(false);
   const prevPendingRef = useRef(null);
 
-  const fetchEscalations = useCallback(async () => {
-    setLoading(true);
+  const fetchEscalations = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const params = {};
       // If focusing on a specific chat, fetch across all schools/statuses to ensure it's found
@@ -750,7 +753,7 @@ export default function Chats() {
 
   // Combined update: refresh both the list and the sidebar badge immediately
   const handleUpdate = useCallback(() => {
-    fetchEscalations();
+    fetchEscalations(true);
     refreshBadgeCount();
   }, [fetchEscalations, refreshBadgeCount]);
 
@@ -774,7 +777,7 @@ export default function Chats() {
 
   useEffect(() => {
     if (prevPendingRef.current !== null && pendingCount > prevPendingRef.current) {
-      fetchEscalations();
+      fetchEscalations(true);
     }
     prevPendingRef.current = pendingCount;
   }, [pendingCount, fetchEscalations]);

@@ -1568,7 +1568,18 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       return res.status(200).json({ status: 'escalated' });
     }
 
-    // 3. EXECUTE KNOWLEDGE BASE RAG SEARCH & GPT-4O-MINI INFERENCE
+    // 3. DETECT INCOMPLETE / VAGUE OPENERS — ask clarifying question instead of searching KB
+    const vagueOpenerPattern = /^(hello|hi|hey|good\s*(morning|afternoon|evening|day)|greetings|please|pls|i\s+(want|need|would like|wish)\s+to\s+(inquire|ask|know|find out|learn|get info)(\s+about)?\s*$|i\s+have\s+a?\s*question\s*$|can\s+you\s+help\s*$)/i;
+    const isIncomplete = vagueOpenerPattern.test(incomingText.trim()) || incomingText.trim().toLowerCase().endsWith(' about') || incomingText.trim().toLowerCase().endsWith(' about.');
+    if (isIncomplete) {
+      const clarifyReply = `Hello! 😊 I'd be happy to help.\n\nWhat would you like to know about *${schoolName}*? Feel free to ask about *courses*, *tuition fees*, *admission requirements*, *application process*, or anything else!`;
+      messages.push({ role: 'assistant', content: clarifyReply, ts: Date.now() });
+      await supabase.from('conversations').update({ messages, channel: 'whatsapp', updated_at: new Date().toISOString() }).eq('id', conv.id);
+      await sendWhatsAppMessage(rawFrom, clarifyReply, sendOpts);
+      return res.status(200).json({ status: 'clarification_requested' });
+    }
+
+    // 4. EXECUTE KNOWLEDGE BASE RAG SEARCH & GPT-4O-MINI INFERENCE
     const chunks = await searchKnowledgeBase(incomingText, school.id);
     const context =
       chunks.length > 0
