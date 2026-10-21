@@ -10,7 +10,17 @@ export function computeAgentStatus(profile, thresholdMs = PRESENCE_THRESHOLD_MS)
   return (Date.now() - lastSeenMs) < thresholdMs ? 'online' : 'away';
 }
 
+let _presenceCache = null;
+let _presenceCacheAt = 0;
+const PRESENCE_CACHE_TTL = 30_000;
+
 export async function anyAdminOnline(supabase) {
+  const now = Date.now();
+  if (_presenceCache !== null && (now - _presenceCacheAt) < PRESENCE_CACHE_TTL) {
+    return _presenceCache;
+  }
   const { data } = await supabase.from('admin_profiles').select('status, updated_at');
-  return (data || []).some(p => computeAgentStatus(p) === 'online');
+  _presenceCache = (data || []).some(p => computeAgentStatus(p) === 'online');
+  _presenceCacheAt = now;
+  return _presenceCache;
 }

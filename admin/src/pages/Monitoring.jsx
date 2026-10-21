@@ -14,7 +14,7 @@ export default function Monitoring() {
 
   const fetch = useCallback(async () => {
     try {
-      const params = { stage: 'active', limit: 50 };
+      const params = { stage: 'active', limit: 50, lite: 'true' };
       if (selectedSchool !== 'all') params.schoolId = selectedSchool;
       const data = await api.conversations(params);
       setConversations(data.conversations || []);

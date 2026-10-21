@@ -95,17 +95,19 @@ export default async function handler(req, res) {
     }
 
     // List conversations
-    const { schoolId, stage, page = '1', limit = '20' } = req.query;
+    const { schoolId, stage, page = '1', limit = '20', lite } = req.query;
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
 
+    // lite=true skips the heavy messages column (used by Monitoring page)
+    const selectCols = lite === 'true'
+      ? 'id, session_id, stage, failed_attempts, updated_at, created_at, leads(name, email), schools(name, slug), escalations(attended_by, resolved_by, status)'
+      : 'id, session_id, stage, failed_attempts, updated_at, created_at, messages, leads(name, email), schools(name, slug), escalations(attended_by, resolved_by, status)';
+
     let query = supabase
       .from('conversations')
-      .select(
-        'id, session_id, stage, failed_attempts, updated_at, created_at, messages, leads(name, email), schools(name, slug), escalations(attended_by, resolved_by, status)',
-        { count: 'exact' }
-      );
+      .select(selectCols, { count: 'exact' });
 
     if (schoolId) {
       const resolvedId = await resolveSchoolId(schoolId);
@@ -128,7 +130,8 @@ export default async function handler(req, res) {
       const displayStage = (escalation?.status === 'resolved') ? 'resolved' : conv.stage;
       return {
         ...conv,
-        message_count: Array.isArray(conv.messages) ? conv.messages.length : 0,
+        message_count: conv.message_count ?? (Array.isArray(conv.messages) ? conv.messages.length : 0),
+        messages: lite === 'true' ? undefined : conv.messages,
         agent,
         displayStage,
       };

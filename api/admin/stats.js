@@ -63,117 +63,60 @@ export default async function handler(req, res) {
         .limit(10),
     ]);
 
-    // Leads by school
-    const leadsBySchool = {};
-    if (schools) {
-      await Promise.all(schools.map(async s => {
-        const { count } = await supabase.from('leads')
-          .select('*', { count: 'exact', head: true }).eq('school_id', s.id);
-        leadsBySchool[s.slug] = count || 0;
-      }));
-    }
-
     const filteredLeads = schoolUUID
       ? (recentLeads || []).filter(l => l.school_id === schoolUUID).slice(0, 5)
       : (recentLeads || []).slice(0, 5);
 
-    // Leads trend (daily buckets for chart)
-    let leadsTrend = [];
-    {
-      const trendCutoff = cutoff || new Date(Date.now() - 30 * 86400000).toISOString();
-      let q = supabase.from('leads').select('created_at');
-      if (schoolUUID) q = q.eq('school_id', schoolUUID);
-      const { data: trendLeads } = await q.gte('created_at', trendCutoff);
-      const grouped = {};
-      (trendLeads || []).forEach(l => {
-        const date = l.created_at.slice(0, 10);
-        grouped[date] = (grouped[date] || 0) + 1;
-      });
-      leadsTrend = Object.entries(grouped)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, count]) => ({ date, count }));
-    }
+    // Run all remaining queries in parallel
+    const trendCutoff = cutoff || new Date(Date.now() - 30 * 86400000).toISOString();
+
+    const trendQ = (() => { let q = supabase.from('leads').select('created_at').gte('created_at', trendCutoff); if (schoolUUID) q = q.eq('school_id', schoolUUID); return q; })();
+    const humanQ = (() => { let q = supabase.from('escalations').select('*', { count: 'exact', head: true }); if (schoolUUID) q = q.eq('school_id', schoolUUID); if (cutoff) q = q.gte('created_at', cutoff); return q; })();
+    const agentEscQ = (() => { let q = supabase.from('escalations').select('attended_by, resolved_by, status, created_at, first_response_at, lead_id'); if (schoolUUID) q = q.eq('school_id', schoolUUID); if (cutoff) q = q.gte('created_at', cutoff); return q; })();
+    const csatQ = (() => { let q = supabase.from('conversations').select('rating').not('rating', 'is', null); if (schoolUUID) q = q.eq('school_id', schoolUUID); return q; })();
+    const schoolCountsQ = schools ? Promise.all(schools.map(s => supabase.from('leads').select('*', { count: 'exact', head: true }).eq('school_id', s.id).then(r => ({ slug: s.slug, count: r.count || 0 })))) : Promise.resolve([]);
+
+    const [
+      { data: trendLeads },
+      { count: humanAssistedRaw },
+      { data: escData },
+      { data: ratings },
+      { count: openTickets },
+      schoolCounts,
+    ] = await Promise.all([trendQ, humanQ, agentEscQ, csatQ, supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'), schoolCountsQ]);
+
+    // Leads by school
+    const leadsBySchool = {};
+    (schoolCounts || []).forEach(({ slug, count }) => { leadsBySchool[slug] = count; });
+
+    // Leads trend
+    const grouped = {};
+    (trendLeads || []).forEach(l => { const d = l.created_at.slice(0, 10); grouped[d] = (grouped[d] || 0) + 1; });
+    const leadsTrend = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date, count }));
 
     // Human-assisted vs AI-only
-    let humanAssistedCount = 0;
-    let aiOnlyCount = 0;
-    {
-      let q = supabase.from('escalations').select('*', { count: 'exact', head: true });
-      if (schoolUUID) q = q.eq('school_id', schoolUUID);
-      if (cutoff) q = q.gte('created_at', cutoff);
-      const { count } = await q;
-      humanAssistedCount = count || 0;
-      aiOnlyCount = Math.max(0, (totalConversations || 0) - humanAssistedCount);
-    }
+    const humanAssistedCount = humanAssistedRaw || 0;
+    const aiOnlyCount = Math.max(0, (totalConversations || 0) - humanAssistedCount);
 
     // Agent performance
-    let agentPerformance = [];
-    {
-      let q = supabase.from('escalations')
-        .select('attended_by, resolved_by, status, created_at, first_response_at, lead_id');
-      if (schoolUUID) q = q.eq('school_id', schoolUUID);
-      if (cutoff) q = q.gte('created_at', cutoff);
-      const { data: escData } = await q;
-      const map = {};
-      (escData || []).forEach(e => {
-        if (e.attended_by) {
-          if (!map[e.attended_by]) {
-            map[e.attended_by] = {
-              agent: e.attended_by,
-              served: 0,
-              resolved: 0,
-              totalResponseMs: 0,
-              responseCount: 0,
-              uniqueLeads: new Set(),
-            };
-          }
-          map[e.attended_by].served++;
-          if (e.first_response_at && e.created_at) {
-            const ms = new Date(e.first_response_at) - new Date(e.created_at);
-            if (ms > 0) {
-              map[e.attended_by].totalResponseMs += ms;
-              map[e.attended_by].responseCount++;
-            }
-          }
-          if (e.lead_id) map[e.attended_by].uniqueLeads.add(e.lead_id);
-        }
-        if (e.status === 'resolved' && e.resolved_by) {
-          if (!map[e.resolved_by]) {
-            map[e.resolved_by] = {
-              agent: e.resolved_by,
-              served: 0,
-              resolved: 0,
-              totalResponseMs: 0,
-              responseCount: 0,
-              uniqueLeads: new Set(),
-            };
-          }
-          map[e.resolved_by].resolved++;
-        }
-      });
-      agentPerformance = Object.values(map).map(a => ({
-        agent: a.agent,
-        served: a.served,
-        resolved: a.resolved,
-        avgResponseMs: a.responseCount > 0 ? Math.round(a.totalResponseMs / a.responseCount) : null,
-        usersRespondedTo: a.uniqueLeads.size,
-      })).sort((a, b) => b.served - a.served);
-    }
-
-    // Open tickets
-    const { count: openTickets } = await supabase
-      .from('tickets').select('*', { count: 'exact', head: true }).eq('status', 'open');
+    const map = {};
+    (escData || []).forEach(e => {
+      if (e.attended_by) {
+        if (!map[e.attended_by]) map[e.attended_by] = { agent: e.attended_by, served: 0, resolved: 0, totalResponseMs: 0, responseCount: 0, uniqueLeads: new Set() };
+        map[e.attended_by].served++;
+        if (e.first_response_at && e.created_at) { const ms = new Date(e.first_response_at) - new Date(e.created_at); if (ms > 0) { map[e.attended_by].totalResponseMs += ms; map[e.attended_by].responseCount++; } }
+        if (e.lead_id) map[e.attended_by].uniqueLeads.add(e.lead_id);
+      }
+      if (e.status === 'resolved' && e.resolved_by) {
+        if (!map[e.resolved_by]) map[e.resolved_by] = { agent: e.resolved_by, served: 0, resolved: 0, totalResponseMs: 0, responseCount: 0, uniqueLeads: new Set() };
+        map[e.resolved_by].resolved++;
+      }
+    });
+    const agentPerformance = Object.values(map).map(a => ({ agent: a.agent, served: a.served, resolved: a.resolved, avgResponseMs: a.responseCount > 0 ? Math.round(a.totalResponseMs / a.responseCount) : null, usersRespondedTo: a.uniqueLeads.size })).sort((a, b) => b.served - a.served);
 
     // Average CSAT
     let avgCsat = null;
-    {
-      let q = supabase.from('conversations').select('rating').not('rating', 'is', null);
-      if (schoolUUID) q = q.eq('school_id', schoolUUID);
-      const { data: ratings } = await q;
-      if (ratings?.length) {
-        avgCsat = Math.round((ratings.reduce((s, r) => s + r.rating, 0) / ratings.length) * 10) / 10;
-      }
-    }
+    if (ratings?.length) avgCsat = Math.round((ratings.reduce((s, r) => s + r.rating, 0) / ratings.length) * 10) / 10;
 
     // Agent-specific detailed statistics
     let agentStats = null;
