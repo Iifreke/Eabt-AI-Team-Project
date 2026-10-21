@@ -101,20 +101,20 @@ export default async function handler(req, res) {
 
     if (updateErr) throw updateErr;
 
-    // ── Omnichannel WhatsApp Dispatch ─────────────────────────
-    // If conversation is from WhatsApp OR user is offline on the web widget
+    // ── Omnichannel routing decision (computed before responding) ──
     const isWhatsAppSession = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;
     const lastSeenMs = conv.user_last_seen_web ? new Date(conv.user_last_seen_web).getTime() : 0;
     const isWebUserOffline = conv.user_web_online === false || (Date.now() - lastSeenMs > 90 * 1000);
-
     const userPhone = conv.whatsapp_phone || conv.leads?.normalized_phone || conv.leads?.phone;
 
-    let whatsappSent = false;
-    let whatsappError = null;
+    // ── Respond to the admin immediately — DB save is the source of truth ──
+    // WhatsApp + Zoho run after the response so Meta API latency never causes a 504.
+    res.status(200).json({ ok: true, messages, whatsappSent: !!(isWhatsAppSession || isWebUserOffline) && !!userPhone });
+
+    // ── WhatsApp Dispatch (post-response, non-blocking) ────────────────────
     if ((isWhatsAppSession || isWebUserOffline) && userPhone) {
       const waBody = `*${adminName}* (${schoolName}):\n${message.trim()}`;
 
-      // Retrieve originating WhatsApp Phone Number ID if available in conversation messages
       const lastUserMsg = [...(Array.isArray(conv.messages) ? conv.messages : [])]
         .reverse()
         .find(m => m.role === 'user' && (m.phone_number_id || m.schoolSlug));
@@ -127,24 +127,19 @@ export default async function handler(req, res) {
       const targetPhoneNumberId = lastUserMsg?.phone_number_id || defaultPhoneId;
       const targetSchoolSlug = lastUserMsg?.schoolSlug || schoolSlug;
 
-      console.log(`[Admin Reply] Dispatching to WhatsApp recipient ${userPhone} using phoneId ${targetPhoneNumberId}...`);
-      const waResult = await sendWhatsAppMessage(userPhone, waBody, {
+      sendWhatsAppMessage(userPhone, waBody, {
         phoneNumberId: targetPhoneNumberId,
         schoolSlug: targetSchoolSlug,
-      });
-
-      whatsappSent = waResult.ok;
-      whatsappError = waResult.error || null;
-      if (!waResult.ok) {
-        console.warn('[Admin Reply] WhatsApp dispatch failed:', waResult.error);
-      } else {
-        console.log(`[Admin Reply] WhatsApp message delivered successfully (id: ${waResult.messageId})`);
-      }
+      }).then(waResult => {
+        if (!waResult.ok) {
+          console.warn('[Admin Reply] WhatsApp dispatch failed:', waResult.error);
+        } else {
+          console.log(`[Admin Reply] WhatsApp message delivered (id: ${waResult.messageId})`);
+        }
+      }).catch(err => console.error('[Admin Reply] WhatsApp dispatch exception:', err.message));
     }
 
-    // ── Zoho CRM Lead Capture + Note (non-blocking) ─────────
-    // Wrapped separately so Zoho failures never break the reply —
-    // the message is already saved and WhatsApp was already sent.
+    // ── Zoho CRM sync (post-response, non-blocking) ────────────────────────
     if (conv.leads || conv.lead_id) {
       const leadObj = conv.leads || { id: conv.lead_id, school_id: conv.school_id };
       const schoolObj = conv.schools || { id: conv.school_id };
@@ -170,8 +165,6 @@ export default async function handler(req, res) {
         }
       })();
     }
-
-    return res.status(200).json({ ok: true, messages, whatsappSent, whatsappError });
   } catch (error) {
     console.error('admin reply error:', error);
     return res.status(500).json({ error: 'Internal server error' });

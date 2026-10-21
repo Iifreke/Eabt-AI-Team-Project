@@ -6,6 +6,9 @@
     "api/chat/index.js": {
       "maxDuration": 60
     },
+    "api/admin/reply.js": {
+      "maxDuration": 60
+    },
     "api/**/*.js": {
       "maxDuration": 30
     }
