@@ -766,7 +766,11 @@ export default function Chats() {
     }
   }, [selectedSchool, pendingCount, unrespondedCount, fetchEscalations, refreshBadgeCount]);
 
-  useEffect(() => { fetchEscalations(); }, [fetchEscalations]);
+  useEffect(() => {
+    fetchEscalations();
+    const interval = setInterval(() => fetchEscalations(true), 8000);
+    return () => clearInterval(interval);
+  }, [fetchEscalations]);
 
   useEffect(() => {
     if (prevPendingRef.current !== null && pendingCount > prevPendingRef.current) {

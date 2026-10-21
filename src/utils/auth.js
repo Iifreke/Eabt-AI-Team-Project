@@ -1,6 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import supabase from '../db/supabase.js';
 
+// Single reusable anon client — never recreate per request
+const anonClient = createClient(
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://elcugbusrvbrpbhwsrev.supabase.co',
+  process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3VnYnVzcnZicnBiaHdzcmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyOTY2NTAsImV4cCI6MjA5Mjg3MjY1MH0.Biy-na8wbeVhSl-wSMkAKwcujTZ2mX_PyusPGInGZ7o'
+);
+
+// Cache auth results for 60s per token — avoids a Supabase round-trip on every request
+const _authCache = new Map();
+const AUTH_CACHE_TTL = 60_000;
+
 export async function requireAuth(req, res) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -9,18 +19,27 @@ export async function requireAuth(req, res) {
   }
 
   const token = authHeader.split(' ')[1];
-
-  const anonClient = createClient(
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://elcugbusrvbrpbhwsrev.supabase.co',
-    process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsY3VnYnVzcnZicnBiaHdzcmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyOTY2NTAsImV4cCI6MjA5Mjg3MjY1MH0.Biy-na8wbeVhSl-wSMkAKwcujTZ2mX_PyusPGInGZ7o'
-  );
+  const now = Date.now();
+  const cached = _authCache.get(token);
+  if (cached && (now - cached.at) < AUTH_CACHE_TTL) {
+    return cached.user;
+  }
 
   const { data: { user }, error } = await anonClient.auth.getUser(token);
 
   if (error || !user) {
-    console.error('requireAuth: token validation failed:', error?.message || error, '| status:', error?.status);
+    console.error('requireAuth: token validation failed:', error?.message || error);
     res.status(401).json({ error: 'Invalid token' });
     return null;
+  }
+
+  _authCache.set(token, { user, at: now });
+
+  // Evict stale entries to prevent memory leak
+  if (_authCache.size > 500) {
+    for (const [k, v] of _authCache) {
+      if (now - v.at > AUTH_CACHE_TTL) _authCache.delete(k);
+    }
   }
 
   return user;

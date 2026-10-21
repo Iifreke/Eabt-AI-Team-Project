@@ -36,7 +36,15 @@ export default async function handler(req, res) {
 
       if (error) throw error;
 
-      return res.status(200).json({ escalations: escalations || [] });
+      // Trim messages to last 10 per conversation — full history is loaded by the poll when a chat is opened
+      const trimmed = (escalations || []).map(e => {
+        if (e.conversations?.messages?.length > 10) {
+          return { ...e, conversations: { ...e.conversations, messages: e.conversations.messages.slice(-10) } };
+        }
+        return e;
+      });
+
+      return res.status(200).json({ escalations: trimmed });
     } catch (error) {
       console.error('escalations error:', error);
       return res.status(500).json({ error: 'Internal server error' });
