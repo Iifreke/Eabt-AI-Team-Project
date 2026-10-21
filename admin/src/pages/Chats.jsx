@@ -110,14 +110,7 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
 
   const resetAutoResolve = useCallback(() => {
     clearTimeout(autoResolveRef.current);
-    if (esc.status === 'resolved' || !profile?.full_name) return;
-    autoResolveRef.current = setTimeout(async () => {
-      try {
-        await api.updateEscalation({ id: esc.id, status: 'resolved', resolved_by: profile.full_name });
-        onUpdateRef.current?.();
-      } catch {}
-    }, 5 * 60 * 1000);
-  }, [esc.id, esc.status, profile]);
+  }, []);
 
   const sessionId = esc.conversations?.session_id;
   const lead = esc.leads;
