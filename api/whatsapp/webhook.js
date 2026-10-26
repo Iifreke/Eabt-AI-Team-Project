@@ -879,22 +879,16 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
       isSessionStartMessage(incomingText) ||
       isSessionStale(conv);
 
-    // If at beginning of chat and details are complete: Must confirm before proceeding
+    // If at beginning of chat and details are complete: transition directly to active
     if (isNewOrRestart && isComplete && conv.stage !== 'confirming_details' && !conv.stage.startsWith('updating_')) {
-      conv.stage = 'confirming_details';
-      pushUserMessage(incomingText);
-
+      conv.stage = 'active';
       await supabase
         .from('conversations')
         .update({
-          stage: 'confirming_details',
-          messages,
+          stage: 'active',
           updated_at: new Date().toISOString(),
         })
         .eq('id', conv.id);
-
-      await sendConfirmationPrompt(rawFrom, lead, school, sendOpts);
-      return res.status(200).json({ status: 'confirmation_prompt_sent' });
     }
 
     // ── STAGE: CONFIRMING DETAILS (Zoho Verification) ───────
@@ -1094,9 +1088,61 @@ IMPORTANT: You are communicating directly with the student via WhatsApp. Keep yo
         return res.status(200).json({ status: 'direct_details_updated' });
       }
 
-      // Unrecognized answer -> resend prompt
-      await sendConfirmationPrompt(rawFrom, lead, school, sendOpts);
-      return res.status(200).json({ status: 'confirmation_prompt_resent' });
+      // Any other answer (greeting, question, inquiry) -> auto-confirm and activate!
+      conv.stage = 'active';
+
+      await zoho.syncLeadToZoho(lead, school, {
+        source: defaultLeadSource,
+        botType,
+      });
+
+      // If user asked a question or sent an inquiry, answer it directly!
+      if (incomingText.length > 3 && !/^(1|confirm|yes|proceed|ok|okay|yep)$/i.test(incomingText.trim())) {
+        try {
+          const chunks = await searchKnowledgeBase(incomingText, school.id);
+          const context =
+            chunks.length > 0
+              ? chunks.map(c => c.content).join('\n\n---\n\n')
+              : 'No specific information found in the knowledge base for this query.';
+
+          const systemPrompt = `${buildActiveSystemPrompt(school.name, lead.name || 'there', context, getAgentName(school.slug, `wa_${rawFrom}`))}
+IMPORTANT: You are communicating directly with the student via WhatsApp. Keep your responses crisp, professional, friendly, and well-structured using WhatsApp styling (*bold* for emphasis, clean short bullet points). Avoid long walls of text.`;
+
+          const aiReply = await chat(systemPrompt, [{ role: 'user', content: incomingText }]);
+          const cleanReply = stripEscalateToken(aiReply);
+
+          messages.push({ role: 'assistant', content: cleanReply, ts: Date.now() });
+          await supabase
+            .from('conversations')
+            .update({
+              stage: 'active',
+              messages,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conv.id);
+
+          await sendWhatsAppMessage(rawFrom, cleanReply, sendOpts);
+          return res.status(200).json({ status: 'confirmed_and_answered' });
+        } catch (e) {
+          console.warn('[Confirming Details Fallback] Error answering question:', e.message);
+        }
+      }
+
+      // Default welcome greeting
+      const welcomeHeader = `Welcome to *${schoolName}*! 🎓\n\nHello *${lead.name}*! How can I assist you with your academic inquiries today?\n\nFeel free to ask any question about *courses*, *tuition fees*, *admission requirements*, or *how to apply*!`;
+      messages.push({ role: 'assistant', content: welcomeHeader, ts: Date.now() });
+
+      await supabase
+        .from('conversations')
+        .update({
+          stage: 'active',
+          messages,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conv.id);
+
+      await sendInteractiveWelcomeMenu(rawFrom, school, welcomeHeader, sendOpts);
+      return res.status(200).json({ status: 'confirmed_and_activated' });
     }
 
     // ── STAGE: UPDATING DETAILS (Step-by-Step) ─────────────────
