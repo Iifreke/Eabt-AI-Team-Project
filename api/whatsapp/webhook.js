@@ -688,14 +688,27 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── Load or Create Conversation ──────────────────────────
+    // ── Load or Create Conversation (Scoped per School) ──────
     let { data: conv } = await supabase
       .from('conversations')
       .select('*')
-      .or(`whatsapp_phone.eq.${rawFrom},session_id.eq.wa_${rawFrom},lead_id.eq.${lead.id}`)
+      .eq('school_id', school.id)
+      .or(`whatsapp_phone.eq.${rawFrom},session_id.eq.wa_${rawFrom},session_id.eq.wa_${school.slug}_${rawFrom}`)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (!conv && lead?.id) {
+      const { data: leadConv } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('school_id', school.id)
+        .eq('lead_id', lead.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (leadConv) conv = leadConv;
+    }
 
     const isComplete = isLeadComplete(lead);
 
@@ -705,11 +718,13 @@ export default async function handler(req, res) {
         initialStage = 'confirming_details';
       }
 
+      const targetSessionId = `wa_${school.slug}_${rawFrom}`;
+
       const { data: newConv } = await supabase
         .from('conversations')
         .insert({
           school_id: school.id,
-          session_id: `wa_${rawFrom}`,
+          session_id: targetSessionId,
           lead_id: lead.id,
           whatsapp_phone: rawFrom,
           channel: 'whatsapp',
@@ -720,17 +735,16 @@ export default async function handler(req, res) {
         .single();
       conv = newConv;
     } else {
-      if (conv.school_id !== school.id || !conv.lead_id) {
+      if (!conv.lead_id || !conv.whatsapp_phone) {
         await supabase
           .from('conversations')
           .update({
-            school_id: school.id,
             lead_id: lead.id,
             whatsapp_phone: rawFrom,
           })
           .eq('id', conv.id);
-        conv.school_id = school.id;
         conv.lead_id = lead.id;
+        conv.whatsapp_phone = rawFrom;
       }
     }
 
