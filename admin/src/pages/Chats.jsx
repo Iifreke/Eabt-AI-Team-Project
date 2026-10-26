@@ -92,7 +92,8 @@ function useShortcuts() {
 const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMarkResponded }) {
   const { profile } = useUser();
   const shortcuts = useShortcuts();
-  const [messages, setMessages] = useState([]);
+  // Initialize with pre-loaded conversation messages if available so chat is never blank while history polls
+  const [messages, setMessages] = useState(() => (Array.isArray(esc.conversations?.messages) && esc.conversations.messages.length > 0 ? esc.conversations.messages : []));
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -119,6 +120,13 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
   const channel = isWAConv ? 'whatsapp' : 'web';
   const waUrl = formatWhatsAppLink(lead?.normalized_phone || lead?.phone || conversation?.whatsapp_phone);
 
+  // Sync pre-loaded messages if initial state was empty
+  useEffect(() => {
+    if (Array.isArray(esc.conversations?.messages) && esc.conversations.messages.length > 0) {
+      setMessages(prev => (prev.length === 0 ? esc.conversations.messages : prev));
+    }
+  }, [esc.conversations?.messages]);
+
   const fetchMessages = useCallback(async () => {
     const queryParam = sessionId
       ? `sessionId=${encodeURIComponent(sessionId)}`
@@ -128,8 +136,9 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
     if (!queryParam) return;
     try {
       const res = await fetch(`/api/chat/messages?${queryParam}`);
+      if (!res.ok) return;
       const data = await res.json();
-      if (Array.isArray(data?.messages)) {
+      if (Array.isArray(data?.messages) && data.messages.length > 0) {
         setMessages(prev => {
           if (prev.length !== data.messages.length || prev[prev.length - 1]?.ts !== data.messages[data.messages.length - 1]?.ts) {
              return data.messages;
@@ -139,7 +148,7 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
         resetAutoResolve();
       }
     } catch (e) {
-      console.error('poll error', e);
+      console.warn('poll error', e.message);
     }
   }, [sessionId, esc.conversation_id, resetAutoResolve]);
 
@@ -149,7 +158,7 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
     fetchMessages();
     // Only poll while chat is active — stop when resolved/ended
     if (esc.status !== 'resolved') {
-      pollRef.current = setInterval(fetchMessages, 4000);
+      pollRef.current = setInterval(fetchMessages, 5000);
     }
     return () => {
       clearInterval(pollRef.current);
@@ -174,14 +183,24 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!reply.trim() || sending) return;
+    const textToSend = reply.trim();
+    if (!textToSend || sending) return;
     setSending(true);
     setError('');
     setInfoMessage('');
 
+    // Instant optimistic update in the message stream
+    const optimisticMsg = {
+      role: 'admin',
+      content: textToSend,
+      ts: Date.now(),
+      adminName: profile?.full_name || 'You',
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+    setReply('');
+
     try {
-      const result = await api.replyToConversation(esc.conversation_id, reply.trim());
-      setReply('');
+      const result = await api.replyToConversation(esc.conversation_id, textToSend);
       api.setTyping(esc.conversation_id, false);
       resetAutoResolve();
 
@@ -255,9 +274,10 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
 
       <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 h-72 overflow-y-auto space-y-3 mb-3">
         {!messages.length ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 text-xs gap-1">
-            <span className="text-xl">💬</span>
-            <span>No messages yet in this session.</span>
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 text-xs gap-1.5 p-4">
+            <span className="text-2xl">💬</span>
+            <span className="font-semibold text-gray-700">No messages yet in this session.</span>
+            <span className="text-[11px] text-gray-400">Waiting for live conversation updates...</span>
           </div>
         ) : (
           messages.map((m, i) => {
@@ -270,16 +290,16 @@ const LiveChatPanel = memo(function LiveChatPanel({ esc, onUpdate, msgInfo, onMa
               return (
                 <div key={i} className="text-center my-2">
                   <span className="inline-block bg-slate-100 border border-slate-200 text-slate-600 text-[11px] px-3 py-1 rounded-full font-medium">
-                    {m.content}
+                    {typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}
                   </span>
                 </div>
               );
             }
 
-            // Luxury message formatting — strip any residual system tokens
+            // Safe message formatting — strip any residual system tokens, handle non-strings gracefully
             const formattedContent = typeof m.content === 'string'
               ? m.content.replace(/\[ESCALATE(?::[^\]]*)?\]/gi, '').trim()
-              : m.content;
+              : (m.content ? JSON.stringify(m.content) : '');
 
             return (
               <div key={i} className={`flex flex-col ${isUser ? 'items-start' : 'items-end'}`}>
@@ -695,17 +715,23 @@ export default function Chats() {
   const [status, setStatus] = useState('all');
   const [tagFilter, setTagFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [bulkEnding, setBulkEnding] = useState(false);
   const prevPendingRef = useRef(null);
 
   const fetchEscalations = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
+      setLoadError('');
       const params = {};
       // If focusing on a specific chat, fetch across all schools/statuses to ensure it's found
       if (!targetChatId) {
         if (selectedSchool !== 'all') params.schoolId = selectedSchool;
-        if (status !== 'all' && status !== 'needs_reply') params.status = status;
+        if (status === 'needs_reply') {
+          params.status = 'active';
+        } else if (status !== 'all') {
+          params.status = status;
+        }
       }
       const data = await api.escalations(params);
       let list = data.escalations || [];
@@ -738,7 +764,10 @@ export default function Chats() {
 
       setEscalations(list);
     } catch (err) {
-      console.error(err);
+      console.error('fetchEscalations error:', err);
+      if (!isBackground) {
+        setLoadError(err.message || 'Failed to load chats. Please check your connection and retry.');
+      }
     } finally {
       setLoading(false);
     }
@@ -934,6 +963,19 @@ export default function Chats() {
             <div className="flex items-center gap-2 text-gray-400 p-5">
               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
               Loading chats...
+            </div>
+          ) : loadError ? (
+            <div className="p-5 flex items-center justify-between text-rose-700 bg-rose-50 text-sm">
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{loadError}</span>
+              </div>
+              <button
+                onClick={() => fetchEscalations()}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors"
+              >
+                Retry
+              </button>
             </div>
           ) : !displayed.length ? (
             <p className="text-gray-400 text-sm p-5">No chats found.</p>

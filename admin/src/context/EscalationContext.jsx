@@ -5,7 +5,7 @@ import { playNotificationSound } from '../utils/notificationSound.js';
 
 const EscalationContext = createContext(null);
 const STORAGE_KEY = 'admin_viewed_chats_v1';
-const POLL_INTERVAL_MS = 3500;
+const POLL_INTERVAL_MS = 12000;
 
 function getViewedMap() {
   try {
@@ -134,10 +134,10 @@ export function EscalationProvider({ children }) {
     }
   }, [analyzeEsc]);
 
-  // Fetch escalations from API
+  // Fetch escalations from API (active only for badge & alerts)
   const refresh = useCallback(async () => {
     try {
-      const d = await api.escalations();
+      const d = await api.escalations({ status: 'active' });
       const list = d.escalations || [];
       setEscalations(list);
       setViewedMap(curVMap => {

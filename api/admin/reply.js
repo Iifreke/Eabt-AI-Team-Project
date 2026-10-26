@@ -36,53 +36,39 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'conversationId and message are required' });
     }
 
-    // Load conversation with lead and school details
-    const { data: conv, error: convErr } = await supabase
-      .from('conversations')
-      .select('id, session_id, messages, stage, channel, whatsapp_phone, user_web_online, user_last_seen_web, school_id, lead_id, schools(id, name, slug), leads(id, name, email, phone, normalized_phone, session_id, zoho_contact_id)')
-      .eq('id', conversationId)
-      .single();
+    // Load conversation, profile, and escalation in parallel
+    const [profile, convRes, escRes] = await Promise.all([
+      getProfile(user.id),
+      supabase
+        .from('conversations')
+        .select('id, session_id, messages, stage, channel, whatsapp_phone, user_web_online, user_last_seen_web, school_id, lead_id, schools(id, name, slug), leads(id, name, email, phone, normalized_phone, session_id, zoho_contact_id)')
+        .eq('id', conversationId)
+        .single(),
+      supabase
+        .from('escalations')
+        .select('id, first_response_at, status, attended_by')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-    if (convErr || !conv) {
+    const conv = convRes.data;
+    const esc = escRes.data;
+
+    if (convRes.error || !conv) {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    // Only allow replies on escalated conversations
-    if (conv.stage !== 'escalated') {
-      return res.status(400).json({ error: 'Can only reply to escalated conversations' });
-    }
-
-    // Look up the admin's display name from their profile
-    const profile = await getProfile(user.id);
     const adminName = profile?.full_name || user.email || 'Support Agent';
     const schoolName = conv.schools?.name || 'School Support';
 
-    // Set first_response_at, status and attended_by on the escalation when admin replies
-    const { data: esc } = await supabase
-      .from('escalations')
-      .select('id, first_response_at, status, attended_by')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
+    // Prepare escalation updates
+    const escUpdates = {};
     if (esc) {
-      const updates = {};
-      if (!esc.first_response_at) {
-        updates.first_response_at = new Date().toISOString();
-      }
-      if (esc.status === 'pending') {
-        updates.status = 'in_progress';
-      }
-      if (!esc.attended_by) {
-        updates.attended_by = adminName;
-      }
-      if (Object.keys(updates).length > 0) {
-        await supabase
-          .from('escalations')
-          .update(updates)
-          .eq('id', esc.id);
-      }
+      if (!esc.first_response_at) escUpdates.first_response_at = new Date().toISOString();
+      if (esc.status === 'pending') escUpdates.status = 'in_progress';
+      if (!esc.attended_by) escUpdates.attended_by = adminName;
     }
 
     // Append admin message (also clears any typing indicator)
@@ -94,12 +80,24 @@ export default async function handler(req, res) {
       adminName,
     });
 
-    const { error: updateErr } = await supabase
-      .from('conversations')
-      .update({ messages, updated_at: new Date().toISOString() })
-      .eq('id', conversationId);
+    const convUpdates = {
+      messages,
+      updated_at: new Date().toISOString(),
+    };
+    if (conv.stage !== 'escalated') {
+      convUpdates.stage = 'escalated';
+    }
 
-    if (updateErr) throw updateErr;
+    // Execute database updates in parallel
+    const writePromises = [
+      supabase.from('conversations').update(convUpdates).eq('id', conversationId),
+    ];
+    if (esc && Object.keys(escUpdates).length > 0) {
+      writePromises.push(supabase.from('escalations').update(escUpdates).eq('id', esc.id));
+    }
+    const writeResults = await Promise.all(writePromises);
+    const writeErr = writeResults.find(r => r.error)?.error;
+    if (writeErr) throw writeErr;
 
     // ── Omnichannel routing decision (computed before responding) ──
     const isWhatsAppSession = conv.channel?.toLowerCase() === 'whatsapp' || conv.session_id?.startsWith('wa_') || !!conv.whatsapp_phone;

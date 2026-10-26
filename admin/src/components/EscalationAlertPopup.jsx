@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEscalation } from '../context/EscalationContext.jsx';
 
 function formatRelativeTime(ts) {
@@ -15,10 +15,15 @@ function formatRelativeTime(ts) {
 
 export default function EscalationAlertPopup() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { unviewedChats, unviewedCount, markChatAsViewed } = useEscalation();
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
 
-  // Per user requirement: Stays on screen till viewed or responded to!
+  // When agent is on the /chats page, hide the floating popup so it NEVER blocks the reply box or Send button
+  const isChatsPage = location.pathname.startsWith('/chats');
+
+  if (dismissed || isChatsPage) return null;
   if (!unviewedCount || unviewedChats.length === 0) return null;
 
   const handleOpenChat = (chat) => {
@@ -30,16 +35,30 @@ export default function EscalationAlertPopup() {
     return (
       <aside
         aria-label="Pending incoming messages"
-        onClick={() => setMinimized(false)}
-        className="fixed bottom-6 right-6 z-[100] cursor-pointer bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 border-2 border-white animate-bounce transition-transform"
+        className="fixed bottom-6 right-6 z-[90] bg-red-600 text-white pl-4 pr-2 py-2 rounded-full shadow-2xl flex items-center gap-2.5 border-2 border-white hover:bg-red-700 transition-all select-none"
       >
-        <span className="relative flex h-3 w-3">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
-        </span>
-        <span className="text-xs font-bold tracking-wide">
-          {unviewedCount} New Message{unviewedCount > 1 ? 's' : ''} (Click to expand)
-        </span>
+        <div
+          onClick={() => setMinimized(false)}
+          className="cursor-pointer flex items-center gap-2"
+        >
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
+          </span>
+          <span className="text-xs font-bold tracking-wide">
+            {unviewedCount} New Message{unviewedCount > 1 ? 's' : ''} (Click to expand)
+          </span>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setDismissed(true);
+          }}
+          title="Dismiss alert"
+          className="ml-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/20 hover:bg-black/40 text-white text-xs font-bold transition-colors"
+        >
+          ✕
+        </button>
       </aside>
     );
   }
@@ -77,6 +96,13 @@ export default function EscalationAlertPopup() {
             className="p-1 text-white/80 hover:text-white hover:bg-white/10 rounded-lg text-xs transition-colors"
           >
             ➖
+          </button>
+          <button
+            onClick={() => setDismissed(true)}
+            title="Dismiss alert"
+            className="p-1 text-white/80 hover:text-white hover:bg-white/10 rounded-lg text-xs font-bold transition-colors"
+          >
+            ✕
           </button>
         </div>
       </div>

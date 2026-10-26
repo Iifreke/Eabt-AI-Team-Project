@@ -13,14 +13,14 @@ export default async function handler(req, res) {
   // GET — list escalations
   if (req.method === 'GET') {
     try {
-      const { status, schoolId } = req.query;
+      const { status, schoolId, limit: queryLimit } = req.query;
 
       let query = supabase
         .from('escalations')
         .select('*, co_agents, conversations(id, session_id, stage, channel, whatsapp_phone, updated_at, messages), leads(name, email, phone, normalized_phone, zoho_contact_id, lead_tier), schools(name, slug)');
 
       if (status) {
-        if (status === 'active') {
+        if (status === 'active' || status === 'needs_reply') {
           query = query.in('status', ['pending', 'in_progress']);
         } else {
           query = query.eq('status', status);
@@ -32,14 +32,17 @@ export default async function handler(req, res) {
         if (resolvedId) query = query.eq('school_id', resolvedId);
       }
 
-      const { data: escalations, error } = await query.order('updated_at', { ascending: false, nullsFirst: false });
+      const limit = queryLimit ? parseInt(queryLimit, 10) : (status === 'resolved' ? 100 : 150);
+      const { data: escalations, error } = await query
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(limit);
 
       if (error) throw error;
 
-      // Trim messages to last 10 per conversation — full history is loaded by the poll when a chat is opened
+      // Trim messages to last 8 per conversation snippet — full history is loaded when chat is expanded
       const trimmed = (escalations || []).map(e => {
-        if (e.conversations?.messages?.length > 10) {
-          return { ...e, conversations: { ...e.conversations, messages: e.conversations.messages.slice(-10) } };
+        if (Array.isArray(e.conversations?.messages) && e.conversations.messages.length > 8) {
+          return { ...e, conversations: { ...e.conversations, messages: e.conversations.messages.slice(-8) } };
         }
         return e;
       });
