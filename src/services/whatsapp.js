@@ -22,7 +22,7 @@ export function resolveWhatsAppPhoneNumberId(options, maybeBotType) {
       return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU_EXISTING || '1220287537833494';
     }
     if (slug === 'abu' || slug === 'abu_aspiring') {
-      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1244786642062141';
     }
     // If passed a numeric string directly
     if (/^\d+$/.test(slug)) return slug;
@@ -43,7 +43,7 @@ export function resolveWhatsAppPhoneNumberId(options, maybeBotType) {
       if (botType === 'existing') {
         return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU_EXISTING || '1220287537833494';
       }
-      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1308107395712291';
+      return process.env.WHATSAPP_PHONE_NUMBER_ID_ABU || '1244786642062141';
     }
   }
 
