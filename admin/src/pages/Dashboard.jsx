@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar.jsx';
 import StatsCard from '../components/StatsCard.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
+import { formatDurationMs } from '../utils/time.jsx';
 
 const schoolDisplayName = (slug, schools = []) => {
   if (!slug || slug === 'all') return 'All Schools';
@@ -231,12 +232,8 @@ export default function Dashboard() {
                               <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">{a.resolved}</span>
                             </td>
                             <td className="py-2 pr-4">
-                              <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                                {a.avgResponseMs != null
-                                  ? a.avgResponseMs < 60000
-                                    ? `${Math.round(a.avgResponseMs / 1000)}s`
-                                    : `${Math.round(a.avgResponseMs / 60000)}m`
-                                  : '—'}
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-medium">
+                                {a.avgResponseMs != null ? formatDurationMs(a.avgResponseMs, { short: true }) : '—'}
                               </span>
                             </td>
                             <td className="py-2">
@@ -365,9 +362,7 @@ export default function Dashboard() {
                           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">⏱️ Avg Response Time</div>
                           <div className="text-4xl font-extrabold text-purple-600 mt-2">
                             {stats?.agentStats?.avgResponseMs != null
-                              ? stats.agentStats.avgResponseMs < 60000
-                                ? `${Math.round(stats.agentStats.avgResponseMs / 1000)}s`
-                                : `${Math.round(stats.agentStats.avgResponseMs / 60000)}m`
+                              ? formatDurationMs(stats.agentStats.avgResponseMs, { short: false })
                               : '—'}
                           </div>
                           <p className="text-xs text-gray-400 mt-2">Average time from escalation assignment to first agent reply.</p>

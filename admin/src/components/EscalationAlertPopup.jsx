@@ -1,17 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEscalation } from '../context/EscalationContext.jsx';
-
-function formatRelativeTime(ts) {
-  if (!ts) return 'Just now';
-  const diffSec = Math.max(0, Math.floor((Date.now() - Number(ts)) / 1000));
-  if (diffSec < 45) return 'Just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${Math.floor(diffHours / 24)}d ago`;
-}
+import { formatRelativeTime } from '../utils/time.jsx';
 
 export default function EscalationAlertPopup() {
   const navigate = useNavigate();

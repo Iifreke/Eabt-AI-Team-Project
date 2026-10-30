@@ -25,7 +25,7 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', escalationId)
-      .select('id, conversation_id, school_id, lead_id')
+      .select('id, conversation_id, school_id, lead_id, attended_by')
       .maybeSingle();
 
     if (escErr) throw escErr;
@@ -39,10 +39,12 @@ export default async function handler(req, res) {
         .maybeSingle();
 
       if (conv) {
+        const agentName = resolvedBy || escalation?.attended_by || user?.name || user?.email || 'Support Agent';
         const messages = Array.isArray(conv.messages) ? conv.messages : [];
         messages.push({
           role: '__notification',
-          content: 'The support agent has ended this session. You can continue asking questions and our AI assistant will help you.',
+          adminName: agentName,
+          content: `${agentName} has ended this session. You can continue asking questions and our AI assistant will help you.`,
           ts: Date.now(),
         });
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { api } from '../lib/api.js';
 import { useUser } from '../context/UserContext.jsx';
 import { supabase } from '../lib/supabase.js';
+import { formatElapsedTime } from '../utils/time.jsx';
 
 const SLUG_DISPLAY = {
   backock: 'Babcock University',
@@ -323,6 +324,32 @@ export default function ConversationViewer({
     };
   }, [conversationId, fetchConv, onUpdate]);
 
+  // Auto-assign human agent to this chat if unassigned, and automatically dismiss unassigned popups
+  useEffect(() => {
+    if (!esc?.id || !profile?.full_name) return;
+    const isUnassigned = !esc.attended_by || esc.status === 'pending';
+    if (isUnassigned && esc.status !== 'resolved' && esc.status !== 'closed') {
+      const agentName = profile.full_name;
+      api.updateEscalation({
+        id: esc.id,
+        status: 'in_progress',
+        attended_by: agentName,
+      }).then(() => {
+        setConv(prev => ({
+          ...prev,
+          escalation: {
+            ...(prev?.escalation || {}),
+            status: 'in_progress',
+            attended_by: agentName,
+          }
+        }));
+        onUpdate?.();
+      }).catch(err => {
+        console.warn('Auto-assign human agent failed:', err.message);
+      });
+    }
+  }, [esc?.id, esc?.attended_by, esc?.status, profile?.full_name, onUpdate]);
+
   // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -531,17 +558,27 @@ export default function ConversationViewer({
 
   const handleEndChat = async () => {
     if (!esc?.id) return;
-    if (!window.confirm('Are you sure you want to end and resolve this chat?')) return;
+    const agentName = profile?.full_name || esc?.attended_by || 'Support Agent';
+    if (!window.confirm(`Are you sure you want to end and resolve this chat as ${agentName}?`)) return;
     setActionLoading(true);
     try {
-      await api.endChat(esc.id, profile?.full_name || null);
+      await api.endChat(esc.id, agentName);
       setConv(prev => ({
         ...prev,
         escalation: {
           ...(prev?.escalation || {}),
           status: 'resolved',
-          resolved_by: profile?.full_name || 'Admin',
-        }
+          resolved_by: agentName,
+        },
+        messages: [
+          ...(prev?.messages || []),
+          {
+            role: '__notification',
+            adminName: agentName,
+            content: `${agentName} has ended this session. You can continue asking questions and our AI assistant will help you.`,
+            ts: Date.now(),
+          }
+        ]
       }));
       fetchConv();
       onUpdate?.();
@@ -589,12 +626,25 @@ export default function ConversationViewer({
   const waUrl = formatWhatsAppLink(phone);
   const isWAConv = conv?.channel?.toLowerCase() === 'whatsapp' || conv?.session_id?.startsWith('wa_') || !!conv?.whatsapp_phone;
 
-  // SLA calculation
-  const slaElapsedMinutes = useMemo(() => {
-    const createdTs = esc?.created_at || conv?.created_at;
-    if (!createdTs) return null;
-    return Math.max(0, Math.floor((Date.now() - new Date(createdTs).getTime()) / 60000));
-  }, [esc?.created_at, conv?.created_at]);
+  // SLA elapsed timer calculation with live 15s refresh
+  const slaCreatedTs = esc?.created_at || conv?.created_at;
+  const [slaTick, setSlaTick] = useState(0);
+
+  useEffect(() => {
+    if (!slaCreatedTs || esc?.status === 'resolved') return;
+    const interval = setInterval(() => setSlaTick(t => t + 1), 15000);
+    return () => clearInterval(interval);
+  }, [slaCreatedTs, esc?.status]);
+
+  const slaElapsedText = useMemo(() => {
+    if (!slaCreatedTs) return null;
+    return formatElapsedTime(slaCreatedTs, Date.now(), { short: false });
+  }, [slaCreatedTs, slaTick]);
+
+  const slaBadgeText = useMemo(() => {
+    if (!slaCreatedTs) return null;
+    return formatElapsedTime(slaCreatedTs, Date.now(), { short: true });
+  }, [slaCreatedTs, slaTick]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
@@ -764,13 +814,13 @@ export default function ConversationViewer({
           {/* ── Left / Main Chat Section (WhatsApp Wallpaper) ── */}
           <div className="flex-1 flex flex-col overflow-hidden relative">
 
-            {/* Top Unassigned Chat Accept Banner */}
-            {(!esc?.attended_by || esc?.status === 'pending') && esc?.status !== 'resolved' && (
+            {/* Top Unassigned Chat Accept Banner (hidden if auto-assigned or ended) */}
+            {(!esc?.attended_by || esc?.status === 'pending') && esc?.status !== 'resolved' && !profile?.full_name && (
               <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-4 py-2.5 flex items-center justify-between text-xs font-semibold shadow-md shrink-0 border-b border-amber-600 animate-in slide-in-from-top-2">
                 <div className="flex items-center gap-2">
                   <span className="text-base animate-bounce">✋</span>
                   <span>
-                    <strong>Unassigned Chat:</strong> Please accept to attend and assign yourself ({profile?.full_name || 'Agent'}) before attending to this student.
+                    <strong>Unassigned Chat:</strong> Please accept to attend and assign yourself before attending to this student.
                   </span>
                 </div>
                 <button
@@ -802,9 +852,9 @@ export default function ConversationViewer({
                   <div className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-3.5 py-1 rounded-full border border-rose-200 shadow-sm flex items-center gap-2">
                     <span>🚨</span>
                     <span>Reason: {esc.reason.replace('_', ' ')}</span>
-                    {slaElapsedMinutes !== null && (
+                    {slaBadgeText && esc?.status !== 'resolved' && (
                       <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded font-mono text-[10px]">
-                        {slaElapsedMinutes}m SLA
+                        {slaBadgeText} SLA
                       </span>
                     )}
                   </div>
@@ -833,6 +883,45 @@ export default function ConversationViewer({
                     const isUser = msg.role === 'user';
                     const isAdmin = msg.role === 'admin' || msg.role === 'agent';
                     const isBot = msg.role === 'bot' || msg.role === 'assistant';
+                    const isNotification = msg.role === '__notification' || msg.role === 'system' || (typeof msg.content === 'string' && msg.content.toLowerCase().includes('ended this session'));
+
+                    // Notification & End-Chat session message
+                    if (isNotification) {
+                      const endingAgent = msg.adminName || esc?.resolved_by || esc?.attended_by || profile?.full_name || 'Support Agent';
+                      const displayContent = typeof msg.content === 'string'
+                        ? msg.content.replace(/The support agent has ended this session/i, `${endingAgent} has ended this session`)
+                        : msg.content;
+
+                      return (
+                        <React.Fragment key={i}>
+                          {showDateSeparator && (
+                            <div className="flex justify-center my-3 select-none">
+                              <span className="bg-white/90 text-gray-600 text-[11px] font-semibold px-3 py-1 rounded-lg shadow-sm border border-gray-200/60 uppercase tracking-wide">
+                                {msgDateStr}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-center my-3 select-none">
+                            <div className="bg-[#fff3cd] text-[#664d03] text-xs px-4 py-2.5 rounded-2xl shadow-sm border border-[#ffe69c] max-w-md text-center flex flex-col items-center justify-center gap-1 font-medium">
+                              <div className="flex items-center gap-1.5 font-bold text-[#5c4300]">
+                                <span>✅</span>
+                                <span>{endingAgent} has ended this session</span>
+                              </div>
+                              <div className="text-[11px] text-[#735a0a] leading-snug">
+                                {typeof displayContent === 'string' && displayContent.includes('continue asking')
+                                  ? 'You can continue asking questions and our AI assistant will help you.'
+                                  : displayContent}
+                              </div>
+                              {msg.ts && (
+                                <span className="text-[9px] text-[#856404] font-mono mt-0.5 opacity-80">
+                                  {formatTime(msg.ts)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    }
 
                     return (
                       <React.Fragment key={i}>
@@ -867,7 +956,7 @@ export default function ConversationViewer({
                                 <span>Bot Assistant</span>
                               </div>
                             )}
-                            {!isAdmin && !isBot && (
+                            {!isAdmin && !isBot && !isNotification && (
                               <div className="text-[11px] font-bold text-emerald-700 mb-0.5">
                                 {lead?.name || 'Student'}
                               </div>
@@ -1323,11 +1412,11 @@ export default function ConversationViewer({
                   </span>
                 </div>
 
-                {slaElapsedMinutes !== null && (
+                {slaElapsedText && esc?.status !== 'resolved' && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">SLA Timer:</span>
-                    <span className="font-mono font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 animate-pulse">
-                      🚨 {slaElapsedMinutes}m elapsed
+                    <span className="font-mono font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 animate-pulse text-xs">
+                      🚨 {slaElapsedText} elapsed
                     </span>
                   </div>
                 )}

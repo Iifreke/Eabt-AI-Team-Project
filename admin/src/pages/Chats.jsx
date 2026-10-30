@@ -7,6 +7,7 @@ import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
 import { supabase } from '../lib/supabase.js';
+import { renderSlaBadge as getSlaBadge, formatRelativeTime, formatChatActivityTime, formatElapsedTime } from '../utils/time.jsx';
 
 const STATUSES = ['all', 'needs_reply', 'in_progress', 'resolved'];
 
@@ -31,17 +32,6 @@ const STATUS_LABEL = {
   resolved: 'Ended',
 };
 
-function formatChatActivityTime(ts) {
-  if (!ts) return '—';
-  const date = new Date(ts);
-  const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-  if (isToday) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-  return date.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: 'numeric' });
-}
-
 const reasonLabel = {
   user_request: 'Visitor requested human',
   failed_attempts: 'Bot failed 3 times',
@@ -53,43 +43,6 @@ function formatWhatsAppLink(phone) {
   const digits = String(phone).replace(/[^\d]/g, '');
   if (!digits) return null;
   return `https://wa.me/${digits}`;
-}
-
-function getSlaBadge(createdAt, status) {
-  if (status === 'resolved' || !createdAt) return null;
-  const created = new Date(createdAt).getTime();
-  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
-
-  if (elapsedMinutes < 3) {
-    return (
-      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-        ⏱️ {elapsedMinutes}m
-      </span>
-    );
-  }
-  if (elapsedMinutes < 10) {
-    return (
-      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
-        ⏱️ {elapsedMinutes}m
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
-      🚨 {elapsedMinutes}m SLA
-    </span>
-  );
-}
-
-function formatRelativeTime(ts) {
-  if (!ts) return '';
-  const diffSec = Math.max(0, Math.floor((Date.now() - Number(ts)) / 1000));
-  if (diffSec < 45) return 'Just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${Math.floor(diffHours / 24)}d ago`;
 }
 
 // ── Shortcuts autocomplete ───────────────────────────────────────
@@ -457,11 +410,31 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
     }
   }, [defaultExpanded, esc.id, esc.conversation_id, onMarkViewed]);
 
-  const handleRowClick = (e) => {
+  const handleRowClick = async (e) => {
     if (e?.target?.closest('a') || e?.target?.closest('button') || e?.target?.closest('input') || e?.target?.closest('textarea')) return;
     onMarkViewed?.(esc.id, esc.conversation_id);
+
+    let chatToOpen = esc;
+    if ((!esc.attended_by || esc.status === 'pending') && esc.status !== 'resolved' && profile?.full_name) {
+      try {
+        await api.updateEscalation({
+          id: esc.id,
+          status: 'in_progress',
+          attended_by: profile.full_name,
+        });
+        chatToOpen = {
+          ...esc,
+          status: 'in_progress',
+          attended_by: profile.full_name,
+        };
+        onUpdate?.();
+      } catch (err) {
+        console.warn('Auto-assign failed:', err.message);
+      }
+    }
+
     if (onOpenModal) {
-      onOpenModal(esc);
+      onOpenModal(chatToOpen);
     } else {
       setExpanded(prev => !prev);
     }

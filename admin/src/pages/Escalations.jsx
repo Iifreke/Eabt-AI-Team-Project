@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
+import { renderSlaBadge as getSlaBadge } from '../utils/time.jsx';
 
 const STATUSES = ['all', 'pending', 'in_progress', 'resolved'];
 
@@ -24,32 +25,6 @@ const reasonLabel = {
   failed_attempts: 'Bot failed 3 times',
   sensitive_topic: 'Sensitive topic',
 };
-
-function getSlaBadge(createdAt, status) {
-  if (status === 'resolved' || !createdAt) return null;
-  const created = new Date(createdAt).getTime();
-  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
-
-  if (elapsedMinutes < 3) {
-    return (
-      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-        ⏱️ {elapsedMinutes}m
-      </span>
-    );
-  }
-  if (elapsedMinutes < 10) {
-    return (
-      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
-        ⏱️ {elapsedMinutes}m
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
-      🚨 {elapsedMinutes}m SLA
-    </span>
-  );
-}
 
 function playNotificationSound() {
   try {
