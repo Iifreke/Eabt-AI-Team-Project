@@ -801,11 +801,14 @@ export default function Chats() {
   const [loadError, setLoadError] = useState('');
   const [bulkEnding, setBulkEnding] = useState(false);
   const prevPendingRef = useRef(null);
+  const isFetchingRef = useRef(false);
 
   const fetchEscalations = useCallback(async (isBackground = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     if (!isBackground) setLoading(true);
     try {
-      setLoadError('');
       const params = { limit: 250 };
       // If focusing on a specific chat, fetch across all schools/statuses to ensure it's found
       if (!targetChatId && selectedSchool !== 'all') {
@@ -841,12 +844,17 @@ export default function Chats() {
       }
 
       setEscalations(list);
+      setLoadError('');
     } catch (err) {
       console.error('fetchEscalations error:', err);
-      if (!isBackground) {
-        setLoadError(err.message || 'Failed to load chats. Please check your connection and retry.');
-      }
+      setEscalations(prev => {
+        if (!prev || prev.length === 0) {
+          setLoadError(err.message || 'Failed to load chats. Please check your connection or refresh your session.');
+        }
+        return prev;
+      });
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
   }, [selectedSchool, targetChatId]);
@@ -875,8 +883,8 @@ export default function Chats() {
 
   useEffect(() => {
     fetchEscalations();
-    // Fast polling fallback to eliminate delays
-    const interval = setInterval(() => fetchEscalations(true), 2500);
+    // 5-second polling fallback alongside realtime events
+    const interval = setInterval(() => fetchEscalations(true), 5000);
 
     // Instant zero-delay Supabase Realtime listeners for escalations and conversations
     const channel = supabase
@@ -1149,17 +1157,28 @@ export default function Chats() {
               Loading chats...
             </div>
           ) : loadError ? (
-            <div className="p-5 flex items-center justify-between text-rose-700 bg-rose-50 text-sm">
+            <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-700 bg-rose-50 border border-rose-200 text-sm">
               <div className="flex items-center gap-2">
-                <span>⚠️</span>
+                <span className="text-lg">⚠️</span>
                 <span>{loadError}</span>
               </div>
-              <button
-                onClick={() => fetchEscalations()}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors"
-              >
-                Retry
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => fetchEscalations()}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                >
+                  Retry Loading
+                </button>
+                <button
+                  onClick={() => {
+                    supabase.auth.signOut().catch(() => {});
+                    window.location.href = '/login?expired=1';
+                  }}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                >
+                  Log In Again
+                </button>
+              </div>
             </div>
           ) : !displayed.length ? (
             <div className="p-8 text-center text-gray-400 text-sm space-y-1">

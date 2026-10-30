@@ -15,6 +15,9 @@ async function authFetch(path, options = {}) {
 
   if (!token) {
     console.warn('authFetch: no session token', { path, sessionErr });
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login?expired=1';
+    }
     throw new Error('Not authenticated — please refresh or log in again');
   }
 
@@ -52,6 +55,13 @@ async function authFetch(path, options = {}) {
           if (retryRes.ok) return retryRes.json();
         }
       } catch (_) {}
+
+      // If refresh failed or still 401, clear stale session and redirect to login
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        console.warn('Session expired (401). Redirecting to login...');
+        supabase.auth.signOut().catch(() => {});
+        window.location.href = '/login?expired=1';
+      }
     }
 
     const err = await res.json().catch(() => ({ error: res.statusText }));

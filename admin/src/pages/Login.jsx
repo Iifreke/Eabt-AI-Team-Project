@@ -6,7 +6,12 @@ export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('expired=1')) {
+      return 'Your session has expired. Please sign in again to access chats.';
+    }
+    return '';
+  });
   const [loading, setLoading] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');

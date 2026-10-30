@@ -86,7 +86,7 @@ export default async function handler(req, res) {
           .maybeSingle();
 
         if (conv) {
-          const agentName = resolvedBy || escalation?.attended_by || user?.name || user?.email || 'Support Agent';
+          const agentName = resolved_by || req.body?.resolvedBy || escalation?.attended_by || user?.name || user?.email || 'Support Agent';
           const messages = Array.isArray(conv.messages) ? conv.messages : [];
           const closingText = `${agentName} has ended this session. You can continue asking questions and our AI assistant will help you.`;
 
