@@ -30,10 +30,10 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
-    const { conversationId, message } = req.body;
+    const { conversationId, message, attachments } = req.body;
 
-    if (!conversationId || !message?.trim()) {
-      return res.status(400).json({ error: 'conversationId and message are required' });
+    if (!conversationId || (!message?.trim() && (!Array.isArray(attachments) || attachments.length === 0))) {
+      return res.status(400).json({ error: 'conversationId and message or attachments are required' });
     }
 
     // Load conversation, profile, and escalation in parallel
@@ -73,12 +73,16 @@ export default async function handler(req, res) {
 
     // Append admin message (also clears any typing indicator)
     const messages = (Array.isArray(conv.messages) ? conv.messages : []).filter(m => m.role !== '__typing__');
-    messages.push({
+    const adminMsg = {
       role: 'admin',
-      content: message.trim(),
+      content: (message || '').trim(),
       ts: Date.now(),
       adminName,
-    });
+    };
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      adminMsg.attachments = attachments;
+    }
+    messages.push(adminMsg);
 
     const convUpdates = {
       messages,

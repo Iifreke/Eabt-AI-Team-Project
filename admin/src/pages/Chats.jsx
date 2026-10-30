@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from '
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import Sidebar from '../components/Sidebar.jsx';
+import ConversationViewer from '../components/ConversationViewer.jsx';
 import { useSchool } from '../context/SchoolContext.jsx';
 import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
@@ -430,7 +431,7 @@ function TagsEditor({ tags = [], onSave }) {
 }
 
 // ── Chat Row ─────────────────────────────────────────────────────
-function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed, onMarkResponded }) {
+function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed, onMarkResponded, onOpenModal }) {
   const { profile } = useUser();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [notes, setNotes] = useState(esc.staff_notes || '');
@@ -444,14 +445,14 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
     }
   }, [defaultExpanded, esc.id, esc.conversation_id, onMarkViewed]);
 
-  const handleRowClick = () => {
-    setExpanded(e => {
-      const next = !e;
-      if (next && onMarkViewed) {
-        onMarkViewed(esc.id, esc.conversation_id);
-      }
-      return next;
-    });
+  const handleRowClick = (e) => {
+    if (e?.target?.closest('a') || e?.target?.closest('button') || e?.target?.closest('input') || e?.target?.closest('textarea')) return;
+    onMarkViewed?.(esc.id, esc.conversation_id);
+    if (onOpenModal) {
+      onOpenModal(esc);
+    } else {
+      setExpanded(prev => !prev);
+    }
   };
 
   const update = async (patch) => {
@@ -580,11 +581,25 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
         <td className="px-5 py-3 text-gray-400 text-xs">
           {esc.created_at ? new Date(esc.created_at).toLocaleDateString() : '—'}
         </td>
+        <td className="px-5 py-3 text-right">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkViewed?.(esc.id, esc.conversation_id);
+              onOpenModal?.(esc);
+            }}
+            className="px-3 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white rounded-lg text-xs font-bold shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-95"
+          >
+            <span>💬</span>
+            <span>Reply</span>
+          </button>
+        </td>
       </tr>
 
       {expanded && (
         <tr className="bg-gray-50">
-          <td colSpan={7} className="px-5 py-4">
+          <td colSpan={8} className="px-5 py-4">
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Student Details</div>
@@ -712,6 +727,7 @@ export default function Chats() {
   const targetChatId = routeChatId || searchParams.get('id') || searchParams.get('chatId') || searchParams.get('escalationId') || searchParams.get('sessionId') || searchParams.get('leadId');
 
   const [escalations, setEscalations] = useState([]);
+  const [selectedChat, setSelectedChat] = useState(null);
   const [status, setStatus] = useState('all');
   const [tagFilter, setTagFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -821,10 +837,11 @@ export default function Chats() {
       )
     : null;
 
-  // Auto-mark target chat as viewed when navigated directly
+  // Auto-mark target chat as viewed and open modal when navigated directly
   useEffect(() => {
     if (targetEsc) {
       markChatAsViewed(targetEsc.id, targetEsc.conversation_id);
+      setSelectedChat(targetEsc);
     }
   }, [targetEsc, markChatAsViewed]);
 
@@ -877,6 +894,10 @@ export default function Chats() {
       return (b.info.userTs || 0) - (a.info.userTs || 0);
     });
   }, [filtered, targetEsc]);
+
+  const selectedIndex = selectedChat ? displayed.findIndex(d => d.esc.id === selectedChat.id || d.esc.conversation_id === selectedChat.conversation_id) : -1;
+  const prevChat = selectedIndex > 0 ? displayed[selectedIndex - 1].esc : null;
+  const nextChat = selectedIndex >= 0 && selectedIndex < displayed.length - 1 ? displayed[selectedIndex + 1].esc : null;
 
   return (
     <div className="ml-60 min-h-screen p-8">
@@ -990,6 +1011,7 @@ export default function Chats() {
                   <th className="px-5 py-3 font-medium">Tags</th>
                   <th className="px-5 py-3 font-medium">Agent</th>
                   <th className="px-5 py-3 font-medium">Date</th>
+                  <th className="px-5 py-3 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -1001,7 +1023,8 @@ export default function Chats() {
                     onUpdate={handleUpdate}
                     onMarkViewed={markChatAsViewed}
                     onMarkResponded={markChatAsResponded}
-                    defaultExpanded={Boolean(targetEsc)}
+                    defaultExpanded={false}
+                    onOpenModal={(chat) => setSelectedChat(chat)}
                   />
                 ))}
               </tbody>
@@ -1009,6 +1032,28 @@ export default function Chats() {
           )}
         </div>
       </div>
+
+      {/* WhatsApp-Style Conversation Details Modal */}
+      {selectedChat && (
+        <ConversationViewer
+          conversationId={selectedChat.conversation_id || selectedChat.conversations?.id || selectedChat.id}
+          initialConv={selectedChat.conversations ? {
+            ...selectedChat.conversations,
+            leads: selectedChat.leads,
+            schools: selectedChat.schools,
+            escalation: selectedChat,
+          } : selectedChat}
+          escalation={selectedChat}
+          onClose={() => {
+            setSelectedChat(null);
+            if (routeChatId) navigate('/chats');
+            else setSearchParams({});
+          }}
+          onUpdate={handleUpdate}
+          onNext={nextChat ? () => setSelectedChat(nextChat) : null}
+          onPrev={prevChat ? () => setSelectedChat(prevChat) : null}
+        />
+      )}
     </div>
   );
 }

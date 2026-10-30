@@ -351,6 +351,7 @@ export default function Conversations() {
           conversationId={viewingId}
           initialConv={viewingConv}
           onClose={() => { setViewingId(null); setViewingConv(null); }}
+          onUpdate={fetchConversations}
         />
       )}
     </div>

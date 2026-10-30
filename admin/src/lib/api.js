@@ -110,8 +110,8 @@ export const api = {
   joinChat: (escalationId, agentName) =>
     authFetch('/api/admin/join-chat', { method: 'POST', body: JSON.stringify({ escalationId, agentName }) }),
 
-  replyToConversation: (conversationId, message) =>
-    authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
+  replyToConversation: (conversationId, message, attachments) =>
+    authFetch('/api/admin/reply', { method: 'POST', body: JSON.stringify({ conversationId, message, attachments }) }),
 
   setTyping: (conversationId, typing) =>
     authFetch('/api/admin/reply', { method: 'PATCH', body: JSON.stringify({ conversationId, typing }) }).catch(() => {}),
