@@ -8,27 +8,39 @@ import { useUser } from '../context/UserContext.jsx';
 import { useEscalation } from '../context/EscalationContext.jsx';
 import { supabase } from '../lib/supabase.js';
 
-const STATUSES = ['all', 'needs_reply', 'pending', 'in_progress', 'resolved'];
+const STATUSES = ['all', 'needs_reply', 'in_progress', 'resolved'];
 
 const SLUG_DISPLAY = { backock: 'BABCOCK', babcock: 'BABCOCK', abu: 'ABU' };
 const schoolBadge = (slug) => SLUG_DISPLAY[slug] || (slug?.toUpperCase() ?? '—');
 
 const statusBadge = (status) => {
   const map = {
-    pending: 'bg-red-100 text-red-700',
-    in_progress: 'bg-amber-100 text-amber-700',
-    resolved: 'bg-green-100 text-green-700',
+    needs_reply: 'bg-rose-100 text-rose-700 border border-rose-200',
+    pending: 'bg-rose-100 text-rose-700 border border-rose-200',
+    in_progress: 'bg-amber-100 text-amber-800 border border-amber-200',
+    resolved: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    closed: 'bg-gray-100 text-gray-700 border border-gray-200',
   };
-  return `px-2 py-0.5 rounded-full text-xs font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`;
+  return `px-2 py-0.5 rounded-full text-xs font-bold ${map[status] || 'bg-gray-100 text-gray-600'}`;
 };
 
 const STATUS_LABEL = {
   all: 'All',
   needs_reply: 'Needs Reply',
-  pending: 'Pending',
   in_progress: 'In Progress',
   resolved: 'Ended',
 };
+
+function formatChatActivityTime(ts) {
+  if (!ts) return '—';
+  const date = new Date(ts);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: 'numeric' });
+}
 
 const reasonLabel = {
   user_request: 'Visitor requested human',
@@ -497,13 +509,67 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
   const isSuperAdmin = profile?.role === 'super_admin';
   const canJoin = esc.status === 'in_progress' && esc.attended_by && !isMeAttending && !isMeCoAgent;
 
-  const agentCell = () => {
-    if (esc.status === 'in_progress' && esc.attended_by) {
-      const extras = coAgents.length > 0 ? ` +${coAgents.length}` : '';
-      return `🟡 ${esc.attended_by}${extras}`;
+  const msgs = Array.isArray(esc.conversations?.messages) ? esc.conversations.messages : [];
+  const lastMsgTs = msgs.length > 0 ? (msgs[msgs.length - 1].ts || 0) : 0;
+  const convUpdatedTs = esc.conversations?.updated_at ? new Date(esc.conversations.updated_at).getTime() : 0;
+  const escUpdatedTs = esc.updated_at ? new Date(esc.updated_at).getTime() : 0;
+  const escCreatedTs = esc.created_at ? new Date(esc.created_at).getTime() : 0;
+  const lastChatTs = Math.max(lastMsgTs, convUpdatedTs, escUpdatedTs, escCreatedTs, msgInfo?.userTs || 0);
+
+  const isEnded = esc.status === 'resolved' || esc.status === 'closed';
+  const isInProgress = esc.status === 'in_progress' && Boolean(esc.attended_by) && !isEnded;
+  const isNeedsReply = !isEnded && (!esc.attended_by || esc.status === 'pending' || msgInfo?.needsResponse);
+
+  const displayStatus = isEnded ? 'resolved' : isInProgress ? 'in_progress' : 'needs_reply';
+  const displayStatusLabel = isEnded ? 'Ended' : isInProgress ? 'In Progress' : 'Needs Reply';
+
+  const handleAcceptAttend = async (e) => {
+    e.stopPropagation();
+    const agentName = profile?.full_name || 'Support Agent';
+    setSaving(true);
+    setActionError('');
+    try {
+      await api.updateEscalation({
+        id: esc.id,
+        status: 'in_progress',
+        attended_by: agentName,
+      });
+      onMarkViewed?.(esc.id, esc.conversation_id);
+      onUpdate?.();
+      onOpenModal?.({
+        ...esc,
+        status: 'in_progress',
+        attended_by: agentName,
+      });
+    } catch (err) {
+      console.error('Accept chat error:', err);
+      setActionError(err.message || 'Failed to accept chat');
+    } finally {
+      setSaving(false);
     }
-    if (esc.status === 'resolved' && esc.resolved_by) return `✅ ${esc.resolved_by}`;
-    return '—';
+  };
+
+  const agentCell = () => {
+    if (isEnded && esc.resolved_by) {
+      return (
+        <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
+          ✅ {esc.resolved_by}
+        </span>
+      );
+    }
+    if (esc.attended_by) {
+      const extras = coAgents.length > 0 ? ` +${coAgents.length}` : '';
+      return (
+        <span className="inline-flex items-center gap-1 font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-xs">
+          🟡 {esc.attended_by}{extras}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-[11px]">
+        Unassigned
+      </span>
+    );
   };
 
   const isWA = esc.conversations?.channel?.toLowerCase() === 'whatsapp' || esc.conversations?.session_id?.startsWith('wa_') || !!esc.conversations?.whatsapp_phone;
@@ -516,7 +582,7 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
         className={`border-b border-gray-100 cursor-pointer transition-colors ${
           msgInfo?.isUnviewed
             ? 'bg-red-50/70 hover:bg-red-50/90 border-l-4 border-l-red-500'
-            : msgInfo?.needsResponse
+            : isNeedsReply
             ? 'bg-amber-50/40 hover:bg-amber-50/70 border-l-4 border-l-amber-400'
             : defaultExpanded
             ? 'bg-blue-50/50 hover:bg-blue-50/70'
@@ -537,9 +603,9 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white shadow-sm animate-pulse">
                 🔴 NEW MESSAGE
               </span>
-            ) : msgInfo?.needsResponse ? (
+            ) : isNeedsReply ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                ⏳ Awaiting Reply
+                ⏳ Needs Reply
               </span>
             ) : null}
           </div>
@@ -566,7 +632,7 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
         <td className="px-5 py-3 text-gray-500 text-xs">{reasonLabel[esc.reason] || esc.reason}</td>
         <td className="px-5 py-3">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={statusBadge(esc.status)}>{STATUS_LABEL[esc.status] || esc.status}</span>
+            <span className={statusBadge(displayStatus)}>{displayStatusLabel}</span>
             {getSlaBadge(esc.created_at, esc.status)}
           </div>
         </td>
@@ -578,22 +644,49 @@ function ChatRow({ esc, onUpdate, defaultExpanded = false, msgInfo, onMarkViewed
           </div>
         </td>
         <td className="px-5 py-3 text-gray-500 text-xs">{agentCell()}</td>
-        <td className="px-5 py-3 text-gray-400 text-xs">
-          {esc.created_at ? new Date(esc.created_at).toLocaleDateString() : '—'}
+        <td className="px-5 py-3 text-xs">
+          <div className="font-semibold text-gray-800">{formatChatActivityTime(lastChatTs)}</div>
+          <div className="text-[10px] text-gray-400">{lastChatTs ? new Date(lastChatTs).toLocaleDateString() : '—'}</div>
         </td>
         <td className="px-5 py-3 text-right">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMarkViewed?.(esc.id, esc.conversation_id);
-              onOpenModal?.(esc);
-            }}
-            className="px-3 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white rounded-lg text-xs font-bold shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-95"
-          >
-            <span>💬</span>
-            <span>Reply</span>
-          </button>
+          {(!esc.attended_by || esc.status === 'pending') ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={handleAcceptAttend}
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-95 animate-pulse"
+              title={`Accept this chat and assign ${profile?.full_name || 'yourself'} to attend`}
+            >
+              <span>✋</span>
+              <span>{saving ? 'Assigning...' : 'Accept & Attend'}</span>
+            </button>
+          ) : isInProgress ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkViewed?.(esc.id, esc.conversation_id);
+                onOpenModal?.(esc);
+              }}
+              className="px-3.5 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white rounded-lg text-xs font-bold shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              <span>💬</span>
+              <span>Reply</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkViewed?.(esc.id, esc.conversation_id);
+                onOpenModal?.(esc);
+              }}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold shadow-sm inline-flex items-center gap-1 transition-all"
+            >
+              <span>👁️</span>
+              <span>View</span>
+            </button>
+          )}
         </td>
       </tr>
 
@@ -729,6 +822,7 @@ export default function Chats() {
   const [escalations, setEscalations] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [status, setStatus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -739,15 +833,10 @@ export default function Chats() {
     if (!isBackground) setLoading(true);
     try {
       setLoadError('');
-      const params = {};
+      const params = { limit: 250 };
       // If focusing on a specific chat, fetch across all schools/statuses to ensure it's found
-      if (!targetChatId) {
-        if (selectedSchool !== 'all') params.schoolId = selectedSchool;
-        if (status === 'needs_reply') {
-          params.status = 'active';
-        } else if (status !== 'all') {
-          params.status = status;
-        }
+      if (!targetChatId && selectedSchool !== 'all') {
+        params.schoolId = selectedSchool;
       }
       const data = await api.escalations(params);
       let list = data.escalations || [];
@@ -787,7 +876,7 @@ export default function Chats() {
     } finally {
       setLoading(false);
     }
-  }, [status, selectedSchool, targetChatId]);
+  }, [selectedSchool, targetChatId]);
 
   // Combined update: refresh both the list and the sidebar badge immediately
   const handleUpdate = useCallback(() => {
@@ -813,9 +902,27 @@ export default function Chats() {
 
   useEffect(() => {
     fetchEscalations();
-    const interval = setInterval(() => fetchEscalations(true), 8000);
-    return () => clearInterval(interval);
-  }, [fetchEscalations]);
+    // Fast polling fallback to eliminate delays
+    const interval = setInterval(() => fetchEscalations(true), 2500);
+
+    // Instant zero-delay Supabase Realtime listeners for escalations and conversations
+    const channel = supabase
+      .channel('admin_chats_realtime_feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalations' }, () => {
+        fetchEscalations(true);
+        refreshBadgeCount();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        fetchEscalations(true);
+        refreshBadgeCount();
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchEscalations, refreshBadgeCount]);
 
   useEffect(() => {
     if (prevPendingRef.current !== null && pendingCount > prevPendingRef.current) {
@@ -846,19 +953,59 @@ export default function Chats() {
   }, [targetEsc, markChatAsViewed]);
 
   const analyzedList = useMemo(() => {
-    return escalations.map(esc => ({
-      esc,
-      info: getEscalationInfo(esc),
-    }));
+    return escalations.map(esc => {
+      const info = getEscalationInfo(esc);
+      const msgs = Array.isArray(esc.conversations?.messages) ? esc.conversations.messages : [];
+      const lastMsgTs = msgs.length > 0 ? (msgs[msgs.length - 1].ts || 0) : 0;
+      const convUpdatedTs = esc.conversations?.updated_at ? new Date(esc.conversations.updated_at).getTime() : 0;
+      const escUpdatedTs = esc.updated_at ? new Date(esc.updated_at).getTime() : 0;
+      const escCreatedTs = esc.created_at ? new Date(esc.created_at).getTime() : 0;
+      const userTs = info?.userTs || 0;
+      const lastChatTs = Math.max(lastMsgTs, convUpdatedTs, escUpdatedTs, escCreatedTs, userTs);
+
+      const isEnded = esc.status === 'resolved' || esc.status === 'closed';
+      const isInProgress = !isEnded && esc.status === 'in_progress' && Boolean(esc.attended_by);
+      const isNeedsReply = !isEnded && (!esc.attended_by || esc.status === 'pending' || info?.needsResponse);
+
+      return {
+        esc,
+        info,
+        lastChatTs,
+        isEnded,
+        isInProgress,
+        isNeedsReply,
+      };
+    });
   }, [escalations, getEscalationInfo]);
+
+  // Tab counts dynamically calculated from current list
+  const tabCounts = useMemo(() => {
+    const counts = { all: analyzedList.length, needs_reply: 0, in_progress: 0, resolved: 0 };
+    analyzedList.forEach(item => {
+      if (item.isNeedsReply) counts.needs_reply++;
+      if (item.isInProgress) counts.in_progress++;
+      if (item.isEnded) counts.resolved++;
+    });
+    return counts;
+  }, [analyzedList]);
 
   const filtered = useMemo(() => {
     if (targetEsc) {
-      const info = getEscalationInfo(targetEsc);
-      return [{ esc: targetEsc, info }];
+      const found = analyzedList.find(a => a.esc.id === targetEsc.id);
+      if (found) return [found];
+      return [{
+        esc: targetEsc,
+        info: getEscalationInfo(targetEsc),
+        lastChatTs: Date.now(),
+        isEnded: targetEsc.status === 'resolved' || targetEsc.status === 'closed',
+        isInProgress: targetEsc.status === 'in_progress' && Boolean(targetEsc.attended_by),
+        isNeedsReply: !targetEsc.attended_by || targetEsc.status === 'pending',
+      }];
     }
 
-    return analyzedList.filter(({ esc, info }) => {
+    const q = searchQuery.trim().toLowerCase();
+
+    return analyzedList.filter(({ esc, info, isNeedsReply, isInProgress, isEnded }) => {
       // School filter
       if (selectedSchool !== 'all') {
         const slug = esc.schools?.slug?.toLowerCase();
@@ -868,30 +1015,54 @@ export default function Chats() {
         }
       }
 
+      // Tab column filter
+      if (status === 'needs_reply' && !isNeedsReply) return false;
+      if (status === 'in_progress' && !isInProgress) return false;
+      if (status === 'resolved' && !isEnded) return false;
+
+      // Student name, phone, email, notes, tags & message search
+      if (q) {
+        const name = (esc.leads?.name || esc.lead?.name || esc.lead_name || '').toLowerCase();
+        const phone = (esc.leads?.phone || esc.leads?.normalized_phone || esc.conversations?.whatsapp_phone || '').toLowerCase();
+        const email = (esc.leads?.email || '').toLowerCase();
+        const notes = (esc.staff_notes || '').toLowerCase();
+        const agent = (esc.attended_by || esc.resolved_by || '').toLowerCase();
+        const tags = (esc.tags || []).join(' ').toLowerCase();
+        const lastMsg = (info?.lastUserContent || '').toLowerCase();
+        const reason = (esc.reason || '').toLowerCase();
+
+        const match =
+          name.includes(q) ||
+          phone.includes(q) ||
+          email.includes(q) ||
+          notes.includes(q) ||
+          agent.includes(q) ||
+          tags.includes(q) ||
+          lastMsg.includes(q) ||
+          reason.includes(q);
+
+        if (!match) return false;
+      }
+
       // Tag filter
       if (tagFilter && !(esc.tags || []).some(t => t.toLowerCase().includes(tagFilter.toLowerCase()))) {
         return false;
       }
 
-      // Tab filter
-      if (status === 'needs_reply') return info.needsResponse;
-      if (status === 'pending') return esc.status === 'pending';
-      if (status === 'in_progress') return esc.status === 'in_progress';
-      if (status === 'resolved') return esc.status === 'resolved' || esc.status === 'closed';
-
-      return true; // 'all'
+      return true;
     });
-  }, [targetEsc, analyzedList, selectedSchool, tagFilter, status, getEscalationInfo]);
+  }, [targetEsc, analyzedList, selectedSchool, status, searchQuery, tagFilter, getEscalationInfo]);
 
-  // Sort so unviewed chats are at top, then unresponded, then most recent userTs
+  // Sort strictly by last chat activity timestamp & date descending (newest chat on top)
   const displayed = useMemo(() => {
     if (targetEsc) return filtered;
     return [...filtered].sort((a, b) => {
+      // Unviewed new incoming messages prioritized at top
       if (a.info.isUnviewed && !b.info.isUnviewed) return -1;
       if (!a.info.isUnviewed && b.info.isUnviewed) return 1;
-      if (a.info.needsResponse && !b.info.needsResponse) return -1;
-      if (!a.info.needsResponse && b.info.needsResponse) return 1;
-      return (b.info.userTs || 0) - (a.info.userTs || 0);
+
+      // Sort by last chat activity timestamp descending
+      return (b.lastChatTs || 0) - (a.lastChatTs || 0);
     });
   }, [filtered, targetEsc]);
 
@@ -933,49 +1104,68 @@ export default function Chats() {
         )}
 
         {!targetEsc && (
-          <div className="flex flex-wrap gap-2 mb-5 items-center">
-            {STATUSES.map(s => (
-              <button
-                key={s}
-                onClick={() => setStatus(s)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize flex items-center gap-1.5 ${
-                  status === s
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <span>{STATUS_LABEL[s] || s}</span>
-                {s === 'needs_reply' && unrespondedCount > 0 && (
-                  <span
-                    className={`text-xs rounded-full px-2 py-0.5 font-bold ${
-                      status === s
-                        ? 'bg-white text-blue-800'
-                        : unviewedCount > 0
-                        ? 'bg-red-500 text-white animate-pulse'
-                        : 'bg-amber-500 text-white'
+          <div className="flex flex-col sm:flex-row gap-3 mb-5 items-stretch sm:items-center justify-between">
+            {/* Column / Status Tabs: All, Needs Reply, In Progress, Ended */}
+            <div className="flex flex-wrap gap-2 items-center">
+              {STATUSES.map(s => {
+                const count = tabCounts[s] || 0;
+                const isSelected = status === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setStatus(s)}
+                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all capitalize flex items-center gap-2 ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600 ring-offset-1'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    {unviewedCount > 0 ? `${unviewedCount} new` : unrespondedCount}
-                  </span>
-                )}
-                {s === 'pending' && pendingCount > 0 && (
-                  <span
-                    className={`text-xs rounded-full px-1.5 py-0.5 font-bold ${
-                      status === s ? 'bg-white text-blue-800' : 'bg-red-500 text-white'
-                    }`}
-                  >
-                    {pendingCount}
-                  </span>
-                )}
-              </button>
-            ))}
+                    <span>{STATUS_LABEL[s] || s}</span>
+                    <span
+                      className={`text-xs rounded-full px-2 py-0.5 font-bold transition-colors ${
+                        isSelected
+                          ? 'bg-white text-blue-800'
+                          : s === 'needs_reply' && count > 0
+                          ? (unviewedCount > 0 ? 'bg-red-500 text-white animate-pulse' : 'bg-amber-500 text-white')
+                          : s === 'in_progress' && count > 0
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {s === 'needs_reply' && unviewedCount > 0 ? `${unviewedCount} new` : count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-            <input
-              value={tagFilter}
-              onChange={e => setTagFilter(e.target.value)}
-              placeholder="Filter by tag..."
-              className="ml-auto text-sm border border-gray-300 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
+            {/* Real-time Search by student name, phone, email, notes */}
+            <div className="flex items-center gap-2 flex-1 max-w-md sm:ml-auto">
+              <div className="relative flex-1">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search student name, phone, email, notes..."
+                  className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600"
+                    title="Clear search"
+                  >
+                    <span className="text-xs bg-gray-200 hover:bg-gray-300 rounded-full w-4 h-4 flex items-center justify-center font-bold">✕</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -999,7 +1189,15 @@ export default function Chats() {
               </button>
             </div>
           ) : !displayed.length ? (
-            <p className="text-gray-400 text-sm p-5">No chats found.</p>
+            <div className="p-8 text-center text-gray-400 text-sm space-y-1">
+              <span className="text-3xl block mb-1">💬</span>
+              <p className="font-semibold text-gray-600">No chats found in this category.</p>
+              {searchQuery && (
+                <p className="text-xs text-gray-400">
+                  No matching results for "<span className="text-gray-700">{searchQuery}</span>". Try clearing your search.
+                </p>
+              )}
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -1010,7 +1208,7 @@ export default function Chats() {
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Tags</th>
                   <th className="px-5 py-3 font-medium">Agent</th>
-                  <th className="px-5 py-3 font-medium">Date</th>
+                  <th className="px-5 py-3 font-medium">Last Chat</th>
                   <th className="px-5 py-3 font-medium text-right">Action</th>
                 </tr>
               </thead>

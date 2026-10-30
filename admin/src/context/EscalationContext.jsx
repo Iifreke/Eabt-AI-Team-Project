@@ -5,7 +5,7 @@ import { playNotificationSound } from '../utils/notificationSound.js';
 
 const EscalationContext = createContext(null);
 const STORAGE_KEY = 'admin_viewed_chats_v1';
-const POLL_INTERVAL_MS = 12000;
+const POLL_INTERVAL_MS = 3500;
 
 function getViewedMap() {
   try {

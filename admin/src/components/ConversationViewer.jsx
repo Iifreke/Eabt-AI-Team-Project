@@ -287,11 +287,41 @@ export default function ConversationViewer({
     fetchConv();
   }, [fetchConv]);
 
-  // Real-time polling every 3.5s for live message updates
+  // Real-time polling fallback every 1.8s for live message updates
   useEffect(() => {
-    pollRef.current = setInterval(fetchConv, 3500);
+    pollRef.current = setInterval(fetchConv, 1800);
     return () => clearInterval(pollRef.current);
   }, [fetchConv]);
+
+  // Instant zero-delay Supabase Realtime subscription for this conversation and its escalation
+  useEffect(() => {
+    if (!conversationId) return;
+    const channel = supabase
+      .channel(`viewer_conv_live_${conversationId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'conversations',
+        filter: `id=eq.${conversationId}`
+      }, () => {
+        fetchConv();
+        onUpdate?.();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'escalations',
+        filter: `conversation_id=eq.${conversationId}`
+      }, () => {
+        fetchConv();
+        onUpdate?.();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId, fetchConv, onUpdate]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -350,8 +380,18 @@ export default function ConversationViewer({
       }
       setTimeout(() => setDeliveryInfo(''), 5000);
 
-      if (esc?.status === 'pending' && profile?.full_name && esc.id) {
-        await api.updateEscalation({ id: esc.id, status: 'in_progress', attended_by: profile.full_name });
+      // Auto-assign attending agent if unassigned or pending
+      if ((!esc?.attended_by || esc?.status === 'pending') && esc?.id) {
+        const agentName = profile?.full_name || 'Support Agent';
+        await api.updateEscalation({ id: esc.id, status: 'in_progress', attended_by: agentName });
+        setConv(prev => ({
+          ...prev,
+          escalation: {
+            ...(prev?.escalation || {}),
+            status: 'in_progress',
+            attended_by: agentName,
+          }
+        }));
       }
 
       fetchConv();
@@ -463,14 +503,23 @@ export default function ConversationViewer({
 
   // Escalation quick actions
   const handleClaimChat = async () => {
-    if (!esc?.id || !profile?.full_name) return;
+    if (!esc?.id) return;
+    const agentName = profile?.full_name || 'Support Agent';
     setActionLoading(true);
     try {
       await api.updateEscalation({
         id: esc.id,
         status: 'in_progress',
-        attended_by: profile.full_name,
+        attended_by: agentName,
       });
+      setConv(prev => ({
+        ...prev,
+        escalation: {
+          ...(prev?.escalation || {}),
+          status: 'in_progress',
+          attended_by: agentName,
+        }
+      }));
       fetchConv();
       onUpdate?.();
     } catch (err) {
@@ -486,6 +535,14 @@ export default function ConversationViewer({
     setActionLoading(true);
     try {
       await api.endChat(esc.id, profile?.full_name || null);
+      setConv(prev => ({
+        ...prev,
+        escalation: {
+          ...(prev?.escalation || {}),
+          status: 'resolved',
+          resolved_by: profile?.full_name || 'Admin',
+        }
+      }));
       fetchConv();
       onUpdate?.();
     } catch (err) {
@@ -706,6 +763,27 @@ export default function ConversationViewer({
           
           {/* ── Left / Main Chat Section (WhatsApp Wallpaper) ── */}
           <div className="flex-1 flex flex-col overflow-hidden relative">
+
+            {/* Top Unassigned Chat Accept Banner */}
+            {(!esc?.attended_by || esc?.status === 'pending') && esc?.status !== 'resolved' && (
+              <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-4 py-2.5 flex items-center justify-between text-xs font-semibold shadow-md shrink-0 border-b border-amber-600 animate-in slide-in-from-top-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base animate-bounce">✋</span>
+                  <span>
+                    <strong>Unassigned Chat:</strong> Please accept to attend and assign yourself ({profile?.full_name || 'Agent'}) before attending to this student.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClaimChat}
+                  disabled={actionLoading}
+                  className="px-4 py-1.5 bg-white text-amber-900 hover:bg-amber-50 font-bold rounded-lg shadow-sm transition-all active:scale-95 text-xs flex items-center gap-1.5 shrink-0"
+                >
+                  <span>✋</span>
+                  <span>{actionLoading ? 'Assigning...' : 'Accept to Attend'}</span>
+                </button>
+              </div>
+            )}
             
             {/* Scrollable Message Feed */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 whatsapp-bg whatsapp-scrollbar space-y-3">
